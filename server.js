@@ -149,7 +149,6 @@ app.post('/api/printers/:id/stop', (req, res) => {
 
 app.post('/api/printers/:id/light', (req, res) => {
   const { on, node } = req.body;
-  // Beide Lichter gleichzeitig schalten
   const nodes = node ? [node] : ['chamber_light', 'work_light'];
   let ok = false;
   nodes.forEach(ledNode => {
@@ -180,36 +179,52 @@ app.post('/api/printers/:id/temperature', (req, res) => {
 });
 
 // ── LÜFTER ────────────────────────────────────
-// Druckkopf-Lüfter (Part Cooling Fan) → M106 P1
-// Auxiliary Fan (Hilfslüfter, großer Seitenlüfter) → M106 P2
-// Kammerlüfter (Chamber Fan) → M106 P3
 app.post('/api/printers/:id/fan', (req, res) => {
   const { percent, type } = req.body;
   const speed = Math.round((percent / 100) * 255);
-
   let gcode;
-  if (type === 'aux') {
-    gcode = `M106 P2 S${speed}`; // Auxiliary/Hilfslüfter
-  } else if (type === 'chamber') {
-    gcode = `M106 P3 S${speed}`; // Kammerlüfter
-  } else {
-    gcode = `M106 P1 S${speed}`; // Standard: Part Cooling Fan (Druckkopf)
-  }
-
+  if (type === 'aux') gcode = `M106 P2 S${speed}`;
+  else if (type === 'chamber') gcode = `M106 P3 S${speed}`;
+  else gcode = `M106 P1 S${speed}`;
   res.json({ ok: sendGcode(req.params.id, gcode) });
 });
 
-// ── HOME & BEWEGUNG ───────────────────────────
+// ── HOME ──────────────────────────────────────
 app.post('/api/printers/:id/home', (req, res) => {
   const { axes } = req.body;
   const gcode = (!axes || axes === 'all') ? 'G28' : `G28 ${axes.toUpperCase()}`;
   res.json({ ok: sendGcode(req.params.id, gcode) });
 });
 
+// ── ACHSEN BEWEGEN (NEU) ──────────────────────
+// body: { axis: 'x'|'y'|'z', distance: number }
+// Positiv = vorwärts/hoch, Negativ = rückwärts/runter
+// XY Vorschub: 3000 mm/min, Z Vorschub: 600 mm/min (langsamer)
+app.post('/api/printers/:id/move', (req, res) => {
+  const { axis, distance } = req.body;
+  if (!axis || distance === undefined) {
+    return res.status(400).json({ error: 'axis und distance sind erforderlich' });
+  }
+  const ax = axis.toUpperCase();
+  if (!['X', 'Y', 'Z'].includes(ax)) {
+    return res.status(400).json({ error: 'axis muss X, Y oder Z sein' });
+  }
+  const dist = parseFloat(distance);
+  if (isNaN(dist) || dist === 0) {
+    return res.status(400).json({ error: 'distance muss eine Zahl ungleich 0 sein' });
+  }
+  const feedrate = ax === 'Z' ? 600 : 3000;
+  // G91 = relativ, bewegen, G90 = absolut zurück
+  const gcode = `G91\nG0 ${ax}${dist > 0 ? '+' : ''}${dist} F${feedrate}\nG90`;
+  res.json({ ok: sendGcode(req.params.id, gcode) });
+});
+
+// ── MOTOREN AUS ───────────────────────────────
 app.post('/api/printers/:id/motors_off', (req, res) => {
   res.json({ ok: sendGcode(req.params.id, 'M84') });
 });
 
+// ── FILAMENT ──────────────────────────────────
 app.post('/api/printers/:id/filament_load', (req, res) => {
   const ok1 = sendGcode(req.params.id, 'M104 S220');
   const ok2 = sendMQTT(req.params.id, {
