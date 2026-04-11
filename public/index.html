@@ -1,0 +1,1213 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BambuPi Manager</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0d0f14;
+  --surface: #13161e;
+  --surface2: #1a1e28;
+  --surface3: #202535;
+  --border: #252c3f;
+  --border2: #2e3854;
+  --accent: #29b6f6;
+  --accent-dark: #0288d1;
+  --green: #66bb6a;
+  --green-dark: #388e3c;
+  --orange: #ffa726;
+  --red: #ef5350;
+  --purple: #ab47bc;
+  --text: #e2e8f4;
+  --text2: #9aa5be;
+  --text3: #5a6785;
+  --mono: 'JetBrains Mono', monospace;
+  --sans: 'Inter', sans-serif;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: var(--sans); background: var(--bg); color: var(--text); min-height: 100vh; display: flex; font-size: 13px; }
+
+/* ── SIDEBAR ── */
+.sidebar {
+  width: 220px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  top: 0; left: 0; bottom: 0;
+  z-index: 200;
+}
+.logo {
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.logo-icon {
+  width: 32px; height: 32px;
+  background: linear-gradient(135deg, var(--accent), var(--purple));
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+}
+.logo-text { line-height: 1.2; }
+.logo-title { font-size: 14px; font-weight: 700; color: var(--text); letter-spacing: -0.3px; }
+.logo-sub { font-size: 10px; color: var(--text3); font-family: var(--mono); }
+
+nav { padding: 8px 0; flex: 1; overflow-y: auto; }
+.nav-section { padding: 12px 18px 4px; font-size: 9px; font-weight: 600; color: var(--text3); letter-spacing: 0.1em; text-transform: uppercase; }
+nav a {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 18px;
+  color: var(--text2); font-size: 13px; font-weight: 500;
+  cursor: pointer; text-decoration: none;
+  border-left: 2px solid transparent;
+  transition: all 0.12s;
+}
+nav a:hover { color: var(--text); background: var(--surface2); }
+nav a.active { color: var(--accent); background: rgba(41,182,246,0.08); border-left-color: var(--accent); }
+nav a svg { width: 15px; height: 15px; flex-shrink: 0; opacity: 0.7; }
+nav a.active svg { opacity: 1; }
+
+.sidebar-footer {
+  padding: 12px 18px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text3);
+  font-family: var(--mono);
+}
+
+/* ── MAIN ── */
+.main { margin-left: 220px; flex: 1; display: flex; flex-direction: column; min-height: 100vh; }
+
+/* TOP BAR */
+.topbar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky; top: 0; z-index: 100;
+}
+.topbar-title { font-size: 15px; font-weight: 600; color: var(--text); }
+.topbar-right { display: flex; align-items: center; gap: 12px; }
+.status-chip {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 10px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  font-size: 11px;
+  font-family: var(--mono);
+  color: var(--text2);
+}
+.status-dot { width: 6px; height: 6px; border-radius: 50%; }
+.dot-green { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.dot-orange { background: var(--orange); box-shadow: 0 0 6px var(--orange); }
+.dot-red { background: var(--red); }
+.dot-gray { background: var(--text3); }
+
+.content { padding: 20px 24px; flex: 1; }
+.page { display: none; }
+.page.active { display: block; }
+
+/* ── STATS ROW ── */
+.stats-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 20px; }
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  display: flex; align-items: center; gap: 12px;
+}
+.stat-icon {
+  width: 36px; height: 36px;
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+.stat-icon.blue { background: rgba(41,182,246,0.12); }
+.stat-icon.green { background: rgba(102,187,106,0.12); }
+.stat-icon.orange { background: rgba(255,167,38,0.12); }
+.stat-icon.purple { background: rgba(171,71,188,0.12); }
+.stat-val { font-size: 20px; font-weight: 700; color: var(--text); font-family: var(--mono); line-height: 1; }
+.stat-lbl { font-size: 11px; color: var(--text3); margin-top: 2px; }
+
+/* ── PRINTER CARD — Mainsail Style ── */
+.printer-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+.pcard-header {
+  padding: 12px 18px;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.pcard-name { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.pcard-meta { font-size: 11px; color: var(--text3); font-family: var(--mono); margin-top: 1px; }
+.badge {
+  padding: 3px 10px; border-radius: 20px;
+  font-size: 10px; font-weight: 600; font-family: var(--mono);
+  display: flex; align-items: center; gap: 5px;
+}
+.badge-printing { background: rgba(102,187,106,0.15); color: var(--green); border: 1px solid rgba(102,187,106,0.3); }
+.badge-ready { background: rgba(41,182,246,0.12); color: var(--accent); border: 1px solid rgba(41,182,246,0.2); }
+.badge-offline { background: rgba(90,100,130,0.15); color: var(--text3); border: 1px solid var(--border); }
+
+/* THREE COLUMN LAYOUT like Mainsail */
+.pcard-body { display: grid; grid-template-columns: 2fr 1fr 1fr; min-height: 0; }
+.pcard-col { border-right: 1px solid var(--border); }
+.pcard-col:last-child { border-right: none; }
+
+/* COL 1: Camera + Progress */
+.camera-wrap { position: relative; background: #000; height: 240px; }
+.camera-wrap iframe { width: 100%; height: 100%; border: none; display: block; }
+.cam-badge {
+  position: absolute; top: 8px; left: 8px;
+  background: rgba(0,0,0,0.7);
+  color: var(--green); font-size: 10px; font-family: var(--mono);
+  padding: 3px 8px; border-radius: 4px;
+  display: flex; align-items: center; gap: 5px;
+}
+.cam-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--green); animation: blink 2s infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+.progress-panel { padding: 14px 16px; border-top: 1px solid var(--border); }
+.progress-top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+.progress-file { font-size: 12px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
+.progress-pct { font-size: 18px; font-weight: 700; color: var(--green); font-family: var(--mono); }
+.pbar { height: 6px; background: var(--surface3); border-radius: 3px; overflow: hidden; margin-bottom: 8px; }
+.pbar-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--accent), var(--green)); transition: width 1s ease; }
+.progress-meta { display: flex; justify-content: space-between; font-size: 11px; color: var(--text3); font-family: var(--mono); }
+
+/* COL 2: Temperatures */
+.temp-panel { padding: 14px; }
+.panel-title { font-size: 10px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; }
+
+.temp-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.temp-card:hover { border-color: var(--accent); }
+.temp-card-label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; }
+.temp-edit { font-size: 10px; color: var(--text3); }
+.temp-row { display: flex; align-items: baseline; gap: 6px; }
+.temp-actual { font-size: 28px; font-weight: 700; font-family: var(--mono); line-height: 1; }
+.temp-actual.hot { color: var(--red); }
+.temp-actual.warm { color: var(--orange); }
+.temp-actual.cool { color: var(--accent); }
+.temp-actual.off { color: var(--text3); }
+.temp-target { font-size: 12px; color: var(--text3); font-family: var(--mono); }
+.temp-bar { height: 3px; background: var(--surface3); border-radius: 2px; margin-top: 8px; overflow: hidden; }
+.temp-bar-fill { height: 100%; border-radius: 2px; transition: width 0.5s; }
+.temp-bar-fill.nozzle { background: linear-gradient(90deg, var(--orange), var(--red)); }
+.temp-bar-fill.bed { background: linear-gradient(90deg, var(--accent), var(--orange)); }
+
+/* COL 3: Controls */
+.ctrl-panel { padding: 14px; overflow-y: auto; }
+
+.ctrl-section { margin-bottom: 14px; }
+.ctrl-section-title { font-size: 10px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+
+/* Print control buttons */
+.print-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.pbtn {
+  border: none; border-radius: 7px; cursor: pointer;
+  font-family: var(--sans); font-weight: 600; font-size: 11px;
+  padding: 8px 6px;
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  transition: all 0.12s;
+}
+.pbtn:hover { filter: brightness(1.15); }
+.pbtn:active { transform: scale(0.97); }
+.pbtn-icon { font-size: 16px; line-height: 1; }
+.pbtn-label { font-size: 9px; opacity: 0.85; }
+.pbtn-pause { background: rgba(255,167,38,0.15); color: var(--orange); border: 1px solid rgba(255,167,38,0.3); }
+.pbtn-resume { background: rgba(102,187,106,0.15); color: var(--green); border: 1px solid rgba(102,187,106,0.3); }
+.pbtn-stop { background: rgba(239,83,80,0.15); color: var(--red); border: 1px solid rgba(239,83,80,0.3); }
+.pbtn-light { background: var(--surface2); color: var(--text2); border: 1px solid var(--border); }
+.pbtn-home { background: rgba(41,182,246,0.12); color: var(--accent); border: 1px solid rgba(41,182,246,0.25); }
+.pbtn-motor { background: var(--surface2); color: var(--text3); border: 1px solid var(--border); }
+.pbtn-load { background: rgba(102,187,106,0.1); color: var(--green); border: 1px solid rgba(102,187,106,0.2); }
+.pbtn-unload { background: rgba(255,167,38,0.1); color: var(--orange); border: 1px solid rgba(255,167,38,0.2); }
+
+/* Home row */
+.home-row { display: flex; gap: 4px; }
+.hbtn {
+  flex: 1; padding: 7px 4px; border-radius: 6px;
+  border: 1px solid rgba(41,182,246,0.25);
+  background: rgba(41,182,246,0.08);
+  color: var(--accent); font-size: 11px; font-weight: 700;
+  cursor: pointer; text-align: center; transition: all 0.12s;
+  font-family: var(--sans);
+}
+.hbtn:hover { background: rgba(41,182,246,0.15); }
+.hbtn.all { font-size: 12px; }
+
+/* Speed */
+.speed-btns { display: flex; gap: 4px; }
+.sbtn {
+  flex: 1; padding: 5px 2px; border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--surface2); color: var(--text3);
+  font-size: 9px; font-weight: 600; cursor: pointer;
+  text-align: center; transition: all 0.12s;
+  font-family: var(--sans);
+}
+.sbtn:hover { border-color: var(--accent); color: var(--accent); }
+.sbtn.active { background: rgba(41,182,246,0.15); color: var(--accent); border-color: var(--accent); }
+
+/* Fan slider */
+.fan-row { margin-bottom: 6px; }
+.fan-row-label { display: flex; justify-content: space-between; font-size: 10px; color: var(--text3); margin-bottom: 4px; font-family: var(--mono); }
+.fan-slider {
+  width: 100%; height: 4px; border-radius: 2px;
+  background: var(--surface3); outline: none;
+  -webkit-appearance: none; cursor: pointer;
+}
+.fan-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px; height: 14px;
+  border-radius: 50%; background: var(--accent);
+  cursor: pointer; border: 2px solid var(--surface);
+}
+
+/* AMS */
+.ams-panel {
+  border-top: 1px solid var(--border);
+  padding: 12px 16px;
+}
+.ams-panel-title { font-size: 10px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+.ams-slots { display: grid; grid-template-columns: repeat(4,1fr); gap: 6px; }
+.ams-slot {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px 4px; text-align: center;
+  cursor: pointer; transition: all 0.12s; position: relative;
+}
+.ams-slot:hover { border-color: var(--text3); }
+.ams-slot.active { border-color: var(--green); background: rgba(102,187,106,0.05); }
+.ams-slot.manual { border-color: var(--accent); border-style: dashed; }
+.ams-slot.empty { opacity: 0.4; }
+.ams-slot.empty:hover { opacity: 0.75; border-color: var(--accent); }
+.ams-dot { width: 22px; height: 22px; border-radius: 50%; margin: 0 auto 5px; border: 2px solid rgba(255,255,255,0.06); }
+.ams-num { font-size: 9px; color: var(--text3); font-family: var(--mono); margin-bottom: 2px; }
+.ams-type { font-size: 9px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ams-brand { font-size: 8px; color: var(--text3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ams-rbar { height: 2px; background: var(--border); border-radius: 1px; margin-top: 4px; overflow: hidden; }
+.ams-rfill { height: 100%; border-radius: 1px; }
+.ams-active-pip { position: absolute; top: 3px; right: 3px; width: 5px; height: 5px; border-radius: 50%; background: var(--green); box-shadow: 0 0 5px var(--green); }
+.ams-mbadge { position: absolute; top: 2px; left: 3px; font-size: 7px; color: var(--accent); font-family: var(--mono); font-weight: 700; }
+.ams-detail {
+  display: none; background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 7px; padding: 10px 12px; margin-top: 8px; font-size: 11px;
+}
+.ams-detail.open { display: block; }
+.ams-drow { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px solid var(--border); }
+.ams-drow:last-child { border: none; }
+.ams-dk { color: var(--text3); }
+.ams-dv { color: var(--text); font-weight: 600; font-family: var(--mono); }
+.ams-dacts { display: flex; gap: 6px; margin-top: 8px; }
+
+/* IDLE STATE */
+.idle-state {
+  padding: 20px 16px; text-align: center;
+  color: var(--text3); font-size: 12px;
+}
+.idle-icon { font-size: 28px; margin-bottom: 8px; }
+
+/* ── GENERIC CARDS ── */
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; margin-bottom: 14px; }
+.card-title { font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 14px; }
+
+/* FILAMENT GRID */
+.fil-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(230px,1fr)); gap: 12px; }
+.fil-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
+.fil-top { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.fil-dot { width: 36px; height: 36px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.07); flex-shrink: 0; }
+.fil-name { font-size: 13px; font-weight: 600; }
+.fil-sub { font-size: 11px; color: var(--text3); }
+.fil-bar { height: 3px; background: var(--border); border-radius: 2px; margin: 8px 0; }
+.fil-bar-fill { height: 100%; border-radius: 2px; }
+.fil-info { display: flex; justify-content: space-between; font-size: 11px; color: var(--text3); font-family: var(--mono); }
+.fil-actions { display: flex; gap: 6px; margin-top: 10px; }
+
+/* BUTTONS */
+.btn { padding: 7px 14px; border-radius: 7px; border: none; cursor: pointer; font-size: 12px; font-weight: 600; transition: all 0.12s; font-family: var(--sans); }
+.btn-primary { background: var(--accent); color: #0a0d14; }
+.btn-primary:hover { background: #4fc3f7; }
+.btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+.btn-secondary:hover { background: var(--surface3); }
+.btn-danger { background: rgba(239,83,80,0.12); color: var(--red); border: 1px solid rgba(239,83,80,0.2); }
+.btn-danger:hover { background: rgba(239,83,80,0.2); }
+.btn-info { background: rgba(41,182,246,0.12); color: var(--accent); border: 1px solid rgba(41,182,246,0.2); }
+.btn-info:hover { background: rgba(41,182,246,0.2); }
+.btn-sm { padding: 4px 9px; font-size: 11px; }
+
+/* FORM */
+.form-group { margin-bottom: 13px; }
+.form-group label { display: block; font-size: 11px; color: var(--text3); margin-bottom: 5px; font-weight: 500; }
+.form-group input, .form-group select, .form-group textarea {
+  width: 100%; background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 7px; padding: 8px 12px; color: var(--text);
+  font-size: 13px; font-family: var(--sans);
+}
+.form-group input:focus, .form-group select:focus { outline: none; border-color: var(--accent); }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+/* MODAL */
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(2px); }
+.modal-overlay.open { display: flex; }
+.modal { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 24px; width: 480px; max-width: 95vw; max-height: 90vh; overflow-y: auto; }
+.modal h2 { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+.modal-sub { font-size: 11px; color: var(--text3); margin-bottom: 16px; font-family: var(--mono); }
+.modal-footer { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; }
+
+/* TABLE */
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+th { text-align: left; padding: 9px 12px; color: var(--text3); border-bottom: 1px solid var(--border); font-weight: 600; font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; }
+td { padding: 9px 12px; border-bottom: 1px solid var(--surface2); }
+tr:hover td { background: rgba(255,255,255,0.01); }
+
+/* COST RESULT */
+.cost-result { background: rgba(41,182,246,0.05); border: 1px solid rgba(41,182,246,0.15); border-radius: 10px; padding: 16px; margin-top: 14px; }
+.cost-row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 13px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+.cost-row:last-child { border: none; font-weight: 700; color: var(--green); font-size: 15px; margin-top: 4px; }
+.cost-row .lbl { color: var(--text3); }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+/* TOAST */
+.toast { position: fixed; bottom: 20px; right: 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 18px; font-size: 12px; z-index: 9999; transform: translateY(80px); opacity: 0; transition: all 0.25s; box-shadow: 0 4px 20px rgba(0,0,0,0.4); }
+.toast.show { transform: translateY(0); opacity: 1; }
+.toast.success { border-color: var(--green); color: var(--green); }
+.toast.error { border-color: var(--red); color: var(--red); }
+
+/* FIL OPTIONS */
+.fil-option { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px; cursor: pointer; border: 1px solid transparent; transition: all 0.12s; margin-bottom: 6px; }
+.fil-option:hover { background: var(--surface2); border-color: var(--border); }
+.fil-option.selected { background: rgba(41,182,246,0.06); border-color: var(--accent); }
+.fil-option-dot { width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0; border: 2px solid rgba(255,255,255,0.07); }
+.fil-option-name { font-size: 13px; font-weight: 600; }
+.fil-option-sub { font-size: 11px; color: var(--text3); }
+.fil-option-pct { font-size: 11px; color: var(--text3); font-family: var(--mono); margin-left: auto; white-space: nowrap; }
+
+/* FILE MANAGER */
+.file-tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+.file-tab { padding: 8px 16px; font-size: 12px; font-weight: 500; cursor: pointer; color: var(--text3); border-bottom: 2px solid transparent; transition: all 0.12s; }
+.file-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.file-tab-content { display: none; }
+.file-tab-content.active { display: block; }
+.file-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 6px; background: var(--surface2); }
+.file-name { font-size: 13px; font-weight: 500; }
+.file-meta { font-size: 11px; color: var(--text3); font-family: var(--mono); margin-top: 2px; }
+.file-actions { display: flex; gap: 6px; }
+.upload-zone { border: 2px dashed var(--border); border-radius: 10px; padding: 36px; text-align: center; cursor: pointer; transition: all 0.15s; margin-bottom: 16px; }
+.upload-zone:hover { border-color: var(--accent); background: rgba(41,182,246,0.03); }
+.upload-zone.drag { border-color: var(--accent); background: rgba(41,182,246,0.05); }
+.upload-zone p { color: var(--text3); font-size: 13px; }
+.printer-sel { background: var(--surface2); border: 1px solid var(--border); border-radius: 7px; padding: 8px 12px; color: var(--text); font-size: 13px; font-family: var(--sans); width: 100%; margin-bottom: 14px; }
+.printer-sel:focus { outline: none; border-color: var(--accent); }
+
+/* PAGE TITLE */
+.page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+.page-title { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="logo">
+    <div class="logo-icon">🖨️</div>
+    <div class="logo-text">
+      <div class="logo-title">BambuPi</div>
+      <div class="logo-sub">v1.3 · Manager</div>
+    </div>
+  </div>
+  <nav>
+    <div class="nav-section">Übersicht</div>
+    <a class="active" onclick="showPage('dashboard')" data-page="dashboard">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      Dashboard
+    </a>
+    <a onclick="showPage('files')" data-page="files">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+      Dateien
+    </a>
+    <div class="nav-section">Verwaltung</div>
+    <a onclick="showPage('printers')" data-page="printers">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+      Drucker
+    </a>
+    <a onclick="showPage('filaments')" data-page="filaments">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
+      Filamente
+    </a>
+    <a onclick="showPage('history')" data-page="history">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      Historie
+    </a>
+    <div class="nav-section">Tools</div>
+    <a onclick="showPage('calculator')" data-page="calculator">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="16" y2="14"/></svg>
+      Kostenrechner
+    </a>
+    <a onclick="showPage('settings')" data-page="settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      Einstellungen
+    </a>
+  </nav>
+  <div class="sidebar-footer">BambuPi © 2025</div>
+</div>
+
+<div class="main">
+  <div class="topbar">
+    <div class="topbar-title" id="topbar-title">Dashboard</div>
+    <div class="topbar-right">
+      <div class="status-chip" id="connection-chip">
+        <div class="status-dot dot-gray"></div>
+        Verbinde...
+      </div>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- DASHBOARD -->
+    <div id="page-dashboard" class="page active">
+      <div class="stats-row">
+        <div class="stat-card"><div class="stat-icon blue">🖨️</div><div><div class="stat-val" id="stat-prints">0</div><div class="stat-lbl">Drucke gesamt</div></div></div>
+        <div class="stat-card"><div class="stat-icon green">⚖️</div><div><div class="stat-val" id="stat-grams">0g</div><div class="stat-lbl">Gramm verdruckt</div></div></div>
+        <div class="stat-card"><div class="stat-icon orange">⏱️</div><div><div class="stat-val" id="stat-hours">0h</div><div class="stat-lbl">Druckstunden</div></div></div>
+        <div class="stat-card"><div class="stat-icon purple">💶</div><div><div class="stat-val" id="stat-cost">0€</div><div class="stat-lbl">Gesamtkosten</div></div></div>
+      </div>
+      <div id="dashboard-printers"></div>
+    </div>
+
+    <!-- DATEIEN -->
+    <div id="page-files" class="page">
+      <div class="page-header"><div class="page-title">Dateimanager</div></div>
+      <div class="form-group">
+        <label>Drucker auswählen</label>
+        <select class="printer-sel" id="file-printer-select" onchange="loadFiles()"><option value="">-- Drucker wählen --</option></select>
+      </div>
+      <div class="file-tabs">
+        <div class="file-tab active" onclick="switchFileTab('upload')">⬆️ Hochladen</div>
+        <div class="file-tab" onclick="switchFileTab('sdcard')">💾 Auf dem Drucker</div>
+        <div class="file-tab" onclick="switchFileTab('pifiles')">🗂️ Pi-Speicher</div>
+      </div>
+      <div id="filetab-upload" class="file-tab-content active">
+        <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-input').click()" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="handleDrop(event)">
+          <p style="font-size:36px;margin-bottom:10px;">📂</p>
+          <p style="font-weight:600;color:var(--text);margin-bottom:4px;">Datei hier ablegen oder klicken</p>
+          <p>.3mf und .gcode Dateien werden unterstützt</p>
+        </div>
+        <input type="file" id="file-input" accept=".3mf,.gcode" style="display:none" onchange="handleFileSelect(event)">
+        <div id="upload-queue"></div>
+      </div>
+      <div id="filetab-sdcard" class="file-tab-content"><div id="sdcard-files" style="color:var(--text3);font-size:13px;">Drucker auswählen um Dateien zu laden</div></div>
+      <div id="filetab-pifiles" class="file-tab-content"><div id="pi-files" style="color:var(--text3);font-size:13px;">Lade...</div></div>
+    </div>
+
+    <!-- DRUCKER -->
+    <div id="page-printers" class="page">
+      <div class="page-header">
+        <div class="page-title">Drucker</div>
+        <button class="btn btn-primary" onclick="openModal('modal-add-printer')">+ Drucker hinzufügen</button>
+      </div>
+      <div id="printers-list"></div>
+    </div>
+
+    <!-- FILAMENTE -->
+    <div id="page-filaments" class="page">
+      <div class="page-header">
+        <div class="page-title">Filamente</div>
+        <button class="btn btn-primary" onclick="openModal('modal-add-filament')">+ Filament hinzufügen</button>
+      </div>
+      <div class="fil-grid" id="filament-grid"></div>
+    </div>
+
+    <!-- HISTORIE -->
+    <div id="page-history" class="page">
+      <div class="page-header"><div class="page-title">Druckhistorie</div></div>
+      <div class="card">
+        <table><thead><tr><th>Datum</th><th>Datei</th><th>Drucker</th><th>Filament</th><th>Gramm</th><th>Dauer</th><th>Kosten</th></tr></thead>
+        <tbody id="history-table"></tbody></table>
+      </div>
+    </div>
+
+    <!-- KOSTENRECHNER -->
+    <div id="page-calculator" class="page">
+      <div class="page-header"><div class="page-title">Kostenrechner</div></div>
+      <div class="grid2">
+        <div class="card">
+          <div class="card-title">Parameter</div>
+          <div class="form-group"><label>Filament</label><select id="calc-filament"></select></div>
+          <div class="form-row">
+            <div class="form-group"><label>Gramm verbraucht</label><input type="number" id="calc-grams" placeholder="45" oninput="calculate()"></div>
+            <div class="form-group"><label>Druckzeit (Min)</label><input type="number" id="calc-duration" placeholder="180" oninput="calculate()"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Nachbearbeitung (Min)</label><input type="number" id="calc-post" placeholder="30" oninput="calculate()"></div>
+            <div class="form-group"><label>Stundensatz €</label><input type="number" id="calc-rate" placeholder="15" oninput="calculate()"></div>
+          </div>
+        </div>
+        <div>
+          <div class="cost-result" id="calc-result" style="display:none;">
+            <div class="cost-row"><span class="lbl">🧵 Filament</span><span id="r-filament">-</span></div>
+            <div class="cost-row"><span class="lbl">⚡ Strom</span><span id="r-electricity">-</span></div>
+            <div class="cost-row"><span class="lbl">🔧 Nachbearb.</span><span id="r-post">-</span></div>
+            <div class="cost-row"><span class="lbl">💰 Gesamt</span><span id="r-total">-</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- EINSTELLUNGEN -->
+    <div id="page-settings" class="page">
+      <div class="page-header"><div class="page-title">Einstellungen</div></div>
+      <div class="card" style="max-width:440px;">
+        <div class="card-title">Strom & Drucker</div>
+        <div class="form-group"><label>Strompreis (€/kWh)</label><input type="number" id="set-electricity" step="0.01" placeholder="0.35"></div>
+        <div class="form-group"><label>Drucker Verbrauch (Watt)</label><input type="number" id="set-watt" placeholder="350"></div>
+        <button class="btn btn-primary" onclick="saveSettings()">Speichern</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- MODALS -->
+<div class="modal-overlay" id="modal-add-printer">
+  <div class="modal">
+    <h2>Drucker hinzufügen</h2>
+    <div class="form-group"><label>Name</label><input type="text" id="p-name" placeholder="z.B. Günther"></div>
+    <div class="form-group"><label>Modell</label><select id="p-model"><option>X1C</option><option>X1E</option><option>P1S</option><option>P1P</option><option>A1</option><option>A1 Mini</option><option>H2D</option></select></div>
+    <div class="form-group"><label>IP Adresse</label><input type="text" id="p-ip" placeholder="192.168.178.xx"></div>
+    <div class="form-group"><label>Access Code</label><input type="text" id="p-code" placeholder="8-stelliger Code"></div>
+    <div class="form-group"><label>Seriennummer</label><input type="text" id="p-serial" placeholder="z.B. 00M09C..."></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-add-printer')">Abbrechen</button>
+      <button class="btn btn-primary" onclick="addPrinter()">Hinzufügen</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-add-filament">
+  <div class="modal">
+    <h2>Filament hinzufügen</h2>
+    <div class="form-row">
+      <div class="form-group"><label>Hersteller</label><input type="text" id="f-brand" placeholder="z.B. eSUN"></div>
+      <div class="form-group"><label>Material</label><select id="f-material"><option>PLA</option><option>PLA+</option><option>PETG</option><option>ABS</option><option>ASA</option><option>TPU</option><option>PA</option><option>PC</option><option>PLA-CF</option><option>PETG-CF</option></select></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Farbe Name</label><input type="text" id="f-color" placeholder="z.B. Blau"></div>
+      <div class="form-group"><label>Farbe</label><input type="color" id="f-color-hex" value="#0066ff" style="height:38px;"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Gewicht (g)</label><input type="number" id="f-weight" placeholder="1000"></div>
+      <div class="form-group"><label>Preis/kg (€)</label><input type="number" id="f-price" step="0.01" placeholder="22.90"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Nozzle Temp (°C)</label><input type="number" id="f-nozzle" placeholder="220"></div>
+      <div class="form-group"><label>Bett Temp (°C)</label><input type="number" id="f-bed" placeholder="60"></div>
+    </div>
+    <div class="form-group"><label>Lagerort</label><input type="text" id="f-location" placeholder="z.B. Regal A"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-add-filament')">Abbrechen</button>
+      <button class="btn btn-primary" onclick="addFilament()">Hinzufügen</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-ams-assign">
+  <div class="modal">
+    <h2>AMS Slot zuweisen</h2>
+    <div class="modal-sub" id="ams-assign-subtitle"></div>
+    <div id="ams-filament-list" style="max-height:320px;overflow-y:auto;"></div>
+    <div class="modal-footer">
+      <button class="btn btn-danger btn-sm" id="btn-clear-slot" onclick="clearAmsSlot()" style="margin-right:auto;display:none;">Slot leeren</button>
+      <button class="btn btn-secondary" onclick="closeModal('modal-ams-assign')">Abbrechen</button>
+      <button class="btn btn-primary" onclick="saveAmsAssign()">Zuweisen</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-temp">
+  <div class="modal" style="width:340px;">
+    <h2>Temperatur setzen</h2>
+    <div class="modal-sub" id="temp-modal-sub"></div>
+    <div class="form-group"><label id="temp-label">Temperatur (°C)</label><input type="number" id="temp-input" placeholder="0"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-temp')">Abbrechen</button>
+      <button class="btn btn-primary" onclick="sendTemp()">Setzen</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const CAMERA_URL='http://192.168.178.30:1984/stream.html?src=bambu&mode=webrtc';
+let assignCtx={printerId:null,unitIdx:null,slotIdx:null,selectedFilamentId:null};
+let tempCtx={printerId:null,type:null};
+let openAmsDetail=null;
+let currentFileTab='upload';
+let cachedPrinters=[];
+let cachedAms={};
+let dashboardBuilt=false;
+
+const PAGE_TITLES={dashboard:'Dashboard',files:'Dateimanager',printers:'Drucker',filaments:'Filamente',history:'Historie',calculator:'Kostenrechner',settings:'Einstellungen'};
+
+function showPage(name){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('nav a').forEach(a=>a.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  document.querySelector('[data-page="'+name+'"]').classList.add('active');
+  document.getElementById('topbar-title').textContent=PAGE_TITLES[name]||name;
+  if(name==='dashboard'){loadStats();buildDashboard();}
+  if(name==='printers')loadPrinters();
+  if(name==='filaments')loadFilaments();
+  if(name==='history')loadHistory();
+  if(name==='calculator')loadCalcFilaments();
+  if(name==='settings')loadSettings();
+  if(name==='files')initFilePage();
+}
+function openModal(id){document.getElementById(id).classList.add('open');}
+function closeModal(id){document.getElementById(id).classList.remove('open');}
+function toast(msg,type='success'){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.className='toast '+type+' show';
+  setTimeout(()=>t.classList.remove('show'),3000);
+}
+async function api(url,method='GET',body=null){
+  const opts={method,headers:{'Content-Type':'application/json'}};
+  if(body)opts.body=JSON.stringify(body);
+  const r=await fetch(url,opts);return r.json();
+}
+function fmtSize(bytes){if(bytes>1024*1024)return(bytes/1024/1024).toFixed(1)+' MB';return(bytes/1024).toFixed(0)+' KB';}
+function rcol(pct){if(pct<0)return'#333';if(pct>50)return'var(--green)';if(pct>20)return'var(--orange)';return'var(--red)';}
+
+// ── DASHBOARD BUILD ───────────────────────────
+async function buildDashboard(){
+  const printers=await api('/api/printers');
+  const container=document.getElementById('dashboard-printers');
+  if(!printers.length){
+    container.innerHTML='<div class="card" style="text-align:center;padding:40px;color:var(--text3);">Noch kein Drucker hinzugefügt.<br><br><button class="btn btn-primary" onclick="showPage(\'printers\')">+ Drucker hinzufügen</button></div>';
+    updateConnectionChip('offline');
+    return;
+  }
+  cachedPrinters=printers;
+  await Promise.all(printers.map(async p=>{
+    try{cachedAms[p.id]=await api('/api/ams/'+p.id);}catch(e){cachedAms[p.id]=null;}
+  }));
+  container.innerHTML=printers.map(p=>buildPrinterCard(p)).join('');
+  dashboardBuilt=true;
+  // Set connection status based on first printer
+  const s=printers[0]?.status||{};
+  const state=s.gcode_state||'offline';
+  updateConnectionChip(state);
+}
+
+function updateConnectionChip(state){
+  const chip=document.getElementById('connection-chip');
+  if(state==='RUNNING'){
+    chip.innerHTML='<div class="status-dot dot-green"></div>Druckt';
+  } else if(state==='offline'){
+    chip.innerHTML='<div class="status-dot dot-gray"></div>Offline';
+  } else {
+    chip.innerHTML='<div class="status-dot dot-green"></div>Bereit';
+  }
+}
+
+// Realtime — nur Werte patchen
+async function realtimeUpdate(){
+  if(!dashboardBuilt)return;
+  const printers=await api('/api/printers');
+  printers.forEach(p=>{
+    const s=p.status||{};
+    const nozzle=s.nozzle_temper||0;
+    const bed=s.bed_temper||0;
+    const progress=s.mc_percent||0;
+    const remaining=s.mc_remaining_time||0;
+    const state=s.gcode_state||'offline';
+
+    const nEl=document.getElementById('nv-'+p.id);
+    const bEl=document.getElementById('bv-'+p.id);
+    if(nEl){nEl.textContent=Math.round(nozzle)+'°';nEl.className='temp-actual '+(nozzle>150?'hot':nozzle>50?'warm':nozzle>0?'cool':'off');}
+    if(bEl){bEl.textContent=Math.round(bed)+'°';bEl.className='temp-actual '+(bed>50?'warm':bed>0?'cool':'off');}
+
+    const ntEl=document.getElementById('nt-'+p.id);
+    const btEl=document.getElementById('bt-'+p.id);
+    if(ntEl)ntEl.textContent='→ '+(s.nozzle_temper_target||0)+'°C';
+    if(btEl)btEl.textContent='→ '+(s.bed_target_temper||0)+'°C';
+
+    // Temp bars (0-300°C for nozzle, 0-120°C for bed)
+    const nbEl=document.getElementById('nb-'+p.id);
+    const bbEl=document.getElementById('bb-'+p.id);
+    if(nbEl)nbEl.style.width=Math.min(100,nozzle/3)+'%';
+    if(bbEl)bbEl.style.width=Math.min(100,bed/1.2)+'%';
+
+    const paEl=document.getElementById('pa-'+p.id);
+    const pfEl=document.getElementById('pf-'+p.id);
+    const ppEl=document.getElementById('pp-'+p.id);
+    const ptEl=document.getElementById('pt-'+p.id);
+    if(paEl){
+      paEl.style.display=state==='RUNNING'?'block':'none';
+      if(pfEl)pfEl.style.width=progress+'%';
+      if(ppEl)ppEl.textContent=progress+'%';
+      if(ptEl)ptEl.textContent='⏱ '+remaining+' Min';
+    }
+
+    const bdEl=document.getElementById('badge-'+p.id);
+    if(bdEl){
+      if(state==='RUNNING')bdEl.className='badge badge-printing';
+      else if(state==='offline')bdEl.className='badge badge-offline';
+      else bdEl.className='badge badge-ready';
+      bdEl.innerHTML=state==='RUNNING'?'<div class="status-dot dot-green"></div>DRUCKT':state==='offline'?'<div class="status-dot dot-gray"></div>OFFLINE':'<div class="status-dot dot-green"></div>BEREIT';
+    }
+    updateConnectionChip(state);
+  });
+}
+
+function buildPrinterCard(p){
+  const s=p.status||{};
+  const state=s.gcode_state||'offline';
+  const nozzle=s.nozzle_temper||0;
+  const bed=s.bed_temper||0;
+  const progress=s.mc_percent||0;
+  const remaining=s.mc_remaining_time||0;
+  const speedLevel=s.spd_lvl||2;
+  const ams=cachedAms[p.id];
+  const speeds=[{l:1,n:'Stille'},{l:2,n:'Normal'},{l:3,n:'Sport'},{l:4,n:'Turbo'}];
+
+  const badgeHtml=state==='RUNNING'?
+    `<div class="badge badge-printing"><div class="status-dot dot-green"></div>DRUCKT</div>`:
+    state==='offline'?
+    `<div class="badge badge-offline"><div class="status-dot dot-gray"></div>OFFLINE</div>`:
+    `<div class="badge badge-ready"><div class="status-dot dot-green"></div>BEREIT</div>`;
+
+  const nc=nozzle>150?'hot':nozzle>50?'warm':nozzle>0?'cool':'off';
+  const bc=bed>50?'warm':bed>0?'cool':'off';
+
+  return `<div class="printer-card" id="pcard-${p.id}">
+    <div class="pcard-header">
+      <div>
+        <div class="pcard-name">🖨️ ${p.name} <span id="badge-${p.id}">${badgeHtml}</span></div>
+        <div class="pcard-meta">${p.model} · ${p.ip}</div>
+      </div>
+    </div>
+    <div class="pcard-body">
+
+      <!-- COL 1: Kamera + Fortschritt -->
+      <div class="pcard-col">
+        <div class="camera-wrap">
+          <div class="cam-badge"><div class="cam-dot"></div>LIVE</div>
+          <iframe src="${CAMERA_URL}" allowfullscreen></iframe>
+        </div>
+        <div class="progress-panel" id="pa-${p.id}" style="${state!=='RUNNING'?'display:none':''}">
+          <div class="progress-top">
+            <span class="progress-file">${s.subtask_name||'Druckt...'}</span>
+            <span class="progress-pct" id="pp-${p.id}">${progress}%</span>
+          </div>
+          <div class="pbar"><div class="pbar-fill" id="pf-${p.id}" style="width:${progress}%"></div></div>
+          <div class="progress-meta">
+            <span id="pt-${p.id}">⏱ ${remaining} Min verbleibend</span>
+            <span>Schicht ${s.layer_num||0}/${s.total_layer_num||0}</span>
+          </div>
+        </div>
+        ${state!=='RUNNING'?`<div class="idle-state"><div class="idle-icon">${state==='offline'?'🔌':'✅'}</div>${state==='offline'?'Drucker offline':'Bereit zum Drucken'}</div>`:''}
+      </div>
+
+      <!-- COL 2: Temperaturen -->
+      <div class="pcard-col">
+        <div class="temp-panel">
+          <div class="panel-title">Temperaturen</div>
+          <div class="temp-card" onclick="openTempModal(${p.id},'nozzle',${Math.round(nozzle)})">
+            <div class="temp-card-label">🌡️ Nozzle <span class="temp-edit">✏️ setzen</span></div>
+            <div class="temp-row">
+              <div class="temp-actual ${nc}" id="nv-${p.id}">${Math.round(nozzle)}°</div>
+              <div class="temp-target" id="nt-${p.id}">→ ${s.nozzle_temper_target||0}°C</div>
+            </div>
+            <div class="temp-bar"><div class="temp-bar-fill nozzle" id="nb-${p.id}" style="width:${Math.min(100,nozzle/3)}%"></div></div>
+          </div>
+          <div class="temp-card" onclick="openTempModal(${p.id},'bed',${Math.round(bed)})">
+            <div class="temp-card-label">🛏️ Bett <span class="temp-edit">✏️ setzen</span></div>
+            <div class="temp-row">
+              <div class="temp-actual ${bc}" id="bv-${p.id}">${Math.round(bed)}°</div>
+              <div class="temp-target" id="bt-${p.id}">→ ${s.bed_target_temper||0}°C</div>
+            </div>
+            <div class="temp-bar"><div class="temp-bar-fill bed" id="bb-${p.id}" style="width:${Math.min(100,bed/1.2)}%"></div></div>
+          </div>
+
+          <div class="ctrl-section" style="margin-top:14px;">
+            <div class="ctrl-section-title">Lüfter (Part Cooling)</div>
+            <div class="fan-row">
+              <div class="fan-row-label"><span>💨 Part</span><span id="fan-val-${p.id}">—%</span></div>
+              <input type="range" class="fan-slider" min="0" max="100" value="0"
+                oninput="document.getElementById('fan-val-${p.id}').textContent=this.value+'%'"
+                onchange="setFan(${p.id},parseInt(this.value),'part')">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- COL 3: Steuerung -->
+      <div class="pcard-col">
+        <div class="ctrl-panel">
+          <div class="ctrl-section">
+            <div class="ctrl-section-title">Druck</div>
+            <div class="print-btns">
+              ${state==='RUNNING'?
+                `<button class="pbtn pbtn-pause" onclick="printerCmd(${p.id},'pause')"><span class="pbtn-icon">⏸</span><span class="pbtn-label">Pause</span></button>`:
+                `<button class="pbtn pbtn-resume" onclick="printerCmd(${p.id},'resume')"><span class="pbtn-icon">▶️</span><span class="pbtn-label">Fortsetzen</span></button>`}
+              <button class="pbtn pbtn-stop" onclick="printerCmd(${p.id},'stop')"><span class="pbtn-icon">⏹</span><span class="pbtn-label">Stopp</span></button>
+              <button class="pbtn pbtn-light" onclick="setLight(${p.id},true)"><span class="pbtn-icon">💡</span><span class="pbtn-label">Licht an</span></button>
+              <button class="pbtn pbtn-light" onclick="setLight(${p.id},false)"><span class="pbtn-icon">🌑</span><span class="pbtn-label">Licht aus</span></button>
+            </div>
+          </div>
+
+          <div class="ctrl-section">
+            <div class="ctrl-section-title">Geschwindigkeit</div>
+            <div class="speed-btns">
+              ${speeds.map(sp=>`<button class="sbtn${speedLevel===sp.l?' active':''}" onclick="setSpeed(${p.id},${sp.l})">${sp.n}</button>`).join('')}
+            </div>
+          </div>
+
+          <div class="ctrl-section">
+            <div class="ctrl-section-title">Home & Achsen</div>
+            <div class="home-row" style="margin-bottom:6px;">
+              <button class="hbtn all" onclick="homeAxes(${p.id},'all')">🏠 Alle</button>
+              <button class="hbtn" onclick="homeAxes(${p.id},'x')">X</button>
+              <button class="hbtn" onclick="homeAxes(${p.id},'y')">Y</button>
+              <button class="hbtn" onclick="homeAxes(${p.id},'z')">Z</button>
+            </div>
+            <button class="pbtn pbtn-motor" style="width:100%;flex-direction:row;gap:8px;padding:7px 12px;" onclick="motorsOff(${p.id})">
+              <span class="pbtn-icon" style="font-size:13px;">⚡</span><span class="pbtn-label" style="font-size:11px;">Motoren aus</span>
+            </button>
+          </div>
+
+          <div class="ctrl-section">
+            <div class="ctrl-section-title">Filament</div>
+            <div class="print-btns">
+              <button class="pbtn pbtn-load" onclick="filamentLoad(${p.id})"><span class="pbtn-icon">⬇️</span><span class="pbtn-label">Einziehen</span></button>
+              <button class="pbtn pbtn-unload" onclick="filamentUnload(${p.id})"><span class="pbtn-icon">⬆️</span><span class="pbtn-label">Auswerfen</span></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AMS — volle Breite unten -->
+    ${buildAmsHtml(ams,p.id)}
+  </div>`;
+}
+
+// ── STEUERUNG ─────────────────────────────────
+async function printerCmd(pid,action){
+  if(action==='stop'&&!confirm('Druck wirklich abbrechen?'))return;
+  await api('/api/printers/'+pid+'/'+action,'POST');
+  toast(action==='pause'?'⏸ Pausiert':action==='resume'?'▶️ Fortgesetzt':'⏹ Abgebrochen');
+  setTimeout(buildDashboard,2000);
+}
+async function setLight(pid,on){
+  await api('/api/printers/'+pid+'/light','POST',{on});
+  toast(on?'💡 Licht an':'💡 Licht aus');
+}
+async function setSpeed(pid,level){
+  await api('/api/printers/'+pid+'/speed','POST',{level});
+  const labels={1:'Stille',2:'Normal',3:'Sport',4:'Turbo'};
+  toast('⚡ '+labels[level]);
+  setTimeout(buildDashboard,1500);
+}
+async function homeAxes(pid,axes){
+  await api('/api/printers/'+pid+'/home','POST',{axes});
+  toast('🏠 Home: '+(axes==='all'?'Alle Achsen':axes.toUpperCase()));
+}
+async function motorsOff(pid){
+  await api('/api/printers/'+pid+'/motors_off','POST');
+  toast('⚡ Motoren aus');
+}
+async function filamentLoad(pid){
+  await api('/api/printers/'+pid+'/filament_load','POST');
+  toast('⬇️ Filament wird eingezogen...');
+}
+async function filamentUnload(pid){
+  await api('/api/printers/'+pid+'/filament_unload','POST');
+  toast('⬆️ Filament wird ausgeworfen...');
+}
+async function setFan(pid,percent,type='part'){
+  await api('/api/printers/'+pid+'/fan','POST',{percent,type});
+  toast('💨 Lüfter: '+percent+'%');
+}
+function openTempModal(pid,type,currentVal){
+  tempCtx={printerId:pid,type};
+  document.getElementById('temp-modal-sub').textContent=type==='nozzle'?'Nozzle Temperatur':'Bett Temperatur';
+  document.getElementById('temp-label').textContent=type==='nozzle'?'Nozzle (°C)':'Bett (°C)';
+  document.getElementById('temp-input').value=currentVal||0;
+  openModal('modal-temp');
+}
+async function sendTemp(){
+  const temp=parseInt(document.getElementById('temp-input').value);
+  if(isNaN(temp)||temp<0||temp>350){toast('Ungültige Temperatur!','error');return;}
+  await api('/api/printers/'+tempCtx.printerId+'/temperature','POST',{type:tempCtx.type,temp});
+  closeModal('modal-temp');
+  toast('🌡️ '+temp+'°C gesetzt');
+}
+
+// ── AMS ───────────────────────────────────────
+async function openAmsAssign(pid,ui,si,isEmpty){
+  assignCtx={printerId:pid,unitIdx:ui,slotIdx:si,selectedFilamentId:null};
+  document.getElementById('ams-assign-subtitle').textContent='Slot '+(si+1)+' · AMS '+(ui+1);
+  document.getElementById('btn-clear-slot').style.display=isEmpty?'none':'inline-block';
+  const filaments=await api('/api/filaments');
+  const list=document.getElementById('ams-filament-list');
+  if(!filaments.length){
+    list.innerHTML='<div style="color:var(--text3);font-size:13px;padding:12px 0;">Noch kein Filament angelegt.</div>';
+  } else {
+    list.innerHTML=filaments.map(f=>{
+      const rem=f.weight_total-f.weight_used;const pct=Math.max(0,Math.round((rem/f.weight_total)*100));
+      return `<div class="fil-option" id="fo-${f.id}" onclick="selectFilamentForSlot(${f.id})">
+        <div class="fil-option-dot" style="background:${f.color_hex};"></div>
+        <div><div class="fil-option-name">${f.brand} ${f.color}</div><div class="fil-option-sub">${f.material}${f.temp_nozzle?' · '+f.temp_nozzle+'°C':''}</div></div>
+        <div class="fil-option-pct">${pct}% · ${Math.round(rem)}g</div></div>`;
+    }).join('');
+  }
+  openModal('modal-ams-assign');
+}
+function selectFilamentForSlot(id){
+  document.querySelectorAll('.fil-option').forEach(el=>el.classList.remove('selected'));
+  const el=document.getElementById('fo-'+id);if(el)el.classList.add('selected');
+  assignCtx.selectedFilamentId=id;
+}
+async function saveAmsAssign(){
+  if(!assignCtx.selectedFilamentId){toast('Bitte ein Filament wählen!','error');return;}
+  await api('/api/ams/'+assignCtx.printerId+'/assign','POST',{unit_idx:assignCtx.unitIdx,slot_idx:assignCtx.slotIdx,filament_id:assignCtx.selectedFilamentId});
+  closeModal('modal-ams-assign');toast('Slot zugewiesen ✅');buildDashboard();
+}
+async function clearAmsSlot(){
+  await api('/api/ams/'+assignCtx.printerId+'/assign/'+assignCtx.unitIdx+'/'+assignCtx.slotIdx,'DELETE');
+  closeModal('modal-ams-assign');toast('Slot geleert');buildDashboard();
+}
+function toggleAmsDetail(detailId,trayJson,pid,ui,si){
+  document.querySelectorAll('.ams-detail').forEach(d=>d.classList.remove('open'));
+  if(openAmsDetail===detailId){openAmsDetail=null;return;}
+  openAmsDetail=detailId;
+  const panel=document.getElementById(detailId);if(!panel)return;
+  const tray=JSON.parse(trayJson);
+  const src=tray.source==='rfid'?'<span style="color:var(--green);">● RFID</span>':'<span style="color:var(--accent);">● Manuell</span>';
+  panel.innerHTML=
+    `<div class="ams-drow"><span class="ams-dk">Quelle</span><span class="ams-dv">${src}</span></div>`+
+    `<div class="ams-drow"><span class="ams-dk">Material</span><span class="ams-dv">${tray.type||'—'}</span></div>`+
+    `<div class="ams-drow"><span class="ams-dk">Hersteller</span><span class="ams-dv">${tray.brand||'—'}</span></div>`+
+    `<div class="ams-drow"><span class="ams-dk">Restmenge</span><span class="ams-dv">${tray.remain>=0?tray.remain+'%':'—'}</span></div>`+
+    `<div class="ams-drow"><span class="ams-dk">Düse</span><span class="ams-dv">${tray.nozzle_min?tray.nozzle_min+'–'+(tray.nozzle_max||'?')+'°C':'—'}</span></div>`+
+    `<div class="ams-dacts">`+
+    `<button class="btn btn-info btn-sm" onclick="openAmsAssign(${pid},${ui},${si},false)">✏️ Ändern</button>`+
+    `<button class="btn btn-danger btn-sm" onclick="assignCtx={printerId:${pid},unitIdx:${ui},slotIdx:${si}};clearAmsSlot()">Leeren</button>`+
+    `</div>`;
+  panel.classList.add('open');
+}
+
+function buildAmsHtml(amsData,pid){
+  if(!amsData||!amsData.units||!amsData.units.length)
+    return `<div class="ams-panel"><div class="ams-panel-title">AMS Filament</div><div style="font-size:11px;color:var(--text3);">Keine Daten</div></div>`;
+
+  let html=`<div class="ams-panel"><div class="ams-panel-title">AMS Filament <span style="font-size:9px;color:var(--text3);font-weight:400;">Slot anklicken zum Zuweisen</span></div>`;
+
+  amsData.units.forEach((unit,ui)=>{
+    const meta=[];
+    if(unit.temp!==null&&unit.temp>-30)meta.push(unit.temp.toFixed(1)+'°C');
+    if(unit.humidity!==null)meta.push('Feuchtigkeit '+unit.humidity+'/5');
+    if(amsData.units.length>1)html+=`<div style="font-size:10px;color:var(--text3);margin-bottom:6px;font-family:var(--mono);">AMS ${ui+1}${meta.length?' · '+meta.join(' · '):''}</div>`;
+
+    html+=`<div class="ams-slots">`;
+    unit.trays.forEach((tray,si)=>{
+      const isActive=ui===amsData.active_unit&&si===amsData.active_slot;
+      const did=`ams-detail-${pid}-${ui}-${si}`;
+      if(tray.empty){
+        html+=`<div class="ams-slot empty" onclick="openAmsAssign(${pid},${ui},${si},true)">
+          <div class="ams-dot" style="background:var(--surface3);"></div>
+          <div class="ams-num">S${si+1}</div>
+          <div class="ams-type" style="color:var(--accent);font-size:12px;">+</div></div>`;
+      } else {
+        const rw=tray.remain>=0?tray.remain:0;const isManu=tray.source==='manual';
+        const tj=JSON.stringify(tray).replace(/\\/g,'\\\\').replace(/"/g,'&quot;');
+        html+=`<div class="ams-slot${isActive?' active':''}${isManu?' manual':''}" onclick="toggleAmsDetail('${did}','${tj}',${pid},${ui},${si})">
+          ${isActive?'<div class="ams-active-pip"></div>':''}${isManu?'<div class="ams-mbadge">M</div>':''}
+          <div class="ams-dot" style="background:${tray.color||'var(--surface3)'};"></div>
+          <div class="ams-num">S${si+1}</div>
+          <div class="ams-type">${tray.type||'?'}</div>
+          <div class="ams-brand">${tray.brand||''}</div>
+          <div class="ams-rbar"><div class="ams-rfill" style="width:${rw}%;background:${rcol(tray.remain)};"></div></div>
+          </div>`;
+      }
+    });
+    html+=`</div>`;
+    unit.trays.forEach((tray,si)=>{
+      if(!tray.empty)html+=`<div class="ams-detail" id="ams-detail-${pid}-${ui}-${si}"></div>`;
+    });
+  });
+  return html+`</div>`;
+}
+
+// ── STATS ─────────────────────────────────────
+async function loadStats(){
+  const s=await api('/api/stats');
+  document.getElementById('stat-prints').textContent=s.total_prints;
+  document.getElementById('stat-grams').textContent=s.total_grams+'g';
+  document.getElementById('stat-hours').textContent=s.total_hours+'h';
+  document.getElementById('stat-cost').textContent=s.total_cost.toFixed(2)+'€';
+}
+
+// ── DATEIMANAGER ──────────────────────────────
+async function initFilePage(){
+  const printers=await api('/api/printers');
+  const sel=document.getElementById('file-printer-select');
+  sel.innerHTML='<option value="">-- Drucker wählen --</option>'+printers.map(p=>`<option value="${p.id}">${p.name} (${p.model})</option>`).join('');
+  loadPiFiles();
+}
+function switchFileTab(tab){
+  currentFileTab=tab;
+  document.querySelectorAll('.file-tab').forEach((t,i)=>{const tabs=['upload','sdcard','pifiles'];t.classList.toggle('active',tabs[i]===tab);});
+  document.querySelectorAll('.file-tab-content').forEach(c=>c.classList.remove('active'));
+  document.getElementById('filetab-'+tab).classList.add('active');
+  if(tab==='sdcard')loadSdFiles();if(tab==='pifiles')loadPiFiles();
+}
+async function loadFiles(){if(currentFileTab==='sdcard')loadSdFiles();}
+async function loadSdFiles(){
+  const pid=document.getElementById('file-printer-select').value;
+  const container=document.getElementById('sdcard-files');
+  if(!pid){container.innerHTML='<div style="color:var(--text3);font-size:13px;">Drucker auswählen</div>';return;}
+  container.innerHTML='<div style="color:var(--text3);font-size:13px;">Lade Dateien vom Drucker...</div>';
+  try{
+    const result=await api('/api/printers/'+pid+'/files');
+    if(result.error){container.innerHTML='<div style="color:var(--red);font-size:13px;">⚠️ '+result.error+'</div>';return;}
+    if(!result.length){container.innerHTML='<div style="color:var(--text3);font-size:13px;">Keine Dateien gefunden</div>';return;}
+    container.innerHTML=result.map(f=>`<div class="file-row"><div><div class="file-name">${f.name}</div><div class="file-meta">${fmtSize(f.size||0)}</div></div><div class="file-actions"><button class="btn btn-primary btn-sm" onclick="startSdFile('${pid}','${f.name}')">▶️ Starten</button><button class="btn btn-danger btn-sm" onclick="deleteSdFile('${pid}','${f.name}')">🗑</button></div></div>`).join('');
+  }catch(e){container.innerHTML='<div style="color:var(--red);font-size:13px;">⚠️ '+e.message+'</div>';}
+}
+async function loadPiFiles(){
+  const container=document.getElementById('pi-files');
+  const files=await api('/api/uploads');
+  if(!files.length){container.innerHTML='<div style="color:var(--text3);font-size:13px;">Noch keine Dateien hochgeladen</div>';return;}
+  container.innerHTML=files.map(f=>`<div class="file-row"><div><div class="file-name">${f.filename.replace(/^\d+-/,'')}</div><div class="file-meta">${fmtSize(f.size)}</div></div><div class="file-actions"><button class="btn btn-primary btn-sm" onclick="printFromPi('${f.filename}')">▶️ Drucken</button><button class="btn btn-danger btn-sm" onclick="deletePiFile('${f.filename}')">🗑</button></div></div>`).join('');
+}
+async function startSdFile(pid,filename){if(!confirm('Datei "'+filename+'" starten?'))return;await api('/api/printers/'+pid+'/startfile','POST',{filename});toast('▶️ Druck gestartet!');}
+async function deleteSdFile(pid,filename){if(!confirm('Löschen?'))return;await api('/api/printers/'+pid+'/files/'+encodeURIComponent(filename),'DELETE');toast('Gelöscht');loadSdFiles();}
+async function deletePiFile(filename){if(!confirm('Datei löschen?'))return;await api('/api/uploads/'+encodeURIComponent(filename),'DELETE');toast('Gelöscht');loadPiFiles();}
+async function printFromPi(filename){
+  const pid=document.getElementById('file-printer-select').value;
+  if(!pid){toast('Drucker auswählen!','error');return;}
+  if(!confirm('Hochladen und starten?'))return;
+  toast('⬆️ Wird hochgeladen...');
+  const result=await api('/api/printers/'+pid+'/print','POST',{filename,start:true});
+  if(result.ok)toast('✅ '+result.message);else toast('❌ '+(result.error||'Fehler'),'error');
+}
+function handleDrop(e){e.preventDefault();document.getElementById('upload-zone').classList.remove('drag');const files=e.dataTransfer.files;if(files.length)uploadFile(files[0]);}
+function handleFileSelect(e){const file=e.target.files[0];if(file)uploadFile(file);}
+async function uploadFile(file){
+  if(!file.name.endsWith('.3mf')&&!file.name.endsWith('.gcode')){toast('Nur .3mf und .gcode!','error');return;}
+  const q=document.getElementById('upload-queue');
+  q.innerHTML=`<div style="color:var(--text3);font-size:13px;padding:12px 0;">⬆️ Lade "${file.name}" hoch...</div>`;
+  const fd=new FormData();fd.append('file',file);
+  try{
+    const r=await fetch('/api/upload',{method:'POST',body:fd});const data=await r.json();
+    if(data.filename){
+      toast('✅ Hochgeladen!');
+      const pid=document.getElementById('file-printer-select').value;
+      q.innerHTML=`<div class="file-row"><div><div class="file-name">${file.name}</div><div class="file-meta">${fmtSize(file.size)}</div></div><div class="file-actions">${pid?`<button class="btn btn-primary btn-sm" onclick="printFromPiDirect('${data.filename}',${pid})">▶️ Jetzt drucken</button>`:''}</div></div>`;
+    }
+  }catch(e){toast('Upload Fehler!','error');q.innerHTML='';}
+}
+async function printFromPiDirect(filename,pid){
+  if(!confirm('Hochladen und starten?'))return;toast('⬆️ Wird hochgeladen...');
+  const result=await api('/api/printers/'+pid+'/print','POST',{filename,start:true});
+  if(result.ok)toast('✅ Gestartet!');else toast('❌ '+result.error,'error');
+}
+
+// ── DRUCKER ───────────────────────────────────
+async function loadPrinters(){
+  const printers=await api('/api/printers');
+  document.getElementById('printers-list').innerHTML=!printers.length?'<div class="card" style="color:var(--text3);">Noch kein Drucker hinzugefügt.</div>':
+    printers.map(p=>`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;"><div><div style="font-size:14px;font-weight:600;">🖨️ ${p.name}</div><div style="font-size:11px;color:var(--text3);margin-top:3px;font-family:var(--mono);">${p.model} · ${p.ip} · ${p.serial}</div></div><button class="btn btn-danger btn-sm" onclick="deletePrinter(${p.id})">Löschen</button></div></div>`).join('');
+}
+async function addPrinter(){
+  const data={name:document.getElementById('p-name').value,model:document.getElementById('p-model').value,ip:document.getElementById('p-ip').value,access_code:document.getElementById('p-code').value,serial:document.getElementById('p-serial').value};
+  if(!data.name||!data.ip||!data.access_code||!data.serial){toast('Bitte alle Felder ausfüllen!','error');return;}
+  await api('/api/printers','POST',data);closeModal('modal-add-printer');toast('Drucker hinzugefügt! ✅');loadPrinters();
+}
+async function deletePrinter(id){if(!confirm('Drucker wirklich löschen?'))return;await api('/api/printers/'+id,'DELETE');toast('Gelöscht');loadPrinters();}
+
+// ── FILAMENTE ─────────────────────────────────
+async function loadFilaments(){
+  const list=await api('/api/filaments');const grid=document.getElementById('filament-grid');
+  if(!list.length){grid.innerHTML='<div class="card" style="color:var(--text3);">Noch kein Filament hinzugefügt.</div>';return;}
+  grid.innerHTML=list.map(f=>{
+    const rem=f.weight_total-f.weight_used;const pct=Math.max(0,Math.round((rem/f.weight_total)*100));
+    const bc=pct>50?'var(--green)':pct>20?'var(--orange)':'var(--red)';
+    return `<div class="fil-card"><div class="fil-top"><div class="fil-dot" style="background:${f.color_hex};"></div><div><div class="fil-name">${f.brand} ${f.color}</div><div class="fil-sub">${f.material}${f.temp_nozzle?' · '+f.temp_nozzle+'°C':''}</div></div></div><div class="fil-bar"><div class="fil-bar-fill" style="width:${pct}%;background:${bc};"></div></div><div class="fil-info"><span>${Math.round(rem)}g übrig</span><span>${pct}%</span></div>${f.price_per_kg>0?`<div style="font-size:11px;color:var(--text3);margin-top:5px;">💰 ${f.price_per_kg}€/kg</div>`:''} ${f.location?`<div style="font-size:11px;color:var(--text3);">📍 ${f.location}</div>`:''}<div class="fil-actions"><button class="btn btn-danger btn-sm" onclick="deleteFilament(${f.id})">Löschen</button></div></div>`;
+  }).join('');
+}
+async function addFilament(){
+  const data={brand:document.getElementById('f-brand').value,material:document.getElementById('f-material').value,color:document.getElementById('f-color').value,color_hex:document.getElementById('f-color-hex').value,weight_total:parseInt(document.getElementById('f-weight').value)||1000,price_per_kg:parseFloat(document.getElementById('f-price').value)||0,temp_nozzle:parseInt(document.getElementById('f-nozzle').value)||null,temp_bed:parseInt(document.getElementById('f-bed').value)||null,location:document.getElementById('f-location').value};
+  if(!data.brand||!data.color){toast('Hersteller und Farbe sind Pflicht!','error');return;}
+  await api('/api/filaments','POST',data);closeModal('modal-add-filament');toast('Filament hinzugefügt! ✅');loadFilaments();
+}
+async function deleteFilament(id){if(!confirm('Filament wirklich löschen?'))return;await api('/api/filaments/'+id,'DELETE');toast('Gelöscht');loadFilaments();}
+
+// ── HISTORIE ──────────────────────────────────
+async function loadHistory(){
+  const list=await api('/api/history');const tbody=document.getElementById('history-table');
+  if(!list.length){tbody.innerHTML='<tr><td colspan="7" style="color:var(--text3);text-align:center;padding:24px;">Noch keine Drucke</td></tr>';return;}
+  tbody.innerHTML=list.map(j=>`<tr><td style="font-family:var(--mono);">${new Date(j.started_at).toLocaleDateString('de-DE')}</td><td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${j.filename||'-'}</td><td>${j.printer_name||'-'}</td><td>${j.color_hex?`<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${j.color_hex};margin-right:4px;"></span>`:''}${j.brand?j.brand+' '+j.material:'-'}</td><td style="font-family:var(--mono);">${j.grams_used}g</td><td style="font-family:var(--mono);">${j.duration_min?Math.round(j.duration_min/60*10)/10+'h':'-'}</td><td style="font-family:var(--mono);">${j.total_cost?j.total_cost.toFixed(2)+'€':'-'}</td></tr>`).join('');
+}
+
+// ── KOSTENRECHNER ─────────────────────────────
+async function loadCalcFilaments(){const list=await api('/api/filaments');document.getElementById('calc-filament').innerHTML='<option value="">-- Filament wählen --</option>'+list.map(f=>`<option value="${f.id}">${f.brand} ${f.color} ${f.material}</option>`).join('');}
+async function calculate(){
+  const grams=parseFloat(document.getElementById('calc-grams').value)||0;
+  const duration=parseFloat(document.getElementById('calc-duration').value)||0;
+  const post=parseFloat(document.getElementById('calc-post').value)||0;
+  const rate=parseFloat(document.getElementById('calc-rate').value)||0;
+  const filament_id=document.getElementById('calc-filament').value;
+  if(!grams&&!duration)return;
+  const result=await api('/api/calculate','POST',{grams,duration_min:duration,filament_id,post_processing_min:post,hourly_rate:rate});
+  document.getElementById('calc-result').style.display='block';
+  document.getElementById('r-filament').textContent=result.filament_cost.toFixed(2)+' €';
+  document.getElementById('r-electricity').textContent=result.electricity_cost.toFixed(2)+' €';
+  document.getElementById('r-post').textContent=result.post_cost.toFixed(2)+' €';
+  document.getElementById('r-total').textContent=result.total_cost.toFixed(2)+' €';
+}
+
+// ── EINSTELLUNGEN ─────────────────────────────
+async function loadSettings(){const s=await api('/api/settings');document.getElementById('set-electricity').value=s.electricity_cost||0.35;document.getElementById('set-watt').value=s.printer_watt||350;}
+async function saveSettings(){await api('/api/settings','POST',{electricity_cost:document.getElementById('set-electricity').value,printer_watt:document.getElementById('set-watt').value});toast('Gespeichert ✅');}
+
+// ── START ─────────────────────────────────────
+loadStats();
+buildDashboard();
+setInterval(()=>{
+  if(document.getElementById('page-dashboard').classList.contains('active')) realtimeUpdate();
+},2000);
+setInterval(()=>{
+  if(document.getElementById('page-dashboard').classList.contains('active')) loadStats();
+},30000);
+</script>
+</body>
+</html>
