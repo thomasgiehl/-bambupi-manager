@@ -27,10 +27,26 @@ const db = new Database('./db/bambupi.db');
 db.exec(`
   CREATE TABLE IF NOT EXISTS filaments (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    brand TEXT NOT NULL, material TEXT NOT NULL, color TEXT NOT NULL,
-    color_hex TEXT DEFAULT '#888888', weight_total INTEGER DEFAULT 1000,
-    weight_used REAL DEFAULT 0, price_per_kg REAL DEFAULT 0,
-    temp_nozzle INTEGER, temp_bed INTEGER, location TEXT, notes TEXT,
+    brand TEXT NOT NULL,
+    material TEXT NOT NULL,
+    color TEXT NOT NULL,
+    color_hex TEXT DEFAULT '#888888',
+    diameter REAL DEFAULT 1.75,
+    weight_total INTEGER DEFAULT 1000,
+    weight_used REAL DEFAULT 0,
+    price_per_kg REAL DEFAULT 0,
+    temp_nozzle_min INTEGER,
+    temp_nozzle_max INTEGER,
+    temp_nozzle INTEGER,
+    temp_bed INTEGER,
+    temp_dry INTEGER,
+    time_dry INTEGER,
+    pa REAL,
+    ka REAL,
+    flow_rate REAL DEFAULT 100,
+    shrink_factor REAL DEFAULT 100,
+    location TEXT,
+    notes TEXT,
     added_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
   CREATE TABLE IF NOT EXISTS printers (
@@ -57,6 +73,26 @@ db.exec(`
     UNIQUE(printer_id, unit_idx, slot_idx)
   );
 `);
+
+// ── MIGRATION: neue Spalten falls DB schon existiert ──
+const filCols = db.prepare("PRAGMA table_info(filaments)").all().map(c => c.name);
+const newCols = [
+  ['diameter', 'REAL DEFAULT 1.75'],
+  ['temp_nozzle_min', 'INTEGER'],
+  ['temp_nozzle_max', 'INTEGER'],
+  ['temp_dry', 'INTEGER'],
+  ['time_dry', 'INTEGER'],
+  ['pa', 'REAL'],
+  ['ka', 'REAL'],
+  ['flow_rate', 'REAL DEFAULT 100'],
+  ['shrink_factor', 'REAL DEFAULT 100'],
+];
+newCols.forEach(([col, type]) => {
+  if (!filCols.includes(col)) {
+    db.prepare(`ALTER TABLE filaments ADD COLUMN ${col} ${type}`).run();
+    console.log(`✅ Spalte hinzugefügt: ${col}`);
+  }
+});
 
 const defaultSettings = {
   electricity_cost: process.env.ELECTRICITY_COST || '0.35',
@@ -196,25 +232,15 @@ app.post('/api/printers/:id/home', (req, res) => {
   res.json({ ok: sendGcode(req.params.id, gcode) });
 });
 
-// ── ACHSEN BEWEGEN (NEU) ──────────────────────
-// body: { axis: 'x'|'y'|'z', distance: number }
-// Positiv = vorwärts/hoch, Negativ = rückwärts/runter
-// XY Vorschub: 3000 mm/min, Z Vorschub: 600 mm/min (langsamer)
+// ── ACHSEN BEWEGEN ────────────────────────────
 app.post('/api/printers/:id/move', (req, res) => {
   const { axis, distance } = req.body;
-  if (!axis || distance === undefined) {
-    return res.status(400).json({ error: 'axis und distance sind erforderlich' });
-  }
+  if (!axis || distance === undefined) return res.status(400).json({ error: 'axis und distance erforderlich' });
   const ax = axis.toUpperCase();
-  if (!['X', 'Y', 'Z'].includes(ax)) {
-    return res.status(400).json({ error: 'axis muss X, Y oder Z sein' });
-  }
+  if (!['X', 'Y', 'Z'].includes(ax)) return res.status(400).json({ error: 'axis muss X, Y oder Z sein' });
   const dist = parseFloat(distance);
-  if (isNaN(dist) || dist === 0) {
-    return res.status(400).json({ error: 'distance muss eine Zahl ungleich 0 sein' });
-  }
+  if (isNaN(dist) || dist === 0) return res.status(400).json({ error: 'distance muss ungleich 0 sein' });
   const feedrate = ax === 'Z' ? 600 : 3000;
-  // G91 = relativ, bewegen, G90 = absolut zurück
   const gcode = `G91\nG0 ${ax}${dist > 0 ? '+' : ''}${dist} F${feedrate}\nG90`;
   res.json({ ok: sendGcode(req.params.id, gcode) });
 });
@@ -224,7 +250,7 @@ app.post('/api/printers/:id/motors_off', (req, res) => {
   res.json({ ok: sendGcode(req.params.id, 'M84') });
 });
 
-// ── FILAMENT ──────────────────────────────────
+// ── FILAMENT LOAD/UNLOAD ──────────────────────
 app.post('/api/printers/:id/filament_load', (req, res) => {
   const ok1 = sendGcode(req.params.id, 'M104 S220');
   const ok2 = sendMQTT(req.params.id, {
@@ -292,16 +318,59 @@ app.delete('/api/printers/:id/files/:filename', async (req, res) => {
 app.get('/api/filaments', (req, res) => res.json(db.prepare('SELECT * FROM filaments ORDER BY id DESC').all()));
 
 app.post('/api/filaments', (req, res) => {
-  const { brand, material, color, color_hex, weight_total, price_per_kg, temp_nozzle, temp_bed, location, notes } = req.body;
-  const result = db.prepare('INSERT INTO filaments (brand,material,color,color_hex,weight_total,price_per_kg,temp_nozzle,temp_bed,location,notes) VALUES (?,?,?,?,?,?,?,?,?,?)')
-    .run(brand, material, color, color_hex || '#888888', weight_total || 1000, price_per_kg || 0, temp_nozzle, temp_bed, location, notes);
+  const {
+    brand, material, color, color_hex, diameter,
+    weight_total, price_per_kg,
+    temp_nozzle_min, temp_nozzle_max, temp_nozzle, temp_bed,
+    temp_dry, time_dry, pa, ka, flow_rate, shrink_factor,
+    location, notes
+  } = req.body;
+  const result = db.prepare(`
+    INSERT INTO filaments
+      (brand,material,color,color_hex,diameter,weight_total,price_per_kg,
+       temp_nozzle_min,temp_nozzle_max,temp_nozzle,temp_bed,
+       temp_dry,time_dry,pa,ka,flow_rate,shrink_factor,location,notes)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+  `).run(
+    brand, material, color, color_hex || '#888888',
+    diameter || 1.75, weight_total || 1000, price_per_kg || 0,
+    temp_nozzle_min || null, temp_nozzle_max || null,
+    temp_nozzle || null, temp_bed || null,
+    temp_dry || null, time_dry || null,
+    pa || null, ka || null,
+    flow_rate || 100, shrink_factor || 100,
+    location || null, notes || null
+  );
   res.json({ id: result.lastInsertRowid });
 });
 
 app.put('/api/filaments/:id', (req, res) => {
-  const { brand, material, color, color_hex, weight_total, weight_used, price_per_kg, temp_nozzle, temp_bed, location, notes } = req.body;
-  db.prepare('UPDATE filaments SET brand=?,material=?,color=?,color_hex=?,weight_total=?,weight_used=?,price_per_kg=?,temp_nozzle=?,temp_bed=?,location=?,notes=? WHERE id=?')
-    .run(brand, material, color, color_hex, weight_total, weight_used, price_per_kg, temp_nozzle, temp_bed, location, notes, req.params.id);
+  const {
+    brand, material, color, color_hex, diameter,
+    weight_total, weight_used, price_per_kg,
+    temp_nozzle_min, temp_nozzle_max, temp_nozzle, temp_bed,
+    temp_dry, time_dry, pa, ka, flow_rate, shrink_factor,
+    location, notes
+  } = req.body;
+  db.prepare(`
+    UPDATE filaments SET
+      brand=?,material=?,color=?,color_hex=?,diameter=?,
+      weight_total=?,weight_used=?,price_per_kg=?,
+      temp_nozzle_min=?,temp_nozzle_max=?,temp_nozzle=?,temp_bed=?,
+      temp_dry=?,time_dry=?,pa=?,ka=?,flow_rate=?,shrink_factor=?,
+      location=?,notes=?
+    WHERE id=?
+  `).run(
+    brand, material, color, color_hex, diameter || 1.75,
+    weight_total, weight_used || 0, price_per_kg,
+    temp_nozzle_min || null, temp_nozzle_max || null,
+    temp_nozzle || null, temp_bed || null,
+    temp_dry || null, time_dry || null,
+    pa || null, ka || null,
+    flow_rate || 100, shrink_factor || 100,
+    location || null, notes || null,
+    req.params.id
+  );
   res.json({ ok: true });
 });
 

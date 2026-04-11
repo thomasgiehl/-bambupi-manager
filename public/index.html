@@ -6,421 +6,306 @@
 <title>BambuPi Manager</title>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-/* ── VARIABLES ── */
 :root {
-  --bg:       #0a0c10;
-  --surface:  #0f1117;
-  --surface2: #161820;
-  --surface3: #1c1f2a;
-  --border:   #22263a;
-  --border2:  #2a2f45;
-  --green:    #4caf50;
-  --green-dim:#1b3a1c;
-  --blue:     #2196f3;
-  --blue-dim: #0d2340;
-  --orange:   #ff9800;
-  --orange-dim:#3d2400;
-  --red:      #f44336;
-  --red-dim:  #3a0f0d;
-  --text:     #dde2f0;
-  --text2:    #7a869e;
-  --text3:    #3d4460;
-  --mono:     'JetBrains Mono', monospace;
-  --sans:     'Inter', sans-serif;
+  --bg:#0a0c10; --surface:#0f1117; --surface2:#161820; --surface3:#1c1f2a;
+  --border:#22263a; --border2:#2a2f45;
+  --green:#4caf50; --green-dim:#1b3a1c;
+  --blue:#2196f3; --blue-dim:#0d2340;
+  --orange:#ff9800; --orange-dim:#3d2400;
+  --red:#f44336; --red-dim:#3a0f0d;
+  --text:#dde2f0; --text2:#7a869e; --text3:#3d4460;
+  --mono:'JetBrains Mono',monospace; --sans:'Inter',sans-serif;
 }
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:100vh;display:flex;font-size:13px;}
 
-* { margin:0; padding:0; box-sizing:border-box; }
-body { font-family:var(--sans); background:var(--bg); color:var(--text); min-height:100vh; display:flex; font-size:13px; }
+/* SIDEBAR */
+.sidebar{width:200px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:200;}
+.logo{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;}
+.logo-mark{width:30px;height:30px;background:var(--blue);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;}
+.logo-title{font-size:13px;font-weight:700;font-family:var(--mono);color:var(--text);}
+.logo-sub{font-size:9px;color:var(--text3);font-family:var(--mono);margin-top:1px;}
+nav{padding:6px 0;flex:1;overflow-y:auto;}
+.nav-sep{padding:10px 14px 3px;font-size:9px;font-weight:700;color:var(--text3);letter-spacing:0.12em;text-transform:uppercase;}
+nav a{display:flex;align-items:center;gap:9px;padding:7px 14px;color:var(--text2);font-size:12px;font-weight:500;cursor:pointer;text-decoration:none;border-left:2px solid transparent;transition:all 0.1s;}
+nav a:hover{color:var(--text);background:var(--surface2);}
+nav a.active{color:var(--blue);background:rgba(33,150,243,0.08);border-left-color:var(--blue);}
+nav a svg{width:14px;height:14px;flex-shrink:0;opacity:0.6;}
+nav a.active svg{opacity:1;}
+.sidebar-foot{padding:10px 14px;border-top:1px solid var(--border);font-size:10px;color:var(--text3);font-family:var(--mono);}
 
-/* ── SIDEBAR ── */
-.sidebar {
-  width:200px; background:var(--surface); border-right:1px solid var(--border);
-  display:flex; flex-direction:column; position:fixed; top:0; left:0; bottom:0; z-index:200;
-}
-.logo { padding:14px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
-.logo-mark { width:30px; height:30px; background:var(--blue); border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:15px; flex-shrink:0; }
-.logo-title { font-size:13px; font-weight:700; font-family:var(--mono); color:var(--text); letter-spacing:-0.3px; }
-.logo-sub { font-size:9px; color:var(--text3); font-family:var(--mono); margin-top:1px; }
-nav { padding:6px 0; flex:1; overflow-y:auto; }
-.nav-sep { padding:10px 14px 3px; font-size:9px; font-weight:700; color:var(--text3); letter-spacing:0.12em; text-transform:uppercase; }
-nav a {
-  display:flex; align-items:center; gap:9px; padding:7px 14px;
-  color:var(--text2); font-size:12px; font-weight:500; cursor:pointer;
-  text-decoration:none; border-left:2px solid transparent; transition:all 0.1s;
-}
-nav a:hover { color:var(--text); background:var(--surface2); }
-nav a.active { color:var(--blue); background:rgba(33,150,243,0.08); border-left-color:var(--blue); }
-nav a svg { width:14px; height:14px; flex-shrink:0; opacity:0.6; }
-nav a.active svg { opacity:1; }
-.sidebar-foot { padding:10px 14px; border-top:1px solid var(--border); font-size:10px; color:var(--text3); font-family:var(--mono); }
+/* MAIN */
+.main{margin-left:200px;flex:1;display:flex;flex-direction:column;min-height:100vh;}
+.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:8px 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;height:44px;}
+.topbar-title{font-size:13px;font-weight:600;font-family:var(--mono);color:var(--text2);}
+.topbar-right{display:flex;align-items:center;gap:10px;}
+.status-pill{display:flex;align-items:center;gap:5px;padding:3px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:3px;font-size:10px;font-family:var(--mono);color:var(--text2);}
+.sdot{width:6px;height:6px;border-radius:50%;}
+.sdot-green{background:var(--green);box-shadow:0 0 6px var(--green);}
+.sdot-blue{background:var(--blue);}
+.sdot-gray{background:var(--text3);}
+.content{padding:16px 20px;flex:1;}
+.page{display:none;}.page.active{display:block;}
 
-/* ── MAIN ── */
-.main { margin-left:200px; flex:1; display:flex; flex-direction:column; min-height:100vh; }
+/* STATS */
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px;}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:12px 14px;display:flex;align-items:center;gap:10px;}
+.stat-icon{width:32px;height:32px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;}
+.si-blue{background:rgba(33,150,243,0.1);} .si-green{background:rgba(76,175,80,0.1);} .si-orange{background:rgba(255,152,0,0.1);} .si-purple{background:rgba(156,39,176,0.1);}
+.stat-val{font-size:18px;font-weight:700;color:var(--text);font-family:var(--mono);line-height:1;}
+.stat-lbl{font-size:10px;color:var(--text3);margin-top:2px;}
 
-/* TOPBAR */
-.topbar {
-  background:var(--surface); border-bottom:1px solid var(--border);
-  padding:8px 20px; display:flex; align-items:center; justify-content:space-between;
-  position:sticky; top:0; z-index:100; height:44px;
-}
-.topbar-title { font-size:13px; font-weight:600; font-family:var(--mono); color:var(--text2); }
-.topbar-right { display:flex; align-items:center; gap:10px; }
-.status-pill {
-  display:flex; align-items:center; gap:5px; padding:3px 10px;
-  background:var(--surface2); border:1px solid var(--border); border-radius:3px;
-  font-size:10px; font-family:var(--mono); color:var(--text2);
-}
-.sdot { width:6px; height:6px; border-radius:50%; }
-.sdot-green { background:var(--green); box-shadow:0 0 6px var(--green); }
-.sdot-blue  { background:var(--blue); }
-.sdot-gray  { background:var(--text3); }
-.sdot-red   { background:var(--red); }
+/* CNC CARD */
+.cnc-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:16px;}
+.cnc-header{display:flex;align-items:center;justify-content:space-between;padding:8px 16px;background:var(--surface2);border-bottom:1px solid var(--border);}
+.cnc-printer-name{font-size:13px;font-weight:700;font-family:var(--mono);display:flex;align-items:center;gap:8px;}
+.cnc-printer-sub{font-size:10px;color:var(--text3);font-family:var(--mono);}
+.state-badge{display:flex;align-items:center;gap:5px;padding:3px 10px;border-radius:3px;font-size:10px;font-weight:700;font-family:var(--mono);border:1px solid;}
+.sb-printing{background:var(--green-dim);color:var(--green);border-color:rgba(76,175,80,0.3);}
+.sb-ready{background:var(--blue-dim);color:var(--blue);border-color:rgba(33,150,243,0.3);}
+.sb-offline{background:var(--surface3);color:var(--text3);border-color:var(--border);}
+.cnc-body{display:grid;grid-template-columns:1fr 220px 260px;}
+.cnc-col{border-right:1px solid var(--border);}
+.cnc-col:last-child{border-right:none;}
 
-.content { padding:16px 20px; flex:1; }
-.page { display:none; }
-.page.active { display:block; }
-
-/* ── STATS ── */
-.stats-row { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:16px; }
-.stat-card { background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:12px 14px; display:flex; align-items:center; gap:10px; }
-.stat-icon { width:32px; height:32px; border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:15px; flex-shrink:0; }
-.si-blue   { background:rgba(33,150,243,0.1); }
-.si-green  { background:rgba(76,175,80,0.1); }
-.si-orange { background:rgba(255,152,0,0.1); }
-.si-purple { background:rgba(156,39,176,0.1); }
-.stat-val { font-size:18px; font-weight:700; color:var(--text); font-family:var(--mono); line-height:1; }
-.stat-lbl { font-size:10px; color:var(--text3); margin-top:2px; }
-
-/* ══════════════════════════════════════
-   CNC PRINTER CARD
-══════════════════════════════════════ */
-.cnc-card { background:var(--surface); border:1px solid var(--border); border-radius:8px; overflow:hidden; margin-bottom:16px; }
-
-/* Header bar */
-.cnc-header {
-  display:flex; align-items:center; justify-content:space-between;
-  padding:8px 16px; background:var(--surface2); border-bottom:1px solid var(--border);
-}
-.cnc-printer-name { font-size:13px; font-weight:700; font-family:var(--mono); display:flex; align-items:center; gap:8px; }
-.cnc-printer-sub { font-size:10px; color:var(--text3); font-family:var(--mono); }
-.state-badge {
-  display:flex; align-items:center; gap:5px; padding:3px 10px;
-  border-radius:3px; font-size:10px; font-weight:700; font-family:var(--mono);
-  border:1px solid;
-}
-.sb-printing { background:var(--green-dim); color:var(--green); border-color:rgba(76,175,80,0.3); }
-.sb-ready    { background:var(--blue-dim);  color:var(--blue);  border-color:rgba(33,150,243,0.3); }
-.sb-offline  { background:var(--surface3);  color:var(--text3); border-color:var(--border); }
-
-/* ── MAIN BODY: camera | status | controls ── */
-.cnc-body { display:grid; grid-template-columns:1fr 220px 260px; }
-.cnc-col { border-right:1px solid var(--border); }
-.cnc-col:last-child { border-right:none; }
-
-/* CAMERA VIEWPORT */
-.viewport { position:relative; background:#000; height:320px; }
-.viewport iframe { width:100%; height:100%; border:none; display:block; }
-.vp-overlay {
-  position:absolute; top:0; left:0; right:0; bottom:0;
-  pointer-events:none; display:flex; flex-direction:column; justify-content:space-between;
-  padding:10px;
-}
-.vp-top { display:flex; justify-content:space-between; align-items:flex-start; }
-.vp-live {
-  display:flex; align-items:center; gap:5px; background:rgba(0,0,0,0.7);
-  padding:3px 8px; border-radius:3px; font-size:10px; font-family:var(--mono); color:var(--green);
-}
-.vp-live-dot { width:5px; height:5px; border-radius:50%; background:var(--green); animation:blink 2s infinite; }
-@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
-.vp-status-overlay {
-  background:rgba(0,0,0,0.75); padding:5px 10px; border-radius:3px;
-  font-family:var(--mono); font-size:11px; text-align:right;
-}
-.vp-bottom { }
-.vp-progress-wrap { background:rgba(0,0,0,0.8); padding:8px 10px; border-radius:3px; }
-.vp-pct { font-size:22px; font-weight:700; color:var(--green); font-family:var(--mono); line-height:1; }
-.vp-filename { font-size:10px; color:var(--text2); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:280px; }
-.vp-pbar { height:3px; background:rgba(255,255,255,0.1); border-radius:2px; margin:6px 0 4px; overflow:hidden; }
-.vp-pbar-fill { height:100%; background:var(--green); border-radius:2px; transition:width 1s ease; }
-.vp-meta { display:flex; gap:14px; font-size:10px; color:var(--text2); font-family:var(--mono); }
-.vp-idle { display:flex; align-items:center; justify-content:center; height:100%; font-size:11px; color:var(--text3); font-family:var(--mono); flex-direction:column; gap:8px; }
-.vp-idle-icon { font-size:28px; opacity:0.4; }
+/* VIEWPORT */
+.viewport{position:relative;background:#000;height:320px;}
+.viewport iframe{width:100%;height:100%;border:none;display:block;}
+.vp-overlay{position:absolute;top:0;left:0;right:0;bottom:0;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between;padding:10px;}
+.vp-top{display:flex;justify-content:space-between;align-items:flex-start;}
+.vp-live{display:flex;align-items:center;gap:5px;background:rgba(0,0,0,0.7);padding:3px 8px;border-radius:3px;font-size:10px;font-family:var(--mono);color:var(--green);}
+.vp-live-dot{width:5px;height:5px;border-radius:50%;background:var(--green);animation:blink 2s infinite;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.2}}
+.vp-status-overlay{background:rgba(0,0,0,0.75);padding:5px 10px;border-radius:3px;font-family:var(--mono);font-size:11px;}
+.vp-progress-wrap{background:rgba(0,0,0,0.8);padding:8px 10px;border-radius:3px;}
+.vp-pct{font-size:22px;font-weight:700;color:var(--green);font-family:var(--mono);line-height:1;}
+.vp-filename{font-size:10px;color:var(--text2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px;}
+.vp-pbar{height:3px;background:rgba(255,255,255,0.1);border-radius:2px;margin:6px 0 4px;overflow:hidden;}
+.vp-pbar-fill{height:100%;background:var(--green);border-radius:2px;transition:width 1s ease;}
+.vp-meta{display:flex;gap:14px;font-size:10px;color:var(--text2);font-family:var(--mono);}
+.vp-idle{display:flex;align-items:center;justify-content:center;height:100%;font-size:11px;color:var(--text3);font-family:var(--mono);flex-direction:column;gap:8px;}
+.vp-idle-icon{font-size:28px;opacity:0.4;}
 
 /* STATUS PANEL */
-.status-panel { padding:12px; }
-.sp-title { font-size:9px; font-weight:700; color:var(--text3); letter-spacing:0.1em; text-transform:uppercase; margin-bottom:10px; font-family:var(--mono); }
+.status-panel{padding:12px;}
+.sp-title{font-size:9px;font-weight:700;color:var(--text3);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:10px;font-family:var(--mono);}
+.temp-block{background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:10px;margin-bottom:8px;cursor:pointer;transition:border-color 0.1s;}
+.temp-block:hover{border-color:var(--blue);}
+.temp-block-lbl{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:5px;display:flex;justify-content:space-between;font-family:var(--mono);}
+.temp-val{font-size:30px;font-weight:700;font-family:var(--mono);line-height:1;}
+.tv-hot{color:var(--red);} .tv-warm{color:var(--orange);} .tv-cool{color:var(--blue);} .tv-off{color:var(--text3);}
+.temp-track{height:2px;background:var(--surface3);border-radius:1px;margin-top:6px;overflow:hidden;}
+.temp-track-fill{height:100%;border-radius:1px;transition:width 0.5s;}
+.ttf-nozzle{background:linear-gradient(90deg,var(--orange),var(--red));}
+.ttf-bed{background:linear-gradient(90deg,var(--blue),var(--orange));}
+@keyframes pulse-heat{0%,100%{opacity:1;box-shadow:0 0 6px var(--orange);}50%{opacity:0.6;box-shadow:0 0 14px var(--orange);}}
+@keyframes pulse-ok{0%,100%{opacity:1;box-shadow:0 0 6px var(--green);}50%{opacity:0.6;box-shadow:0 0 12px var(--green);}}
+.heating{animation:pulse-heat 1.2s infinite;border-color:var(--orange)!important;}
+.temp-ok{animation:pulse-ok 2s infinite;border-color:var(--green)!important;}
+.heat-status{display:flex;align-items:center;justify-content:space-between;margin-top:5px;font-size:10px;font-family:var(--mono);}
+.heat-label{font-weight:700;letter-spacing:0.05em;}
+.heat-bar-wrap{flex:1;margin:0 8px;height:3px;background:var(--surface3);border-radius:2px;overflow:hidden;}
+.heat-bar-inner{height:100%;border-radius:2px;transition:width 0.5s;}
+.sp-divider{border:none;border-top:1px solid var(--border);margin:10px 0;}
+.fan-ctrl{margin-top:8px;}
+.fan-ctrl-lbl{display:flex;justify-content:space-between;font-size:10px;color:var(--text3);font-family:var(--mono);margin-bottom:4px;}
+.fan-slider{width:100%;height:3px;background:var(--surface3);outline:none;-webkit-appearance:none;cursor:pointer;border-radius:2px;}
+.fan-slider::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;border-radius:50%;background:var(--blue);border:2px solid var(--surface);cursor:pointer;}
 
-.temp-block { background:var(--surface2); border:1px solid var(--border); border-radius:5px; padding:10px; margin-bottom:8px; cursor:pointer; transition:border-color 0.1s; }
-.temp-block:hover { border-color:var(--blue); }
-.temp-block-lbl { font-size:9px; color:var(--text3); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:5px; display:flex; justify-content:space-between; font-family:var(--mono); }
-.temp-val { font-size:30px; font-weight:700; font-family:var(--mono); line-height:1; }
-.tv-hot    { color:var(--red); }
-.tv-warm   { color:var(--orange); }
-.tv-cool   { color:var(--blue); }
-.tv-off    { color:var(--text3); }
-.temp-target { font-size:11px; color:var(--text3); font-family:var(--mono); margin-top:2px; }
-.temp-track { height:2px; background:var(--surface3); border-radius:1px; margin-top:6px; overflow:hidden; }
-.temp-track-fill { height:100%; border-radius:1px; transition:width 0.5s; }
-.ttf-nozzle { background:linear-gradient(90deg,var(--orange),var(--red)); }
-.ttf-bed    { background:linear-gradient(90deg,var(--blue),var(--orange)); }
+/* CTRL PANEL */
+.ctrl-panel{padding:12px;overflow-y:auto;}
+.cp-section{margin-bottom:14px;}
+.cp-title{font-size:9px;font-weight:700;color:var(--text3);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:8px;font-family:var(--mono);border-bottom:1px solid var(--border);padding-bottom:5px;}
+.pc-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px;}
+.cb{border:none;border-radius:4px;cursor:pointer;font-family:var(--mono);font-weight:600;font-size:11px;padding:9px 6px;display:flex;flex-direction:column;align-items:center;gap:3px;transition:all 0.1s;border:1px solid transparent;}
+.cb:hover{filter:brightness(1.2);} .cb:active{transform:scale(0.96);}
+.cb-icon{font-size:15px;line-height:1;} .cb-lbl{font-size:9px;opacity:0.8;}
+.cb-pause{background:var(--orange-dim);color:var(--orange);border-color:rgba(255,152,0,0.25);}
+.cb-resume{background:var(--green-dim);color:var(--green);border-color:rgba(76,175,80,0.25);}
+.cb-stop{background:var(--red-dim);color:var(--red);border-color:rgba(244,67,54,0.25);}
+.cb-light{background:var(--surface2);color:var(--text2);border-color:var(--border);}
+.cb-motor{background:var(--surface2);color:var(--text3);border-color:var(--border);}
+.cb-load{background:var(--green-dim);color:var(--green);border-color:rgba(76,175,80,0.2);}
+.cb-unload{background:var(--orange-dim);color:var(--orange);border-color:rgba(255,152,0,0.2);}
+.spd-row{display:flex;gap:4px;}
+.spd-btn{flex:1;padding:6px 2px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);font-size:10px;font-weight:700;cursor:pointer;text-align:center;transition:all 0.1s;font-family:var(--mono);}
+.spd-btn:hover{border-color:var(--blue);color:var(--blue);}
+.spd-btn.active{background:var(--blue-dim);color:var(--blue);border-color:rgba(33,150,243,0.4);}
 
-.sp-divider { border:none; border-top:1px solid var(--border); margin:10px 0; }
-
-.sp-row { display:flex; justify-content:space-between; align-items:center; padding:4px 0; font-size:11px; }
-.sp-row-lbl { color:var(--text3); font-family:var(--mono); }
-.sp-row-val { color:var(--text); font-family:var(--mono); font-weight:600; }
-
-.fan-ctrl { margin-top:8px; }
-.fan-ctrl-lbl { display:flex; justify-content:space-between; font-size:10px; color:var(--text3); font-family:var(--mono); margin-bottom:4px; }
-.fan-slider { width:100%; height:3px; background:var(--surface3); outline:none; -webkit-appearance:none; cursor:pointer; border-radius:2px; }
-.fan-slider::-webkit-slider-thumb { -webkit-appearance:none; width:13px; height:13px; border-radius:50%; background:var(--blue); border:2px solid var(--surface); cursor:pointer; }
-
-/* CONTROLS PANEL */
-.ctrl-panel { padding:12px; overflow-y:auto; }
-.cp-section { margin-bottom:14px; }
-.cp-title { font-size:9px; font-weight:700; color:var(--text3); letter-spacing:0.1em; text-transform:uppercase; margin-bottom:8px; font-family:var(--mono); border-bottom:1px solid var(--border); padding-bottom:5px; }
-
-/* Print control buttons — large */
-.pc-grid { display:grid; grid-template-columns:1fr 1fr; gap:5px; }
-.cb {
-  border:none; border-radius:4px; cursor:pointer; font-family:var(--mono);
-  font-weight:600; font-size:11px; padding:9px 6px;
-  display:flex; flex-direction:column; align-items:center; gap:3px;
-  transition:all 0.1s; border:1px solid transparent;
-}
-.cb:hover { filter:brightness(1.2); }
-.cb:active { transform:scale(0.96); }
-.cb-icon { font-size:15px; line-height:1; }
-.cb-lbl { font-size:9px; opacity:0.8; }
-.cb-pause   { background:var(--orange-dim); color:var(--orange); border-color:rgba(255,152,0,0.25); }
-.cb-resume  { background:var(--green-dim);  color:var(--green);  border-color:rgba(76,175,80,0.25); }
-.cb-stop    { background:var(--red-dim);    color:var(--red);    border-color:rgba(244,67,54,0.25); }
-.cb-light   { background:var(--surface2);   color:var(--text2);  border-color:var(--border); }
-.cb-motor   { background:var(--surface2);   color:var(--text3);  border-color:var(--border); }
-.cb-load    { background:var(--green-dim);  color:var(--green);  border-color:rgba(76,175,80,0.2); }
-.cb-unload  { background:var(--orange-dim); color:var(--orange); border-color:rgba(255,152,0,0.2); }
-
-/* Speed buttons */
-.spd-row { display:flex; gap:4px; }
-.spd-btn {
-  flex:1; padding:6px 2px; border-radius:4px; border:1px solid var(--border);
-  background:var(--surface2); color:var(--text3); font-size:10px; font-weight:700;
-  cursor:pointer; text-align:center; transition:all 0.1s; font-family:var(--mono);
-}
-.spd-btn:hover { border-color:var(--blue); color:var(--blue); }
-.spd-btn.active { background:var(--blue-dim); color:var(--blue); border-color:rgba(33,150,243,0.4); }
-
-/* ══════════════════════════════════════
-   AXIS CONTROL — CNC Style (NEW)
-══════════════════════════════════════ */
-.cnc-bottom { border-top:1px solid var(--border); padding:14px 16px; background:var(--surface2); }
-.cnc-bottom-inner { display:grid; grid-template-columns:auto 1fr auto; gap:20px; align-items:start; }
-
-/* Axis control pad */
-.axis-pad { }
-.axis-pad-title { font-size:9px; font-weight:700; color:var(--text3); letter-spacing:0.1em; text-transform:uppercase; margin-bottom:10px; font-family:var(--mono); }
-
-.axis-row { display:flex; align-items:center; gap:6px; margin-bottom:6px; }
-.axis-lbl { font-size:11px; font-weight:700; color:var(--text2); font-family:var(--mono); width:14px; text-align:center; flex-shrink:0; }
-
-.ab { /* axis button */
-  padding:5px 10px; border-radius:4px; border:1px solid var(--border2);
-  background:var(--surface3); color:var(--text); font-size:11px; font-weight:700;
-  cursor:pointer; font-family:var(--mono); transition:all 0.1s; min-width:36px; text-align:center;
-}
-.ab:hover { background:var(--blue-dim); border-color:rgba(33,150,243,0.4); color:var(--blue); }
-.ab:active { transform:scale(0.95); }
-.ab-neg { color:var(--text2); }
-.ab-pos { color:var(--text); }
-.ab-sep { padding:5px 6px; color:var(--text3); font-size:10px; font-family:var(--mono); }
-
-/* Home buttons */
-.home-row { display:flex; gap:5px; margin-top:10px; }
-.home-btn {
-  flex:1; padding:6px 4px; border-radius:4px; border:1px solid rgba(33,150,243,0.3);
-  background:var(--blue-dim); color:var(--blue); font-size:10px; font-weight:700;
-  cursor:pointer; text-align:center; transition:all 0.1s; font-family:var(--mono);
-}
-.home-btn:hover { background:rgba(33,150,243,0.2); }
-.home-btn-all { font-size:11px; }
-
-/* Machine controls in bottom */
-.machine-ctrl { }
-.mc-title { font-size:9px; font-weight:700; color:var(--text3); letter-spacing:0.1em; text-transform:uppercase; margin-bottom:10px; font-family:var(--mono); }
-.mc-grid { display:grid; grid-template-columns:1fr 1fr; gap:5px; }
-
-/* Speed + fan in bottom right */
-.bottom-right { }
-.br-title { font-size:9px; font-weight:700; color:var(--text3); letter-spacing:0.1em; text-transform:uppercase; margin-bottom:10px; font-family:var(--mono); }
+/* CNC BOTTOM */
+.cnc-bottom{border-top:1px solid var(--border);padding:14px 16px;background:var(--surface2);}
+.cnc-bottom-inner{display:grid;grid-template-columns:auto 1fr auto;gap:20px;align-items:start;}
+.axis-pad-title{font-size:9px;font-weight:700;color:var(--text3);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:10px;font-family:var(--mono);}
+.axis-row{display:flex;align-items:center;gap:6px;margin-bottom:6px;}
+.axis-lbl{font-size:11px;font-weight:700;color:var(--text2);font-family:var(--mono);width:14px;text-align:center;flex-shrink:0;}
+.ab{padding:5px 10px;border-radius:4px;border:1px solid var(--border2);background:var(--surface3);color:var(--text);font-size:11px;font-weight:700;cursor:pointer;font-family:var(--mono);transition:all 0.1s;min-width:36px;text-align:center;}
+.ab:hover{background:var(--blue-dim);border-color:rgba(33,150,243,0.4);color:var(--blue);}
+.ab:active{transform:scale(0.95);}
+.ab-sep{padding:5px 6px;color:var(--text3);font-size:10px;font-family:var(--mono);}
+.home-row{display:flex;gap:5px;margin-top:10px;}
+.home-btn{flex:1;padding:6px 4px;border-radius:4px;border:1px solid rgba(33,150,243,0.3);background:var(--blue-dim);color:var(--blue);font-size:10px;font-weight:700;cursor:pointer;text-align:center;transition:all 0.1s;font-family:var(--mono);}
+.home-btn:hover{background:rgba(33,150,243,0.2);}
+.mc-title{font-size:9px;font-weight:700;color:var(--text3);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:10px;font-family:var(--mono);}
+.br-title{font-size:9px;font-weight:700;color:var(--text3);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:10px;font-family:var(--mono);}
 
 /* AMS */
-.ams-panel { border-top:1px solid var(--border); padding:12px 16px; }
-.ams-title { font-size:9px; font-weight:700; color:var(--text3); letter-spacing:0.1em; text-transform:uppercase; margin-bottom:10px; font-family:var(--mono); display:flex; justify-content:space-between; align-items:center; }
-.ams-slots { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
-.ams-slot { background:var(--surface2); border:1px solid var(--border); border-radius:6px; padding:8px 4px; text-align:center; cursor:pointer; transition:all 0.1s; position:relative; }
-.ams-slot:hover { border-color:var(--text3); }
-.ams-slot.active { border-color:var(--green); background:rgba(76,175,80,0.05); }
-.ams-slot.manual { border-color:var(--blue); border-style:dashed; }
-.ams-slot.empty { opacity:0.4; }
-.ams-slot.empty:hover { opacity:0.7; border-color:var(--blue); }
-.ams-dot { width:20px; height:20px; border-radius:50%; margin:0 auto 5px; border:2px solid rgba(255,255,255,0.06); }
-.ams-num { font-size:9px; color:var(--text3); font-family:var(--mono); margin-bottom:2px; }
-.ams-type { font-size:9px; font-weight:600; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.ams-brand { font-size:8px; color:var(--text3); }
-.ams-rbar { height:2px; background:var(--border); border-radius:1px; margin-top:4px; overflow:hidden; }
-.ams-rfill { height:100%; border-radius:1px; }
-.ams-pip { position:absolute; top:3px; right:3px; width:5px; height:5px; border-radius:50%; background:var(--green); box-shadow:0 0 4px var(--green); }
-.ams-mbadge { position:absolute; top:2px; left:3px; font-size:7px; color:var(--blue); font-family:var(--mono); font-weight:700; }
-.ams-detail { display:none; background:var(--surface2); border:1px solid var(--border); border-radius:5px; padding:9px 11px; margin-top:7px; font-size:11px; }
-.ams-detail.open { display:block; }
-.ams-drow { display:flex; justify-content:space-between; padding:3px 0; border-bottom:1px solid var(--border); }
-.ams-drow:last-child { border:none; }
-.ams-dk { color:var(--text3); }
-.ams-dv { color:var(--text); font-weight:600; font-family:var(--mono); }
-.ams-dacts { display:flex; gap:6px; margin-top:7px; }
+.ams-panel{border-top:1px solid var(--border);padding:12px 16px;}
+.ams-title{font-size:9px;font-weight:700;color:var(--text3);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:10px;font-family:var(--mono);display:flex;justify-content:space-between;align-items:center;}
+.ams-slots{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
+.ams-slot{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 4px;text-align:center;cursor:pointer;transition:all 0.1s;position:relative;}
+.ams-slot:hover{border-color:var(--text3);} .ams-slot.active{border-color:var(--green);background:rgba(76,175,80,0.05);}
+.ams-slot.manual{border-color:var(--blue);border-style:dashed;} .ams-slot.empty{opacity:0.4;}
+.ams-slot.empty:hover{opacity:0.7;border-color:var(--blue);}
+.ams-dot{width:20px;height:20px;border-radius:50%;margin:0 auto 5px;border:2px solid rgba(255,255,255,0.06);}
+.ams-num{font-size:9px;color:var(--text3);font-family:var(--mono);margin-bottom:2px;}
+.ams-type{font-size:9px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ams-brand{font-size:8px;color:var(--text3);}
+.ams-rbar{height:2px;background:var(--border);border-radius:1px;margin-top:4px;overflow:hidden;}
+.ams-rfill{height:100%;border-radius:1px;}
+.ams-pip{position:absolute;top:3px;right:3px;width:5px;height:5px;border-radius:50%;background:var(--green);box-shadow:0 0 4px var(--green);}
+.ams-mbadge{position:absolute;top:2px;left:3px;font-size:7px;color:var(--blue);font-family:var(--mono);font-weight:700;}
+.ams-detail{display:none;background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:9px 11px;margin-top:7px;font-size:11px;}
+.ams-detail.open{display:block;}
+.ams-drow{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--border);}
+.ams-drow:last-child{border:none;}
+.ams-dk{color:var(--text3);} .ams-dv{color:var(--text);font-weight:600;font-family:var(--mono);}
+.ams-dacts{display:flex;gap:6px;margin-top:7px;}
 
-/* ── GENERIC ── */
-.card { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:14px 16px; margin-bottom:12px; }
-.card-title { font-size:10px; font-weight:700; color:var(--text3); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:12px; font-family:var(--mono); }
-.fil-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:10px; }
-.fil-card { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:12px; }
-.fil-top { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
-.fil-dot { width:34px; height:34px; border-radius:50%; border:2px solid rgba(255,255,255,0.07); flex-shrink:0; }
-.fil-name { font-size:13px; font-weight:600; }
-.fil-sub { font-size:11px; color:var(--text3); }
-.fil-bar { height:3px; background:var(--border); border-radius:2px; margin:7px 0; }
-.fil-bar-fill { height:100%; border-radius:2px; }
-.fil-info { display:flex; justify-content:space-between; font-size:11px; color:var(--text3); font-family:var(--mono); }
-.fil-actions { display:flex; gap:6px; margin-top:9px; }
+/* GENERIC */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:12px;}
+.card-title{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:12px;font-family:var(--mono);}
 
-.btn { padding:6px 13px; border-radius:5px; border:none; cursor:pointer; font-size:12px; font-weight:600; transition:all 0.1s; font-family:var(--sans); }
-.btn-primary { background:var(--blue); color:#fff; }
-.btn-primary:hover { background:#42a5f5; }
-.btn-secondary { background:var(--surface2); color:var(--text); border:1px solid var(--border); }
-.btn-secondary:hover { background:var(--surface3); }
-.btn-danger { background:rgba(244,67,54,0.1); color:var(--red); border:1px solid rgba(244,67,54,0.2); }
-.btn-danger:hover { background:rgba(244,67,54,0.2); }
-.btn-info { background:rgba(33,150,243,0.1); color:var(--blue); border:1px solid rgba(33,150,243,0.2); }
-.btn-info:hover { background:rgba(33,150,243,0.2); }
-.btn-sm { padding:4px 9px; font-size:11px; }
+/* FILAMENT GRID */
+.fil-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;}
+.fil-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;position:relative;}
+.fil-card:hover{border-color:var(--border2);}
+.fil-top{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+.fil-dot{width:36px;height:36px;border-radius:50%;border:2px solid rgba(255,255,255,0.07);flex-shrink:0;}
+.fil-name{font-size:13px;font-weight:600;}
+.fil-sub{font-size:11px;color:var(--text3);}
+.fil-bar{height:3px;background:var(--border);border-radius:2px;margin:7px 0;}
+.fil-bar-fill{height:100%;border-radius:2px;}
+.fil-info{display:flex;justify-content:space-between;font-size:11px;color:var(--text3);font-family:var(--mono);}
+.fil-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px;}
+.fil-tag{padding:2px 7px;border-radius:3px;font-size:10px;font-family:var(--mono);font-weight:600;background:var(--surface2);border:1px solid var(--border);color:var(--text3);}
+.fil-tag.has-val{color:var(--blue);border-color:rgba(33,150,243,0.25);background:var(--blue-dim);}
+.fil-actions{display:flex;gap:6px;margin-top:10px;}
 
-.form-group { margin-bottom:12px; }
-.form-group label { display:block; font-size:11px; color:var(--text3); margin-bottom:4px; font-weight:500; }
-.form-group input, .form-group select {
-  width:100%; background:var(--surface2); border:1px solid var(--border);
-  border-radius:5px; padding:7px 10px; color:var(--text); font-size:13px; font-family:var(--sans);
-}
-.form-group input:focus, .form-group select:focus { outline:none; border-color:var(--blue); }
-.form-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+/* FILAMENT DATENBANK PICKER */
+.db-picker{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:12px;margin-bottom:14px;}
+.db-picker-title{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;font-family:var(--mono);}
+.db-row{display:flex;gap:8px;margin-bottom:8px;}
+.db-select{flex:1;background:var(--surface3);border:1px solid var(--border);border-radius:5px;padding:6px 10px;color:var(--text);font-size:12px;font-family:var(--sans);}
+.db-select:focus{outline:none;border-color:var(--blue);}
+.db-apply-btn{padding:6px 14px;background:var(--blue);color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--sans);white-space:nowrap;}
+.db-apply-btn:hover{background:#42a5f5;}
+.db-preview{font-size:11px;color:var(--text3);font-family:var(--mono);padding:6px 8px;background:var(--surface3);border-radius:4px;min-height:22px;}
 
-.modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.8); z-index:1000; align-items:center; justify-content:center; backdrop-filter:blur(2px); }
-.modal-overlay.open { display:flex; }
-.modal { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:22px; width:460px; max-width:95vw; max-height:90vh; overflow-y:auto; }
-.modal h2 { font-size:15px; font-weight:700; margin-bottom:4px; }
-.modal-sub { font-size:11px; color:var(--text3); margin-bottom:14px; font-family:var(--mono); }
-.modal-footer { display:flex; gap:7px; justify-content:flex-end; margin-top:16px; }
+/* MODAL TABS */
+.modal-tabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:14px;}
+.modal-tab{padding:7px 14px;font-size:12px;font-weight:500;cursor:pointer;color:var(--text3);border-bottom:2px solid transparent;transition:all 0.1s;}
+.modal-tab.active{color:var(--blue);border-bottom-color:var(--blue);}
+.modal-tab-content{display:none;}.modal-tab-content.active{display:block;}
 
-table { width:100%; border-collapse:collapse; font-size:12px; }
-th { text-align:left; padding:8px 11px; color:var(--text3); border-bottom:1px solid var(--border); font-weight:600; font-size:10px; text-transform:uppercase; letter-spacing:0.05em; }
-td { padding:8px 11px; border-bottom:1px solid var(--surface2); }
-tr:hover td { background:rgba(255,255,255,0.01); }
+.btn{padding:6px 13px;border-radius:5px;border:none;cursor:pointer;font-size:12px;font-weight:600;transition:all 0.1s;font-family:var(--sans);}
+.btn-primary{background:var(--blue);color:#fff;} .btn-primary:hover{background:#42a5f5;}
+.btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border);} .btn-secondary:hover{background:var(--surface3);}
+.btn-danger{background:rgba(244,67,54,0.1);color:var(--red);border:1px solid rgba(244,67,54,0.2);} .btn-danger:hover{background:rgba(244,67,54,0.2);}
+.btn-info{background:rgba(33,150,243,0.1);color:var(--blue);border:1px solid rgba(33,150,243,0.2);} .btn-info:hover{background:rgba(33,150,243,0.2);}
+.btn-sm{padding:4px 9px;font-size:11px;}
 
-.cost-result { background:rgba(33,150,243,0.05); border:1px solid rgba(33,150,243,0.15); border-radius:8px; padding:14px; margin-top:12px; }
-.cost-row { display:flex; justify-content:space-between; padding:5px 0; font-size:13px; border-bottom:1px solid rgba(255,255,255,0.04); }
-.cost-row:last-child { border:none; font-weight:700; color:var(--green); font-size:14px; margin-top:4px; }
-.cost-row .lbl { color:var(--text3); }
-.grid2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.form-group{margin-bottom:12px;}
+.form-group label{display:block;font-size:11px;color:var(--text3);margin-bottom:4px;font-weight:500;}
+.form-group input,.form-group select{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:7px 10px;color:var(--text);font-size:13px;font-family:var(--sans);}
+.form-group input:focus,.form-group select:focus{outline:none;border-color:var(--blue);}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.form-row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;}
 
-.toast { position:fixed; bottom:18px; right:18px; background:var(--surface); border:1px solid var(--border); border-radius:5px; padding:10px 16px; font-size:12px; font-family:var(--mono); z-index:9999; transform:translateY(80px); opacity:0; transition:all 0.2s; box-shadow:0 4px 20px rgba(0,0,0,0.5); }
-.toast.show { transform:translateY(0); opacity:1; }
-.toast.success { border-color:var(--green); color:var(--green); }
-.toast.error { border-color:var(--red); color:var(--red); }
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:1000;align-items:center;justify-content:center;backdrop-filter:blur(2px);}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:22px;width:560px;max-width:95vw;max-height:90vh;overflow-y:auto;}
+.modal h2{font-size:15px;font-weight:700;margin-bottom:14px;}
+.modal-sub{font-size:11px;color:var(--text3);margin-bottom:14px;font-family:var(--mono);}
+.modal-footer{display:flex;gap:7px;justify-content:flex-end;margin-top:16px;}
 
-.fil-option { display:flex; align-items:center; gap:9px; padding:9px 11px; border-radius:6px; cursor:pointer; border:1px solid transparent; transition:all 0.1s; margin-bottom:5px; }
-.fil-option:hover { background:var(--surface2); border-color:var(--border); }
-.fil-option.selected { background:rgba(33,150,243,0.06); border-color:var(--blue); }
-.fil-option-dot { width:24px; height:24px; border-radius:50%; flex-shrink:0; border:2px solid rgba(255,255,255,0.07); }
-.fil-option-name { font-size:13px; font-weight:600; }
-.fil-option-sub { font-size:11px; color:var(--text3); }
-.fil-option-pct { font-size:11px; color:var(--text3); font-family:var(--mono); margin-left:auto; white-space:nowrap; }
+.section-label{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin:14px 0 8px;font-family:var(--mono);padding-bottom:4px;border-bottom:1px solid var(--border);}
 
-.file-tabs { display:flex; border-bottom:1px solid var(--border); margin-bottom:14px; }
-.file-tab { padding:7px 14px; font-size:12px; font-weight:500; cursor:pointer; color:var(--text3); border-bottom:2px solid transparent; transition:all 0.1s; }
-.file-tab.active { color:var(--blue); border-bottom-color:var(--blue); }
-.file-tab-content { display:none; }
-.file-tab-content.active { display:block; }
-.file-row { display:flex; align-items:center; justify-content:space-between; padding:9px 12px; border-radius:6px; border:1px solid var(--border); margin-bottom:5px; background:var(--surface2); }
-.file-name { font-size:13px; font-weight:500; }
-.file-meta { font-size:11px; color:var(--text3); font-family:var(--mono); margin-top:2px; }
-.file-actions { display:flex; gap:5px; }
-.upload-zone { border:2px dashed var(--border); border-radius:8px; padding:32px; text-align:center; cursor:pointer; transition:all 0.15s; margin-bottom:14px; }
-.upload-zone:hover { border-color:var(--blue); background:rgba(33,150,243,0.03); }
-.upload-zone.drag { border-color:var(--blue); background:rgba(33,150,243,0.05); }
-.upload-zone p { color:var(--text3); font-size:13px; }
-.printer-sel { background:var(--surface2); border:1px solid var(--border); border-radius:5px; padding:7px 10px; color:var(--text); font-size:13px; font-family:var(--sans); width:100%; margin-bottom:12px; }
-.printer-sel:focus { outline:none; border-color:var(--blue); }
-.page-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
-.page-title { font-size:17px; font-weight:700; letter-spacing:-0.3px; }
+table{width:100%;border-collapse:collapse;font-size:12px;}
+th{text-align:left;padding:8px 11px;color:var(--text3);border-bottom:1px solid var(--border);font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:0.05em;}
+td{padding:8px 11px;border-bottom:1px solid var(--surface2);}
+tr:hover td{background:rgba(255,255,255,0.01);}
+
+.cost-result{background:rgba(33,150,243,0.05);border:1px solid rgba(33,150,243,0.15);border-radius:8px;padding:14px;margin-top:12px;}
+.cost-row{display:flex;justify-content:space-between;padding:5px 0;font-size:13px;border-bottom:1px solid rgba(255,255,255,0.04);}
+.cost-row:last-child{border:none;font-weight:700;color:var(--green);font-size:14px;margin-top:4px;}
+.cost-row .lbl{color:var(--text3);}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+
+.toast{position:fixed;bottom:18px;right:18px;background:var(--surface);border:1px solid var(--border);border-radius:5px;padding:10px 16px;font-size:12px;font-family:var(--mono);z-index:9999;transform:translateY(80px);opacity:0;transition:all 0.2s;box-shadow:0 4px 20px rgba(0,0,0,0.5);}
+.toast.show{transform:translateY(0);opacity:1;}
+.toast.success{border-color:var(--green);color:var(--green);}
+.toast.error{border-color:var(--red);color:var(--red);}
+
+.fil-option{display:flex;align-items:center;gap:9px;padding:9px 11px;border-radius:6px;cursor:pointer;border:1px solid transparent;transition:all 0.1s;margin-bottom:5px;}
+.fil-option:hover{background:var(--surface2);border-color:var(--border);}
+.fil-option.selected{background:rgba(33,150,243,0.06);border-color:var(--blue);}
+.fil-option-dot{width:24px;height:24px;border-radius:50%;flex-shrink:0;border:2px solid rgba(255,255,255,0.07);}
+.fil-option-name{font-size:13px;font-weight:600;} .fil-option-sub{font-size:11px;color:var(--text3);}
+.fil-option-pct{font-size:11px;color:var(--text3);font-family:var(--mono);margin-left:auto;white-space:nowrap;}
+
+.file-tabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:14px;}
+.file-tab{padding:7px 14px;font-size:12px;font-weight:500;cursor:pointer;color:var(--text3);border-bottom:2px solid transparent;transition:all 0.1s;}
+.file-tab.active{color:var(--blue);border-bottom-color:var(--blue);}
+.file-tab-content{display:none;} .file-tab-content.active{display:block;}
+.file-row{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-radius:6px;border:1px solid var(--border);margin-bottom:5px;background:var(--surface2);}
+.file-name{font-size:13px;font-weight:500;} .file-meta{font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:2px;}
+.file-actions{display:flex;gap:5px;}
+.upload-zone{border:2px dashed var(--border);border-radius:8px;padding:32px;text-align:center;cursor:pointer;transition:all 0.15s;margin-bottom:14px;}
+.upload-zone:hover{border-color:var(--blue);background:rgba(33,150,243,0.03);}
+.upload-zone.drag{border-color:var(--blue);background:rgba(33,150,243,0.05);}
+.upload-zone p{color:var(--text3);font-size:13px;}
+.printer-sel{background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:7px 10px;color:var(--text);font-size:13px;font-family:var(--sans);width:100%;margin-bottom:12px;}
+.printer-sel:focus{outline:none;border-color:var(--blue);}
+.page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+.page-title{font-size:17px;font-weight:700;letter-spacing:-0.3px;}
 </style>
 </head>
 <body>
 
-<!-- ── SIDEBAR ── -->
 <div class="sidebar">
   <div class="logo">
     <div class="logo-mark">🖨</div>
-    <div>
-      <div class="logo-title">BambuPi</div>
-      <div class="logo-sub">v1.4 · CNC</div>
-    </div>
+    <div><div class="logo-title">BambuPi</div><div class="logo-sub">v1.5 · CNC</div></div>
   </div>
   <nav>
     <div class="nav-sep">Monitor</div>
     <a class="active" onclick="showPage('dashboard')" data-page="dashboard">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-      Dashboard
-    </a>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Dashboard</a>
     <a onclick="showPage('files')" data-page="files">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-      Dateien
-    </a>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>Dateien</a>
     <div class="nav-sep">Verwaltung</div>
     <a onclick="showPage('printers')" data-page="printers">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-      Drucker
-    </a>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Drucker</a>
     <a onclick="showPage('filaments')" data-page="filaments">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
-      Filamente
-    </a>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>Filamente</a>
     <a onclick="showPage('history')" data-page="history">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-      Historie
-    </a>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Historie</a>
     <div class="nav-sep">Tools</div>
     <a onclick="showPage('calculator')" data-page="calculator">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="16" y2="14"/></svg>
-      Rechner
-    </a>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="16" y2="14"/></svg>Rechner</a>
     <a onclick="showPage('settings')" data-page="settings">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-      Einstellungen
-    </a>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Einstellungen</a>
   </nav>
   <div class="sidebar-foot">BambuPi © 2025</div>
 </div>
 
-<!-- ── MAIN ── -->
 <div class="main">
   <div class="topbar">
     <div class="topbar-title" id="topbar-title">DASHBOARD</div>
     <div class="topbar-right">
-      <div class="status-pill" id="connection-chip">
-        <div class="sdot sdot-gray"></div>INIT
-      </div>
+      <div class="status-pill" id="connection-chip"><div class="sdot sdot-gray"></div>INIT</div>
     </div>
   </div>
-
   <div class="content">
 
     <!-- DASHBOARD -->
@@ -437,8 +322,7 @@ tr:hover td { background:rgba(255,255,255,0.01); }
     <!-- DATEIEN -->
     <div id="page-files" class="page">
       <div class="page-header"><div class="page-title">Dateimanager</div></div>
-      <div class="form-group">
-        <label>Drucker auswählen</label>
+      <div class="form-group"><label>Drucker auswählen</label>
         <select class="printer-sel" id="file-printer-select" onchange="loadFiles()"><option value="">-- Drucker wählen --</option></select>
       </div>
       <div class="file-tabs">
@@ -461,8 +345,7 @@ tr:hover td { background:rgba(255,255,255,0.01); }
 
     <!-- DRUCKER -->
     <div id="page-printers" class="page">
-      <div class="page-header">
-        <div class="page-title">Drucker</div>
+      <div class="page-header"><div class="page-title">Drucker</div>
         <button class="btn btn-primary" onclick="openModal('modal-add-printer')">+ Drucker hinzufügen</button>
       </div>
       <div id="printers-list"></div>
@@ -470,8 +353,7 @@ tr:hover td { background:rgba(255,255,255,0.01); }
 
     <!-- FILAMENTE -->
     <div id="page-filaments" class="page">
-      <div class="page-header">
-        <div class="page-title">Filamente</div>
+      <div class="page-header"><div class="page-title">Filamente</div>
         <button class="btn btn-primary" onclick="openModal('modal-add-filament')">+ Filament hinzufügen</button>
       </div>
       <div class="fil-grid" id="filament-grid"></div>
@@ -524,10 +406,10 @@ tr:hover td { background:rgba(255,255,255,0.01); }
       </div>
     </div>
 
-  </div><!-- /content -->
-</div><!-- /main -->
+  </div>
+</div>
 
-<!-- ── MODALS ── -->
+<!-- MODALS -->
 <div class="modal-overlay" id="modal-add-printer">
   <div class="modal">
     <h2>Drucker hinzufügen</h2>
@@ -543,26 +425,84 @@ tr:hover td { background:rgba(255,255,255,0.01); }
   </div>
 </div>
 
+<!-- FILAMENT MODAL - ERWEITERT -->
 <div class="modal-overlay" id="modal-add-filament">
-  <div class="modal">
-    <h2>Filament hinzufügen</h2>
+  <div class="modal" style="width:580px;">
+    <h2>🧵 Filament hinzufügen</h2>
+
+    <!-- DATENBANK PICKER -->
+    <div class="db-picker">
+      <div class="db-picker-title">📚 Aus Datenbank laden</div>
+      <div class="db-row">
+        <select class="db-select" id="db-brand" onchange="dbUpdateMaterials()">
+          <option value="">— Hersteller —</option>
+        </select>
+        <select class="db-select" id="db-material" onchange="dbUpdatePreview()">
+          <option value="">— Material —</option>
+        </select>
+        <button class="db-apply-btn" onclick="dbApply()">✓ Übernehmen</button>
+      </div>
+      <div class="db-preview" id="db-preview">Hersteller und Material wählen um Werte zu laden</div>
+    </div>
+
+    <!-- BASIS -->
+    <div class="section-label">Basis</div>
     <div class="form-row">
-      <div class="form-group"><label>Hersteller</label><input type="text" id="f-brand" placeholder="z.B. eSUN"></div>
-      <div class="form-group"><label>Material</label><select id="f-material"><option>PLA</option><option>PLA+</option><option>PETG</option><option>ABS</option><option>ASA</option><option>TPU</option><option>PA</option><option>PC</option><option>PLA-CF</option><option>PETG-CF</option></select></div>
+      <div class="form-group"><label>Hersteller *</label><input type="text" id="f-brand" placeholder="z.B. Sunlu"></div>
+      <div class="form-group"><label>Material *</label>
+        <select id="f-material">
+          <option>PLA</option><option>PLA+</option><option>PLA-CF</option>
+          <option>PETG</option><option>PETG-CF</option>
+          <option>ABS</option><option>ASA</option>
+          <option>TPU</option><option>TPE</option>
+          <option>PA</option><option>PA-CF</option>
+          <option>PC</option><option>PVA</option><option>HIPS</option>
+          <option>Bambu PLA Basic</option><option>Bambu PETG Basic</option>
+          <option>Bambu ABS</option><option>Bambu ASA</option>
+        </select>
+      </div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>Farbe Name</label><input type="text" id="f-color" placeholder="z.B. Blau"></div>
+      <div class="form-group"><label>Farbe Name *</label><input type="text" id="f-color" placeholder="z.B. Blau"></div>
       <div class="form-group"><label>Farbe</label><input type="color" id="f-color-hex" value="#0066ff" style="height:36px;"></div>
     </div>
     <div class="form-row">
+      <div class="form-group"><label>Durchmesser (mm)</label>
+        <select id="f-diameter"><option value="1.75">1.75 mm</option><option value="2.85">2.85 mm</option></select>
+      </div>
       <div class="form-group"><label>Gewicht (g)</label><input type="number" id="f-weight" placeholder="1000"></div>
-      <div class="form-group"><label>Preis/kg (€)</label><input type="number" id="f-price" step="0.01" placeholder="22.90"></div>
+    </div>
+    <div class="form-group"><label>Preis/kg (€)</label><input type="number" id="f-price" step="0.01" placeholder="22.90"></div>
+
+    <!-- TEMPERATUREN -->
+    <div class="section-label">Temperaturen</div>
+    <div class="form-row3">
+      <div class="form-group"><label>Nozzle Min (°C)</label><input type="number" id="f-nozzle-min" placeholder="190"></div>
+      <div class="form-group"><label>Nozzle Max (°C)</label><input type="number" id="f-nozzle-max" placeholder="220"></div>
+      <div class="form-group"><label>Nozzle Standard</label><input type="number" id="f-nozzle" placeholder="215"></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>Nozzle Temp (°C)</label><input type="number" id="f-nozzle" placeholder="220"></div>
       <div class="form-group"><label>Bett Temp (°C)</label><input type="number" id="f-bed" placeholder="60"></div>
+      <div class="form-group"><label>Trocknung (°C)</label><input type="number" id="f-dry-temp" placeholder="55"></div>
     </div>
-    <div class="form-group"><label>Lagerort</label><input type="text" id="f-location" placeholder="z.B. Regal A"></div>
+    <div class="form-group"><label>Trocknungszeit (h)</label><input type="number" id="f-dry-time" placeholder="8"></div>
+
+    <!-- DRUCKPARAMETER (MANUELL) -->
+    <div class="section-label">Druckparameter <span style="font-size:9px;color:var(--text3);font-weight:400;">(druckerspezifisch — manuell eintragen)</span></div>
+    <div class="form-row">
+      <div class="form-group"><label>PA (Pressure Advance)</label><input type="number" id="f-pa" placeholder="0.04" step="0.001"></div>
+      <div class="form-group"><label>KA (K-Factor)</label><input type="number" id="f-ka" placeholder="0.04" step="0.001"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Flow Rate (%)</label><input type="number" id="f-flow" placeholder="100" step="0.5"></div>
+      <div class="form-group"><label>Schrumpffaktor (%)</label><input type="number" id="f-shrink" placeholder="100" step="0.1"></div>
+    </div>
+
+    <!-- OPTIONAL -->
+    <div class="section-label">Optional</div>
+    <div class="form-group"><label>Lagerort</label><input type="text" id="f-location" placeholder="z.B. Regal A (optional)"></div>
+    <div class="form-group"><label>Notizen</label><input type="text" id="f-notes" placeholder="Notizen (optional)"></div>
+
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('modal-add-filament')">Abbrechen</button>
       <button class="btn btn-primary" onclick="addFilament()">Hinzufügen</button>
@@ -599,19 +539,147 @@ tr:hover td { background:rgba(255,255,255,0.01); }
 
 <script>
 const CAMERA_URL = 'http://192.168.178.30:1984/stream.html?src=bambu&mode=webrtc';
-
-let assignCtx = { printerId:null, unitIdx:null, slotIdx:null, selectedFilamentId:null };
-let tempCtx   = { printerId:null, type:null };
+let assignCtx = {printerId:null,unitIdx:null,slotIdx:null,selectedFilamentId:null};
+let tempCtx = {printerId:null,type:null};
 let openAmsDetail = null;
 let currentFileTab = 'upload';
 let cachedPrinters = [];
 let cachedAms = {};
 let dashboardBuilt = false;
+const PAGE_TITLES = {dashboard:'DASHBOARD',files:'DATEIMANAGER',printers:'DRUCKER',filaments:'FILAMENTE',history:'HISTORIE',calculator:'RECHNER',settings:'EINSTELLUNGEN'};
 
-const PAGE_TITLES = {
-  dashboard:'DASHBOARD', files:'DATEIMANAGER', printers:'DRUCKER',
-  filaments:'FILAMENTE', history:'HISTORIE', calculator:'RECHNER', settings:'EINSTELLUNGEN'
+// ── FILAMENT DATENBANK ────────────────────────
+// Format: brand -> material -> { nozzle_min, nozzle_max, temp_bed, temp_dry, time_dry, price_per_kg }
+const FILAMENT_DB = {
+  'Sunlu': {
+    'PLA':    {nozzle_min:180,nozzle_max:220,nozzle:200,bed:60, dry_temp:45,dry_time:4, price:18},
+    'PLA+':   {nozzle_min:190,nozzle_max:230,nozzle:215,bed:60, dry_temp:45,dry_time:4, price:20},
+    'PETG':   {nozzle_min:230,nozzle_max:250,nozzle:240,bed:80, dry_temp:65,dry_time:4, price:22},
+    'ABS':    {nozzle_min:230,nozzle_max:260,nozzle:245,bed:100,dry_temp:80,dry_time:4, price:20},
+    'ASA':    {nozzle_min:240,nozzle_max:260,nozzle:250,bed:100,dry_temp:80,dry_time:4, price:24},
+    'TPU':    {nozzle_min:220,nozzle_max:240,nozzle:230,bed:30, dry_temp:50,dry_time:6, price:26},
+    'PLA-CF': {nozzle_min:200,nozzle_max:230,nozzle:220,bed:60, dry_temp:55,dry_time:6, price:35},
+  },
+  'eSUN': {
+    'PLA':    {nozzle_min:190,nozzle_max:220,nozzle:210,bed:60, dry_temp:45,dry_time:4, price:18},
+    'PLA+':   {nozzle_min:200,nozzle_max:230,nozzle:220,bed:60, dry_temp:45,dry_time:4, price:22},
+    'PETG':   {nozzle_min:230,nozzle_max:250,nozzle:240,bed:75, dry_temp:65,dry_time:4, price:22},
+    'ABS':    {nozzle_min:230,nozzle_max:260,nozzle:245,bed:95, dry_temp:80,dry_time:4, price:20},
+    'ASA':    {nozzle_min:240,nozzle_max:260,nozzle:250,bed:95, dry_temp:80,dry_time:4, price:24},
+    'TPU':    {nozzle_min:220,nozzle_max:240,nozzle:230,bed:30, dry_temp:50,dry_time:6, price:28},
+    'HIPS':   {nozzle_min:220,nozzle_max:250,nozzle:235,bed:100,dry_temp:70,dry_time:4, price:20},
+    'PVA':    {nozzle_min:190,nozzle_max:220,nozzle:205,bed:60, dry_temp:45,dry_time:8, price:60},
+  },
+  'Bambu Lab': {
+    'Bambu PLA Basic': {nozzle_min:190,nozzle_max:240,nozzle:220,bed:35, dry_temp:45,dry_time:8, price:28},
+    'Bambu PETG Basic':{nozzle_min:230,nozzle_max:270,nozzle:255,bed:70, dry_temp:65,dry_time:8, price:28},
+    'Bambu ABS':       {nozzle_min:240,nozzle_max:270,nozzle:260,bed:90, dry_temp:80,dry_time:8, price:28},
+    'Bambu ASA':       {nozzle_min:240,nozzle_max:270,nozzle:260,bed:90, dry_temp:80,dry_time:8, price:30},
+  },
+  'Prusament': {
+    'PLA':    {nozzle_min:200,nozzle_max:230,nozzle:215,bed:60, dry_temp:45,dry_time:4, price:30},
+    'PETG':   {nozzle_min:230,nozzle_max:250,nozzle:240,bed:85, dry_temp:65,dry_time:4, price:32},
+    'ASA':    {nozzle_min:240,nozzle_max:260,nozzle:255,bed:100,dry_temp:80,dry_time:4, price:34},
+    'PA':     {nozzle_min:250,nozzle_max:275,nozzle:265,bed:90, dry_temp:90,dry_time:12,price:50},
+    'PC':     {nozzle_min:275,nozzle_max:310,nozzle:290,bed:110,dry_temp:100,dry_time:12,price:55},
+  },
+  'Polymaker': {
+    'PLA':    {nozzle_min:190,nozzle_max:230,nozzle:210,bed:25, dry_temp:45,dry_time:6, price:25},
+    'PLA+':   {nozzle_min:200,nozzle_max:230,nozzle:215,bed:60, dry_temp:45,dry_time:6, price:28},
+    'PETG':   {nozzle_min:230,nozzle_max:250,nozzle:240,bed:80, dry_temp:65,dry_time:6, price:28},
+    'PA-CF':  {nozzle_min:260,nozzle_max:280,nozzle:270,bed:80, dry_temp:90,dry_time:12,price:65},
+    'PC':     {nozzle_min:260,nozzle_max:310,nozzle:285,bed:100,dry_temp:100,dry_time:12,price:50},
+  },
+  'Fiberlogy': {
+    'PLA':    {nozzle_min:200,nozzle_max:235,nozzle:215,bed:50, dry_temp:45,dry_time:4, price:22},
+    'PETG':   {nozzle_min:230,nozzle_max:260,nozzle:245,bed:75, dry_temp:65,dry_time:4, price:24},
+    'ABS':    {nozzle_min:230,nozzle_max:260,nozzle:245,bed:100,dry_temp:80,dry_time:4, price:22},
+    'ASA':    {nozzle_min:235,nozzle_max:265,nozzle:250,bed:100,dry_temp:80,dry_time:4, price:26},
+    'PA':     {nozzle_min:240,nozzle_max:270,nozzle:255,bed:70, dry_temp:90,dry_time:12,price:55},
+  },
+  'Hatchbox': {
+    'PLA':    {nozzle_min:180,nozzle_max:210,nozzle:195,bed:60, dry_temp:45,dry_time:4, price:20},
+    'PETG':   {nozzle_min:230,nozzle_max:260,nozzle:245,bed:75, dry_temp:65,dry_time:4, price:22},
+    'ABS':    {nozzle_min:220,nozzle_max:250,nozzle:235,bed:100,dry_temp:80,dry_time:4, price:20},
+    'TPU':    {nozzle_min:210,nozzle_max:240,nozzle:225,bed:30, dry_temp:50,dry_time:6, price:28},
+  },
+  'Overture': {
+    'PLA':    {nozzle_min:190,nozzle_max:220,nozzle:205,bed:60, dry_temp:45,dry_time:4, price:18},
+    'PLA+':   {nozzle_min:200,nozzle_max:230,nozzle:215,bed:60, dry_temp:45,dry_time:4, price:20},
+    'PETG':   {nozzle_min:230,nozzle_max:250,nozzle:240,bed:75, dry_temp:65,dry_time:4, price:22},
+    'TPU':    {nozzle_min:220,nozzle_max:240,nozzle:230,bed:30, dry_temp:50,dry_time:6, price:26},
+  },
+  'generic': {
+    'PLA':    {nozzle_min:180,nozzle_max:220,nozzle:200,bed:60, dry_temp:45,dry_time:4, price:15},
+    'PLA+':   {nozzle_min:190,nozzle_max:230,nozzle:215,bed:60, dry_temp:45,dry_time:4, price:18},
+    'PETG':   {nozzle_min:230,nozzle_max:250,nozzle:240,bed:80, dry_temp:65,dry_time:4, price:18},
+    'ABS':    {nozzle_min:230,nozzle_max:260,nozzle:245,bed:100,dry_temp:80,dry_time:4, price:16},
+    'ASA':    {nozzle_min:240,nozzle_max:260,nozzle:250,bed:100,dry_temp:80,dry_time:4, price:20},
+    'TPU':    {nozzle_min:220,nozzle_max:240,nozzle:230,bed:30, dry_temp:50,dry_time:6, price:22},
+    'PA':     {nozzle_min:250,nozzle_max:280,nozzle:265,bed:80, dry_temp:90,dry_time:12,price:45},
+    'PC':     {nozzle_min:270,nozzle_max:310,nozzle:290,bed:110,dry_temp:100,dry_time:12,price:50},
+    'PLA-CF': {nozzle_min:200,nozzle_max:230,nozzle:220,bed:60, dry_temp:55,dry_time:6, price:30},
+    'PETG-CF':{nozzle_min:240,nozzle_max:260,nozzle:250,bed:80, dry_temp:65,dry_time:6, price:35},
+  }
 };
+
+// ── DB PICKER LOGIK ───────────────────────────
+function dbInit() {
+  const brandSel = document.getElementById('db-brand');
+  brandSel.innerHTML = '<option value="">— Hersteller —</option>' +
+    Object.keys(FILAMENT_DB).map(b => `<option value="${b}">${b}</option>`).join('');
+}
+
+function dbUpdateMaterials() {
+  const brand = document.getElementById('db-brand').value;
+  const matSel = document.getElementById('db-material');
+  if (!brand || !FILAMENT_DB[brand]) {
+    matSel.innerHTML = '<option value="">— Material —</option>';
+    document.getElementById('db-preview').textContent = 'Hersteller und Material wählen';
+    return;
+  }
+  matSel.innerHTML = '<option value="">— Material —</option>' +
+    Object.keys(FILAMENT_DB[brand]).map(m => `<option value="${m}">${m}</option>`).join('');
+  dbUpdatePreview();
+}
+
+function dbUpdatePreview() {
+  const brand = document.getElementById('db-brand').value;
+  const mat   = document.getElementById('db-material').value;
+  const prev  = document.getElementById('db-preview');
+  if (!brand || !mat || !FILAMENT_DB[brand]?.[mat]) {
+    prev.textContent = 'Material wählen um Vorschau zu sehen';
+    return;
+  }
+  const d = FILAMENT_DB[brand][mat];
+  prev.innerHTML = `<span style="color:var(--text)">Nozzle: ${d.nozzle_min}–${d.nozzle_max}°C (Standard: ${d.nozzle}°C)</span> &nbsp;|&nbsp; Bett: ${d.bed}°C &nbsp;|&nbsp; Trocknen: ${d.dry_temp}°C / ${d.dry_time}h &nbsp;|&nbsp; ~${d.price}€/kg`;
+}
+
+function dbApply() {
+  const brand = document.getElementById('db-brand').value;
+  const mat   = document.getElementById('db-material').value;
+  if (!brand || !mat || !FILAMENT_DB[brand]?.[mat]) {
+    toast('Bitte Hersteller und Material wählen!', 'error'); return;
+  }
+  const d = FILAMENT_DB[brand][mat];
+  // Hersteller + Material setzen
+  document.getElementById('f-brand').value = brand === 'generic' ? '' : brand;
+  // Material im Dropdown setzen
+  const matEl = document.getElementById('f-material');
+  for (let o of matEl.options) { if (o.value === mat) { matEl.value = mat; break; } }
+  // Temperaturen
+  document.getElementById('f-nozzle-min').value = d.nozzle_min;
+  document.getElementById('f-nozzle-max').value = d.nozzle_max;
+  document.getElementById('f-nozzle').value     = d.nozzle;
+  document.getElementById('f-bed').value        = d.bed;
+  document.getElementById('f-dry-temp').value   = d.dry_temp;
+  document.getElementById('f-dry-time').value   = d.dry_time;
+  document.getElementById('f-price').value      = d.price;
+  // Flow + Schrumpf auf Standard
+  document.getElementById('f-flow').value   = 100;
+  document.getElementById('f-shrink').value = 100;
+  toast(`✅ ${brand} ${mat} geladen — Farbe und PA/KA noch eintragen`);
+}
 
 // ── BASIS ─────────────────────────────────────
 function showPage(name) {
@@ -628,7 +696,10 @@ function showPage(name) {
   if (name === 'settings')   loadSettings();
   if (name === 'files')      initFilePage();
 }
-function openModal(id)  { document.getElementById(id).classList.add('open'); }
+function openModal(id) {
+  document.getElementById(id).classList.add('open');
+  if (id === 'modal-add-filament') dbInit();
+}
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 function toast(msg, type='success') {
   const t = document.getElementById('toast');
@@ -636,30 +707,27 @@ function toast(msg, type='success') {
   setTimeout(() => t.classList.remove('show'), 3000);
 }
 async function api(url, method='GET', body=null) {
-  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  const opts = {method, headers:{'Content-Type':'application/json'}};
   if (body) opts.body = JSON.stringify(body);
   const r = await fetch(url, opts); return r.json();
 }
-function fmtSize(b) { return b > 1048576 ? (b/1048576).toFixed(1)+' MB' : (b/1024).toFixed(0)+' KB'; }
-function rcol(pct)  { if(pct<0)return'#333'; if(pct>50)return'var(--green)'; if(pct>20)return'var(--orange)'; return'var(--red)'; }
+function fmtSize(b) { return b>1048576?(b/1048576).toFixed(1)+' MB':(b/1024).toFixed(0)+' KB'; }
+function rcol(pct) { if(pct<0)return'#333';if(pct>50)return'var(--green)';if(pct>20)return'var(--orange)';return'var(--red)'; }
 
 // ── CONNECTION CHIP ───────────────────────────
 function updateConnectionChip(state) {
   const chip = document.getElementById('connection-chip');
-  if (state === 'RUNNING')
-    chip.innerHTML = '<div class="sdot sdot-green"></div>DRUCKT';
-  else if (state === 'offline')
-    chip.innerHTML = '<div class="sdot sdot-gray"></div>OFFLINE';
-  else
-    chip.innerHTML = '<div class="sdot sdot-blue"></div>BEREIT';
+  if (state==='RUNNING') chip.innerHTML='<div class="sdot sdot-green"></div>DRUCKT';
+  else if (state==='offline') chip.innerHTML='<div class="sdot sdot-gray"></div>OFFLINE';
+  else chip.innerHTML='<div class="sdot sdot-blue"></div>BEREIT';
 }
 
-// ── BUILD DASHBOARD ───────────────────────────
+// ── DASHBOARD ─────────────────────────────────
 async function buildDashboard() {
   const printers = await api('/api/printers');
   const container = document.getElementById('dashboard-printers');
   if (!printers.length) {
-    container.innerHTML = '<div class="card" style="text-align:center;padding:36px;color:var(--text3);">Noch kein Drucker hinzugefügt.<br><br><button class="btn btn-primary" onclick="showPage(\'printers\')">+ Drucker hinzufügen</button></div>';
+    container.innerHTML='<div class="card" style="text-align:center;padding:36px;color:var(--text3);">Noch kein Drucker.<br><br><button class="btn btn-primary" onclick="showPage(\'printers\')">+ Hinzufügen</button></div>';
     updateConnectionChip('offline'); return;
   }
   cachedPrinters = printers;
@@ -668,137 +736,91 @@ async function buildDashboard() {
   }));
   container.innerHTML = printers.map(p => buildPrinterCard(p)).join('');
   dashboardBuilt = true;
-  const s = printers[0]?.status || {};
-  updateConnectionChip(s.gcode_state || 'offline');
+  updateConnectionChip(printers[0]?.status?.gcode_state || 'offline');
 }
 
-// ── REALTIME UPDATE (only patches values) ─────
 async function realtimeUpdate() {
   if (!dashboardBuilt) return;
   const printers = await api('/api/printers');
   printers.forEach(p => {
-    const s     = p.status || {};
-    const nozzle   = s.nozzle_temper || 0;
-    const bed      = s.bed_temper || 0;
+    const s = p.status || {};
+    const nozzle = s.nozzle_temper || 0;
+    const bed = s.bed_temper || 0;
     const progress = s.mc_percent || 0;
-    const remaining= s.mc_remaining_time || 0;
-    const state    = s.gcode_state || 'offline';
+    const remaining = s.mc_remaining_time || 0;
+    const state = s.gcode_state || 'offline';
+    const nTarget = s.nozzle_temper_target || 0;
+    const bTarget = s.bed_target_temper || 0;
 
-    // Temps
-    const nEl = document.getElementById('nv-' + p.id);
-    const bEl = document.getElementById('bv-' + p.id);
-    if (nEl) { nEl.textContent = Math.round(nozzle) + '°'; nEl.className = 'temp-val ' + (nozzle>150?'tv-hot':nozzle>50?'tv-warm':nozzle>0?'tv-cool':'tv-off'); }
-    if (bEl) { bEl.textContent = Math.round(bed) + '°';    bEl.className = 'temp-val ' + (bed>50?'tv-warm':bed>0?'tv-cool':'tv-off'); }
+    const nEl = document.getElementById('nv-'+p.id);
+    const bEl = document.getElementById('bv-'+p.id);
+    if (nEl) { nEl.textContent=Math.round(nozzle)+'°'; nEl.className='temp-val '+(nozzle>150?'tv-hot':nozzle>50?'tv-warm':nozzle>0?'tv-cool':'tv-off'); }
+    if (bEl) { bEl.textContent=Math.round(bed)+'°'; bEl.className='temp-val '+(bed>50?'tv-warm':bed>0?'tv-cool':'tv-off'); }
 
-    const ntEl = document.getElementById('nt-' + p.id);
-    const btEl = document.getElementById('bt-' + p.id);
-    if (ntEl) ntEl.textContent = '→ ' + (s.nozzle_temper_target||0) + '°C';
-    if (btEl) btEl.textContent = '→ ' + (s.bed_target_temper||0) + '°C';
+    const ntEl=document.getElementById('nt-'+p.id); if(ntEl)ntEl.textContent='→ '+nTarget+'°C';
+    const btEl=document.getElementById('bt-'+p.id); if(btEl)btEl.textContent='→ '+bTarget+'°C';
+    const nbEl=document.getElementById('nb-'+p.id); if(nbEl)nbEl.style.width=Math.min(100,nozzle/3)+'%';
+    const bbEl=document.getElementById('bb-'+p.id); if(bbEl)bbEl.style.width=Math.min(100,bed/1.2)+'%';
 
-    const nbEl = document.getElementById('nb-' + p.id);
-    const bbEl = document.getElementById('bb-' + p.id);
-    if (nbEl) nbEl.style.width = Math.min(100, nozzle/3) + '%';
-    if (bbEl) bbEl.style.width = Math.min(100, bed/1.2) + '%';
+    updateHeatStatus(p.id,'nozzle',nozzle,nTarget);
+    updateHeatStatus(p.id,'bed',bed,bTarget);
 
-    // Viewport overlay
-    const vpEl  = document.getElementById('vp-prog-' + p.id);
-    const vpIdle= document.getElementById('vp-idle-' + p.id);
-    const pfEl  = document.getElementById('pf-' + p.id);
-    const ppEl  = document.getElementById('pp-' + p.id);
-    const ptEl  = document.getElementById('pt-' + p.id);
-    if (vpEl && vpIdle) {
-      vpEl.style.display  = state === 'RUNNING' ? 'block' : 'none';
-      vpIdle.style.display= state !== 'RUNNING' ? 'flex' : 'none';
+    const vpEl=document.getElementById('vp-prog-'+p.id);
+    const vpIdle=document.getElementById('vp-idle-'+p.id);
+    if(vpEl&&vpIdle){vpEl.style.display=state==='RUNNING'?'block':'none';vpIdle.style.display=state!=='RUNNING'?'flex':'none';}
+    const pfEl=document.getElementById('pf-'+p.id); if(pfEl)pfEl.style.width=progress+'%';
+    const ppEl=document.getElementById('pp-'+p.id); if(ppEl)ppEl.textContent=progress+'%';
+    const ptEl=document.getElementById('pt-'+p.id); if(ptEl)ptEl.textContent='⏱ '+remaining+' min';
+    const vsEl=document.getElementById('vp-state-'+p.id); if(vsEl)vsEl.style.display=state==='RUNNING'?'block':'none';
+
+    const bdEl=document.getElementById('badge-'+p.id);
+    if(bdEl){
+      if(state==='RUNNING'){bdEl.className='state-badge sb-printing';bdEl.innerHTML='<div class="sdot sdot-green"></div>DRUCKT';}
+      else if(state==='offline'){bdEl.className='state-badge sb-offline';bdEl.innerHTML='<div class="sdot sdot-gray"></div>OFFLINE';}
+      else{bdEl.className='state-badge sb-ready';bdEl.innerHTML='<div class="sdot sdot-blue"></div>BEREIT';}
     }
-    if (pfEl) pfEl.style.width = progress + '%';
-    if (ppEl) ppEl.textContent = progress + '%';
-    if (ptEl) ptEl.textContent = '⏱ ' + remaining + ' min';
-
-    // Status overlay top-right
-    const vsEl = document.getElementById('vp-state-' + p.id);
-    if (vsEl) {
-      vsEl.style.display = state === 'RUNNING' ? 'block' : 'none';
-    }
-
-    // Badge
-    const bdEl = document.getElementById('badge-' + p.id);
-    if (bdEl) {
-      if (state === 'RUNNING')  { bdEl.className='state-badge sb-printing'; bdEl.innerHTML='<div class="sdot sdot-green"></div>DRUCKT'; }
-      else if (state === 'offline') { bdEl.className='state-badge sb-offline'; bdEl.innerHTML='<div class="sdot sdot-gray"></div>OFFLINE'; }
-      else { bdEl.className='state-badge sb-ready'; bdEl.innerHTML='<div class="sdot sdot-blue"></div>BEREIT'; }
-    }
-
-    // Speed row update
-    const speedLevel = s.spd_lvl || 2;
-    [1,2,3,4].forEach(l => {
-      const el = document.getElementById(`spd-${p.id}-${l}`);
-      if (el) el.className = 'spd-btn' + (speedLevel===l?' active':'');
-    });
-
+    const speedLevel=s.spd_lvl||2;
+    [1,2,3,4].forEach(l=>{const el=document.getElementById(`spd-${p.id}-${l}`);if(el)el.className='spd-btn'+(speedLevel===l?' active':'');});
     updateConnectionChip(state);
   });
 }
 
-// ── BUILD PRINTER CARD ────────────────────────
 function buildPrinterCard(p) {
-  const s          = p.status || {};
-  const state      = s.gcode_state || 'offline';
-  const nozzle     = s.nozzle_temper || 0;
-  const bed        = s.bed_temper || 0;
-  const progress   = s.mc_percent || 0;
-  const remaining  = s.mc_remaining_time || 0;
-  const speedLevel = s.spd_lvl || 2;
-  const ams        = cachedAms[p.id];
-
-  const nc = nozzle>150?'tv-hot':nozzle>50?'tv-warm':nozzle>0?'tv-cool':'tv-off';
-  const bc = bed>50?'tv-warm':bed>0?'tv-cool':'tv-off';
-
-  const badgeHtml = state==='RUNNING'
-    ? `<div class="state-badge sb-printing"><div class="sdot sdot-green"></div>DRUCKT</div>`
-    : state==='offline'
-    ? `<div class="state-badge sb-offline"><div class="sdot sdot-gray"></div>OFFLINE</div>`
-    : `<div class="state-badge sb-ready"><div class="sdot sdot-blue"></div>BEREIT</div>`;
-
-  const speeds = [{l:1,n:'STILLE'},{l:2,n:'NORMAL'},{l:3,n:'SPORT'},{l:4,n:'TURBO'}];
+  const s=p.status||{}; const state=s.gcode_state||'offline';
+  const nozzle=s.nozzle_temper||0; const bed=s.bed_temper||0;
+  const progress=s.mc_percent||0; const remaining=s.mc_remaining_time||0;
+  const speedLevel=s.spd_lvl||2; const ams=cachedAms[p.id];
+  const nc=nozzle>150?'tv-hot':nozzle>50?'tv-warm':nozzle>0?'tv-cool':'tv-off';
+  const bc=bed>50?'tv-warm':bed>0?'tv-cool':'tv-off';
+  const badgeHtml=state==='RUNNING'?`<div class="state-badge sb-printing"><div class="sdot sdot-green"></div>DRUCKT</div>`:state==='offline'?`<div class="state-badge sb-offline"><div class="sdot sdot-gray"></div>OFFLINE</div>`:`<div class="state-badge sb-ready"><div class="sdot sdot-blue"></div>BEREIT</div>`;
+  const speeds=[{l:1,n:'STILLE'},{l:2,n:'NORMAL'},{l:3,n:'SPORT'},{l:4,n:'TURBO'}];
 
   return `<div class="cnc-card" id="pcard-${p.id}">
-
-    <!-- HEADER -->
     <div class="cnc-header">
       <div>
         <div class="cnc-printer-name">🖨️ ${p.name} <span id="badge-${p.id}">${badgeHtml}</span></div>
         <div class="cnc-printer-sub">${p.model} · ${p.ip}</div>
       </div>
     </div>
-
-    <!-- BODY: viewport | status | controls -->
     <div class="cnc-body">
-
-      <!-- COL 1: CAMERA VIEWPORT -->
+      <!-- KAMERA -->
       <div class="cnc-col">
         <div class="viewport">
           <iframe src="${CAMERA_URL}" allowfullscreen></iframe>
           <div class="vp-overlay">
             <div class="vp-top">
               <div class="vp-live"><div class="vp-live-dot"></div>LIVE</div>
-              <div class="vp-status-overlay" id="vp-state-${p.id}" style="display:${state==='RUNNING'?'block':'none'};color:var(--green)">
-                ● DRUCKT
-              </div>
+              <div class="vp-status-overlay" id="vp-state-${p.id}" style="display:${state==='RUNNING'?'block':'none'};color:var(--green)">● DRUCKT</div>
             </div>
             <div class="vp-bottom">
-              <!-- Progress overlay (visible when printing) -->
               <div id="vp-prog-${p.id}" style="${state!=='RUNNING'?'display:none':''}">
                 <div class="vp-progress-wrap">
                   <div class="vp-pct" id="pp-${p.id}">${progress}%</div>
                   <div class="vp-filename">${s.subtask_name||'—'}</div>
                   <div class="vp-pbar"><div class="vp-pbar-fill" id="pf-${p.id}" style="width:${progress}%"></div></div>
-                  <div class="vp-meta">
-                    <span id="pt-${p.id}">⏱ ${remaining} min</span>
-                    <span>Layer ${s.layer_num||0}/${s.total_layer_num||0}</span>
-                  </div>
+                  <div class="vp-meta"><span id="pt-${p.id}">⏱ ${remaining} min</span><span>Layer ${s.layer_num||0}/${s.total_layer_num||0}</span></div>
                 </div>
               </div>
-              <!-- Idle overlay -->
               <div id="vp-idle-${p.id}" class="vp-idle" style="${state==='RUNNING'?'display:none':''}">
                 ${state==='offline'?'<div class="vp-idle-icon">🔌</div><span>OFFLINE</span>':''}
               </div>
@@ -807,27 +829,31 @@ function buildPrinterCard(p) {
         </div>
       </div>
 
-      <!-- COL 2: MACHINE STATUS -->
+      <!-- TEMPERATUREN -->
       <div class="cnc-col">
         <div class="status-panel">
           <div class="sp-title">Temperaturen</div>
-
-          <div class="temp-block" onclick="openTempModal(${p.id},'nozzle',${Math.round(nozzle)})">
+          <div class="temp-block" id="tb-nozzle-${p.id}" onclick="openTempModal(${p.id},'nozzle',${Math.round(nozzle)})">
             <div class="temp-block-lbl"><span>🌡 NOZZLE</span><span style="color:var(--blue)">✏</span></div>
             <div class="temp-val ${nc}" id="nv-${p.id}">${Math.round(nozzle)}°</div>
-            <div class="temp-target" id="nt-${p.id}">→ ${s.nozzle_temper_target||0}°C</div>
-            <div class="temp-track"><div class="temp-track-fill ttf-nozzle" id="nb-${p.id}" style="width:${Math.min(100,nozzle/3)}%"></div></div>
+            <div class="temp-track" style="margin-top:6px;"><div class="temp-track-fill ttf-nozzle" id="nb-${p.id}" style="width:${Math.min(100,nozzle/3)}%"></div></div>
+            <div class="heat-status">
+              <span class="heat-label" id="hl-nozzle-${p.id}" style="color:var(--text3)">—</span>
+              <div class="heat-bar-wrap"><div class="heat-bar-inner" id="hb-nozzle-${p.id}" style="width:0%"></div></div>
+              <span style="color:var(--text3);font-size:10px;" id="nt-${p.id}">→ ${s.nozzle_temper_target||0}°C</span>
+            </div>
           </div>
-
-          <div class="temp-block" onclick="openTempModal(${p.id},'bed',${Math.round(bed)})">
+          <div class="temp-block" id="tb-bed-${p.id}" onclick="openTempModal(${p.id},'bed',${Math.round(bed)})">
             <div class="temp-block-lbl"><span>🛏 BETT</span><span style="color:var(--blue)">✏</span></div>
             <div class="temp-val ${bc}" id="bv-${p.id}">${Math.round(bed)}°</div>
-            <div class="temp-target" id="bt-${p.id}">→ ${s.bed_target_temper||0}°C</div>
-            <div class="temp-track"><div class="temp-track-fill ttf-bed" id="bb-${p.id}" style="width:${Math.min(100,bed/1.2)}%"></div></div>
+            <div class="temp-track" style="margin-top:6px;"><div class="temp-track-fill ttf-bed" id="bb-${p.id}" style="width:${Math.min(100,bed/1.2)}%"></div></div>
+            <div class="heat-status">
+              <span class="heat-label" id="hl-bed-${p.id}" style="color:var(--text3)">—</span>
+              <div class="heat-bar-wrap"><div class="heat-bar-inner" id="hb-bed-${p.id}" style="width:0%"></div></div>
+              <span style="color:var(--text3);font-size:10px;" id="bt-${p.id}">→ ${s.bed_target_temper||0}°C</span>
+            </div>
           </div>
-
           <hr class="sp-divider">
-
           <div class="fan-ctrl">
             <div class="fan-ctrl-lbl"><span>💨 PART COOLING</span><span id="fan-val-${p.id}">0%</span></div>
             <input type="range" class="fan-slider" min="0" max="100" value="0"
@@ -837,32 +863,28 @@ function buildPrinterCard(p) {
         </div>
       </div>
 
-      <!-- COL 3: PRINT CONTROLS -->
+      <!-- STEUERUNG -->
       <div class="cnc-col">
         <div class="ctrl-panel">
           <div class="cp-section">
             <div class="cp-title">Druck</div>
             <div class="pc-grid">
-              ${state==='RUNNING'
-                ? `<button class="cb cb-pause"  onclick="printerCmd(${p.id},'pause')"><span class="cb-icon">⏸</span><span class="cb-lbl">PAUSE</span></button>`
-                : `<button class="cb cb-resume" onclick="printerCmd(${p.id},'resume')"><span class="cb-icon">▶</span><span class="cb-lbl">START</span></button>`}
-              <button class="cb cb-stop"   onclick="printerCmd(${p.id},'stop')"><span class="cb-icon">⏹</span><span class="cb-lbl">STOPP</span></button>
-              <button class="cb cb-light"  onclick="setLight(${p.id},true)"><span class="cb-icon">💡</span><span class="cb-lbl">AN</span></button>
-              <button class="cb cb-light"  onclick="setLight(${p.id},false)"><span class="cb-icon">🌑</span><span class="cb-lbl">AUS</span></button>
+              ${state==='RUNNING'?`<button class="cb cb-pause" onclick="printerCmd(${p.id},'pause')"><span class="cb-icon">⏸</span><span class="cb-lbl">PAUSE</span></button>`:`<button class="cb cb-resume" onclick="printerCmd(${p.id},'resume')"><span class="cb-icon">▶</span><span class="cb-lbl">START</span></button>`}
+              <button class="cb cb-stop" onclick="printerCmd(${p.id},'stop')"><span class="cb-icon">⏹</span><span class="cb-lbl">STOPP</span></button>
+              <button class="cb cb-light" onclick="setLight(${p.id},true)"><span class="cb-icon">💡</span><span class="cb-lbl">AN</span></button>
+              <button class="cb cb-light" onclick="setLight(${p.id},false)"><span class="cb-icon">🌑</span><span class="cb-lbl">AUS</span></button>
             </div>
           </div>
-
           <div class="cp-section">
             <div class="cp-title">Geschwindigkeit</div>
             <div class="spd-row">
-              ${speeds.map(sp => `<button id="spd-${p.id}-${sp.l}" class="spd-btn${speedLevel===sp.l?' active':''}" onclick="setSpeed(${p.id},${sp.l})">${sp.n}</button>`).join('')}
+              ${speeds.map(sp=>`<button id="spd-${p.id}-${sp.l}" class="spd-btn${speedLevel===sp.l?' active':''}" onclick="setSpeed(${p.id},${sp.l})">${sp.n}</button>`).join('')}
             </div>
           </div>
-
           <div class="cp-section">
             <div class="cp-title">Filament</div>
             <div class="pc-grid">
-              <button class="cb cb-load"   onclick="filamentLoad(${p.id})"><span class="cb-icon">⬇</span><span class="cb-lbl">EINZIEHEN</span></button>
+              <button class="cb cb-load" onclick="filamentLoad(${p.id})"><span class="cb-icon">⬇</span><span class="cb-lbl">EINZIEHEN</span></button>
               <button class="cb cb-unload" onclick="filamentUnload(${p.id})"><span class="cb-icon">⬆</span><span class="cb-lbl">AUSWERFEN</span></button>
             </div>
           </div>
@@ -870,93 +892,79 @@ function buildPrinterCard(p) {
       </div>
     </div>
 
-    <!-- ── CNC BOTTOM BAR ── -->
+    <!-- CNC BOTTOM -->
     <div class="cnc-bottom">
       <div class="cnc-bottom-inner">
-
-        <!-- AXIS CONTROL PAD (NEW) -->
+        <!-- ACHSEN -->
         <div class="axis-pad">
           <div class="axis-pad-title">Achsensteuerung</div>
-
-          <!-- X AXIS: ◄ = minus (links), ► = plus (rechts) -->
           <div class="axis-row">
             <span class="axis-lbl">X</span>
-            <button class="ab ab-neg" onclick="moveAxis(${p.id},'x',-10)">◄ 10</button>
-            <button class="ab ab-neg" onclick="moveAxis(${p.id},'x',-5)">◄ 5</button>
-            <button class="ab ab-neg" onclick="moveAxis(${p.id},'x',-1)">◄ 1</button>
+            <button class="ab" onclick="moveAxis(${p.id},'x',-10)">◄ 10</button>
+            <button class="ab" onclick="moveAxis(${p.id},'x',-5)">◄ 5</button>
+            <button class="ab" onclick="moveAxis(${p.id},'x',-1)">◄ 1</button>
             <span class="ab-sep">mm</span>
-            <button class="ab ab-pos" onclick="moveAxis(${p.id},'x',1)">1 ►</button>
-            <button class="ab ab-pos" onclick="moveAxis(${p.id},'x',5)">5 ►</button>
-            <button class="ab ab-pos" onclick="moveAxis(${p.id},'x',10)">10 ►</button>
+            <button class="ab" onclick="moveAxis(${p.id},'x',1)">1 ►</button>
+            <button class="ab" onclick="moveAxis(${p.id},'x',5)">5 ►</button>
+            <button class="ab" onclick="moveAxis(${p.id},'x',10)">10 ►</button>
           </div>
-
-          <!-- Y AXIS: ▼ = minus (hinten), ▲ = plus (vorne) -->
           <div class="axis-row">
             <span class="axis-lbl">Y</span>
-            <button class="ab ab-neg" onclick="moveAxis(${p.id},'y',-10)">▼ 10</button>
-            <button class="ab ab-neg" onclick="moveAxis(${p.id},'y',-5)">▼ 5</button>
-            <button class="ab ab-neg" onclick="moveAxis(${p.id},'y',-1)">▼ 1</button>
+            <button class="ab" onclick="moveAxis(${p.id},'y',-10)">▼ 10</button>
+            <button class="ab" onclick="moveAxis(${p.id},'y',-5)">▼ 5</button>
+            <button class="ab" onclick="moveAxis(${p.id},'y',-1)">▼ 1</button>
             <span class="ab-sep">mm</span>
-            <button class="ab ab-pos" onclick="moveAxis(${p.id},'y',1)">1 ▲</button>
-            <button class="ab ab-pos" onclick="moveAxis(${p.id},'y',5)">5 ▲</button>
-            <button class="ab ab-pos" onclick="moveAxis(${p.id},'y',10)">10 ▲</button>
+            <button class="ab" onclick="moveAxis(${p.id},'y',1)">1 ▲</button>
+            <button class="ab" onclick="moveAxis(${p.id},'y',5)">5 ▲</button>
+            <button class="ab" onclick="moveAxis(${p.id},'y',10)">10 ▲</button>
           </div>
-
-          <!-- Z AXIS CoreXY: Z+ = Bett runter ▼, Z- = Bett hoch ▲ -->
           <div class="axis-row">
             <span class="axis-lbl">Z</span>
-            <button class="ab ab-pos" onclick="moveAxis(${p.id},'z',-10)">▲ 10</button>
-            <button class="ab ab-pos" onclick="moveAxis(${p.id},'z',-5)">▲ 5</button>
-            <button class="ab ab-pos" onclick="moveAxis(${p.id},'z',-1)">▲ 1</button>
+            <button class="ab" onclick="moveAxis(${p.id},'z',-10)">▲ 10</button>
+            <button class="ab" onclick="moveAxis(${p.id},'z',-5)">▲ 5</button>
+            <button class="ab" onclick="moveAxis(${p.id},'z',-1)">▲ 1</button>
             <span class="ab-sep">mm</span>
-            <button class="ab ab-neg" onclick="moveAxis(${p.id},'z',1)">1 ▼</button>
-            <button class="ab ab-neg" onclick="moveAxis(${p.id},'z',5)">5 ▼</button>
-            <button class="ab ab-neg" onclick="moveAxis(${p.id},'z',10)">10 ▼</button>
+            <button class="ab" onclick="moveAxis(${p.id},'z',1)">1 ▼</button>
+            <button class="ab" onclick="moveAxis(${p.id},'z',5)">5 ▼</button>
+            <button class="ab" onclick="moveAxis(${p.id},'z',10)">10 ▼</button>
           </div>
-
-          <!-- POSITION DISPLAY -->
-          <div id="pos-warn-${p.id}" style="font-size:10px;color:var(--orange);font-family:var(--mono);margin-bottom:5px;padding:4px 8px;background:var(--orange-dim);border-radius:4px;border:1px solid rgba(255,152,0,0.2);">
-            ⚠ Erst HOME ALL fahren!
-          </div>
-          <div style="display:flex;gap:6px;margin-bottom:8px;font-family:var(--mono);">
+          <!-- POSITION -->
+          <div id="pos-warn-${p.id}" style="font-size:10px;color:var(--orange);font-family:var(--mono);margin:6px 0 4px;padding:4px 8px;background:var(--orange-dim);border-radius:4px;border:1px solid rgba(255,152,0,0.2);">⚠ Erst HOME ALL fahren!</div>
+          <div style="display:flex;gap:6px;margin-bottom:8px;">
             <div style="flex:1;background:var(--surface3);border:1px solid var(--border2);border-radius:4px;padding:5px 8px;text-align:center;">
-              <div style="font-size:9px;color:var(--text3);margin-bottom:2px;">X</div>
-              <div style="font-size:13px;font-weight:700;color:var(--text)" id="pos-x-${p.id}">—</div>
+              <div style="font-size:9px;color:var(--text3);margin-bottom:2px;font-family:var(--mono);">X</div>
+              <div style="font-size:13px;font-weight:700;font-family:var(--mono);" id="pos-x-${p.id}">—</div>
             </div>
             <div style="flex:1;background:var(--surface3);border:1px solid var(--border2);border-radius:4px;padding:5px 8px;text-align:center;">
-              <div style="font-size:9px;color:var(--text3);margin-bottom:2px;">Y</div>
-              <div style="font-size:13px;font-weight:700;color:var(--text)" id="pos-y-${p.id}">—</div>
+              <div style="font-size:9px;color:var(--text3);margin-bottom:2px;font-family:var(--mono);">Y</div>
+              <div style="font-size:13px;font-weight:700;font-family:var(--mono);" id="pos-y-${p.id}">—</div>
             </div>
             <div style="flex:1;background:var(--surface3);border:1px solid var(--border2);border-radius:4px;padding:5px 8px;text-align:center;">
-              <div style="font-size:9px;color:var(--text3);margin-bottom:2px;">Z</div>
-              <div style="font-size:13px;font-weight:700;color:var(--text)" id="pos-z-${p.id}">—</div>
+              <div style="font-size:9px;color:var(--text3);margin-bottom:2px;font-family:var(--mono);">Z</div>
+              <div style="font-size:13px;font-weight:700;font-family:var(--mono);" id="pos-z-${p.id}">—</div>
             </div>
           </div>
-
-          <!-- HOME ROW -->
           <div class="home-row">
-            <button class="home-btn home-btn-all" onclick="homeAxes(${p.id},'all')">🏠 HOME ALL</button>
+            <button class="home-btn" style="font-size:11px;" onclick="homeAxes(${p.id},'all')">🏠 HOME ALL</button>
             <button class="home-btn" onclick="homeAxes(${p.id},'x')">HOME X</button>
             <button class="home-btn" onclick="homeAxes(${p.id},'y')">HOME Y</button>
             <button class="home-btn" onclick="homeAxes(${p.id},'z')">HOME Z</button>
           </div>
         </div>
 
-        <!-- MACHINE CONTROLS -->
-        <div class="machine-ctrl">
+        <!-- MASCHINE -->
+        <div>
           <div class="mc-title">Maschine</div>
-          <div class="mc-grid">
-            <button class="cb cb-motor" style="width:100%;grid-column:1/-1;flex-direction:row;gap:8px;padding:8px 12px;" onclick="motorsOff(${p.id})">
-              <span class="cb-icon" style="font-size:13px;">⚡</span><span class="cb-lbl" style="font-size:11px;">MOTOREN AUS</span>
-            </button>
-          </div>
+          <button class="cb cb-motor" style="width:100%;flex-direction:row;gap:8px;padding:8px 12px;" onclick="motorsOff(${p.id})">
+            <span class="cb-icon" style="font-size:13px;">⚡</span><span class="cb-lbl" style="font-size:11px;">MOTOREN AUS</span>
+          </button>
         </div>
 
-        <!-- SPEED + FAN (bottom right) -->
-        <div class="bottom-right">
+        <!-- SPEED + FAN -->
+        <div>
           <div class="br-title">Geschwindigkeit</div>
           <div class="spd-row" style="margin-bottom:12px;">
-            ${speeds.map(sp => `<button class="spd-btn${speedLevel===sp.l?' active':''}" onclick="setSpeed(${p.id},${sp.l})">${sp.n}</button>`).join('')}
+            ${speeds.map(sp=>`<button class="spd-btn${speedLevel===sp.l?' active':''}" onclick="setSpeed(${p.id},${sp.l})">${sp.n}</button>`).join('')}
           </div>
           <div class="fan-ctrl">
             <div class="fan-ctrl-lbl"><span>💨 LÜFTER</span><span id="fan-val2-${p.id}">0%</span></div>
@@ -965,290 +973,140 @@ function buildPrinterCard(p) {
               onchange="setFan(${p.id},parseInt(this.value),'part')">
           </div>
         </div>
-
       </div>
     </div>
 
-    <!-- AMS FULL WIDTH -->
     ${buildAmsHtml(ams, p.id)}
   </div>`;
 }
 
 // ── STEUERUNG ─────────────────────────────────
-async function printerCmd(pid, action) {
-  if (action==='stop' && !confirm('Druck wirklich abbrechen?')) return;
-  await api('/api/printers/'+pid+'/'+action, 'POST');
-  toast(action==='pause'?'⏸ Pausiert':action==='resume'?'▶ Fortgesetzt':'⏹ Abgebrochen');
-  setTimeout(buildDashboard, 2000);
-}
-async function setLight(pid, on) {
-  await api('/api/printers/'+pid+'/light', 'POST', {on});
-  toast(on ? '💡 Licht an' : '💡 Licht aus');
-}
-async function setSpeed(pid, level) {
-  await api('/api/printers/'+pid+'/speed', 'POST', {level});
-  const L = {1:'STILLE',2:'NORMAL',3:'SPORT',4:'TURBO'};
-  toast('⚡ ' + L[level]);
-  setTimeout(buildDashboard, 1500);
-}
-async function homeAxes(pid, axes) {
-  await api('/api/printers/'+pid+'/home', 'POST', {axes});
-  toast('🏠 HOME: ' + (axes==='all'?'ALLE ACHSEN':axes.toUpperCase()));
-  if (!axisPos[pid]) axisPos[pid] = {x:0, y:0, z:0};
-  if (axes==='all') { axisPos[pid]={x:0,y:0,z:0,homed:true}; }
-  else { axisPos[pid][axes]=0; }
+async function printerCmd(pid,action){if(action==='stop'&&!confirm('Druck wirklich abbrechen?'))return;await api('/api/printers/'+pid+'/'+action,'POST');toast(action==='pause'?'⏸ Pausiert':action==='resume'?'▶ Fortgesetzt':'⏹ Abgebrochen');setTimeout(buildDashboard,2000);}
+async function setLight(pid,on){await api('/api/printers/'+pid+'/light','POST',{on});toast(on?'💡 Licht an':'💡 Licht aus');}
+async function setSpeed(pid,level){await api('/api/printers/'+pid+'/speed','POST',{level});const L={1:'STILLE',2:'NORMAL',3:'SPORT',4:'TURBO'};toast('⚡ '+L[level]);setTimeout(buildDashboard,1500);}
+async function homeAxes(pid,axes){
+  await api('/api/printers/'+pid+'/home','POST',{axes});
+  toast('🏠 HOME: '+(axes==='all'?'ALLE ACHSEN':axes.toUpperCase()));
+  if(!axisPos[pid])axisPos[pid]={x:0,y:0,z:0};
+  if(axes==='all'){axisPos[pid]={x:0,y:0,z:0,homed:true};}
+  else{axisPos[pid][axes]=0;}
   updatePosDisplay(pid);
 }
-
-// ── AXIS MOVE (NEW) ───────────────────────────
-// Lokales Position-Tracking (Bambu sendet keine Achspositionen per MQTT)
-const axisPos = {};
-async function moveAxis(pid, axis, distance) {
-  const r = await api('/api/printers/'+pid+'/move', 'POST', {axis, distance});
-  if (r.ok) {
+const axisPos={};
+async function moveAxis(pid,axis,distance){
+  const r=await api('/api/printers/'+pid+'/move','POST',{axis,distance});
+  if(r.ok){
     toast(`→ ${axis.toUpperCase()} ${distance>0?'+':''}${distance} mm`);
-    if (!axisPos[pid]) axisPos[pid] = {x:0, y:0, z:0};
-    axisPos[pid][axis] = Math.round((axisPos[pid][axis] + distance) * 100) / 100;
+    if(!axisPos[pid])axisPos[pid]={x:0,y:0,z:0};
+    axisPos[pid][axis]=Math.round((axisPos[pid][axis]+distance)*100)/100;
     updatePosDisplay(pid);
-  } else toast('Fehler beim Bewegen', 'error');
+  } else toast('Fehler beim Bewegen','error');
 }
-function updatePosDisplay(pid) {
-  const pos = axisPos[pid];
-  const xEl = document.getElementById('pos-x-'+pid);
-  const yEl = document.getElementById('pos-y-'+pid);
-  const zEl = document.getElementById('pos-z-'+pid);
-  const warn = document.getElementById('pos-warn-'+pid);
-  // Nur anzeigen wenn gehomed
-  if (!pos || !pos.homed) {
-    if (xEl) xEl.textContent = '—';
-    if (yEl) yEl.textContent = '—';
-    if (zEl) zEl.textContent = '—';
-    if (warn) warn.style.display = 'block';
-    return;
+function updatePosDisplay(pid){
+  const pos=axisPos[pid];
+  const xEl=document.getElementById('pos-x-'+pid);
+  const yEl=document.getElementById('pos-y-'+pid);
+  const zEl=document.getElementById('pos-z-'+pid);
+  const warn=document.getElementById('pos-warn-'+pid);
+  if(!pos||!pos.homed){
+    if(xEl)xEl.textContent='—';if(yEl)yEl.textContent='—';if(zEl)zEl.textContent='—';
+    if(warn)warn.style.display='block';return;
   }
-  if (xEl) xEl.textContent = pos.x.toFixed(1);
-  if (yEl) yEl.textContent = pos.y.toFixed(1);
-  if (zEl) zEl.textContent = pos.z.toFixed(1);
-  if (warn) warn.style.display = 'none';
+  if(xEl)xEl.textContent=pos.x.toFixed(1);
+  if(yEl)yEl.textContent=pos.y.toFixed(1);
+  if(zEl)zEl.textContent=pos.z.toFixed(1);
+  if(warn)warn.style.display='none';
 }
-
-async function motorsOff(pid) {
-  await api('/api/printers/'+pid+'/motors_off', 'POST');
-  toast('⚡ Motoren aus');
+function updateHeatStatus(pid,type,actual,target){
+  const block=document.getElementById('tb-'+type+'-'+pid);
+  const label=document.getElementById('hl-'+type+'-'+pid);
+  const bar=document.getElementById('hb-'+type+'-'+pid);
+  if(!block||!label||!bar)return;
+  const diff=target-actual;
+  const isHeating=target>0&&diff>3;
+  const isCooling=target===0&&actual>30;
+  const isAtTarget=target>0&&Math.abs(diff)<=3;
+  block.classList.remove('heating','temp-ok');
+  if(isHeating){
+    block.classList.add('heating');label.style.color='var(--orange)';label.textContent='🔥 HEIZT';
+    const progress=Math.max(0,Math.min(100,((actual-20)/(target-20))*100));
+    bar.style.width=progress+'%';bar.style.background='var(--orange)';
+  } else if(isCooling){label.style.color='var(--blue)';label.textContent='❄️ KÜHLT';bar.style.width='0%';
+  } else if(isAtTarget){
+    block.classList.add('temp-ok');label.style.color='var(--green)';label.textContent='✅ BEREIT';
+    bar.style.width='100%';bar.style.background='var(--green)';
+  } else {label.style.color='var(--text3)';label.textContent='—';bar.style.width='0%';}
 }
-async function filamentLoad(pid) {
-  await api('/api/printers/'+pid+'/filament_load', 'POST');
-  toast('⬇ Filament wird eingezogen...');
-}
-async function filamentUnload(pid) {
-  await api('/api/printers/'+pid+'/filament_unload', 'POST');
-  toast('⬆ Filament wird ausgeworfen...');
-}
-async function setFan(pid, percent, type='part') {
-  await api('/api/printers/'+pid+'/fan', 'POST', {percent, type});
-  toast('💨 Lüfter: ' + percent + '%');
-}
-function openTempModal(pid, type, currentVal) {
-  tempCtx = {printerId: pid, type};
-  document.getElementById('temp-modal-sub').textContent = type==='nozzle' ? 'Nozzle Temperatur' : 'Bett Temperatur';
-  document.getElementById('temp-label').textContent = type==='nozzle' ? 'Nozzle (°C)' : 'Bett (°C)';
-  document.getElementById('temp-input').value = currentVal || 0;
-  openModal('modal-temp');
-}
-async function sendTemp() {
-  const temp = parseInt(document.getElementById('temp-input').value);
-  if (isNaN(temp)||temp<0||temp>350) { toast('Ungültige Temperatur!','error'); return; }
-  await api('/api/printers/'+tempCtx.printerId+'/temperature', 'POST', {type:tempCtx.type, temp});
-  closeModal('modal-temp');
-  toast('🌡 ' + temp + '°C gesetzt');
-}
+async function motorsOff(pid){await api('/api/printers/'+pid+'/motors_off','POST');toast('⚡ Motoren aus');}
+async function filamentLoad(pid){await api('/api/printers/'+pid+'/filament_load','POST');toast('⬇ Filament wird eingezogen...');}
+async function filamentUnload(pid){await api('/api/printers/'+pid+'/filament_unload','POST');toast('⬆ Filament wird ausgeworfen...');}
+async function setFan(pid,percent,type='part'){await api('/api/printers/'+pid+'/fan','POST',{percent,type});toast('💨 Lüfter: '+percent+'%');}
+function openTempModal(pid,type,currentVal){tempCtx={printerId:pid,type};document.getElementById('temp-modal-sub').textContent=type==='nozzle'?'Nozzle Temperatur':'Bett Temperatur';document.getElementById('temp-label').textContent=type==='nozzle'?'Nozzle (°C)':'Bett (°C)';document.getElementById('temp-input').value=currentVal||0;openModal('modal-temp');}
+async function sendTemp(){const temp=parseInt(document.getElementById('temp-input').value);if(isNaN(temp)||temp<0||temp>350){toast('Ungültige Temperatur!','error');return;}await api('/api/printers/'+tempCtx.printerId+'/temperature','POST',{type:tempCtx.type,temp});closeModal('modal-temp');toast('🌡 '+temp+'°C gesetzt');}
 
 // ── AMS ───────────────────────────────────────
-async function openAmsAssign(pid, ui, si, isEmpty) {
-  assignCtx = {printerId:pid, unitIdx:ui, slotIdx:si, selectedFilamentId:null};
-  document.getElementById('ams-assign-subtitle').textContent = 'Slot '+(si+1)+' · AMS '+(ui+1);
-  document.getElementById('btn-clear-slot').style.display = isEmpty ? 'none' : 'inline-block';
-  const filaments = await api('/api/filaments');
-  const list = document.getElementById('ams-filament-list');
-  if (!filaments.length) {
-    list.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:10px 0;">Noch kein Filament angelegt.</div>';
-  } else {
-    list.innerHTML = filaments.map(f => {
-      const rem = f.weight_total - f.weight_used;
-      const pct = Math.max(0, Math.round((rem/f.weight_total)*100));
-      return `<div class="fil-option" id="fo-${f.id}" onclick="selectFilamentForSlot(${f.id})">
-        <div class="fil-option-dot" style="background:${f.color_hex};"></div>
-        <div><div class="fil-option-name">${f.brand} ${f.color}</div><div class="fil-option-sub">${f.material}${f.temp_nozzle?' · '+f.temp_nozzle+'°C':''}</div></div>
-        <div class="fil-option-pct">${pct}% · ${Math.round(rem)}g</div></div>`;
-    }).join('');
-  }
+async function openAmsAssign(pid,ui,si,isEmpty){
+  assignCtx={printerId:pid,unitIdx:ui,slotIdx:si,selectedFilamentId:null};
+  document.getElementById('ams-assign-subtitle').textContent='Slot '+(si+1)+' · AMS '+(ui+1);
+  document.getElementById('btn-clear-slot').style.display=isEmpty?'none':'inline-block';
+  const filaments=await api('/api/filaments');
+  const list=document.getElementById('ams-filament-list');
+  if(!filaments.length){list.innerHTML='<div style="color:var(--text3);font-size:13px;padding:10px 0;">Noch kein Filament angelegt.</div>';}
+  else{list.innerHTML=filaments.map(f=>{const rem=f.weight_total-f.weight_used;const pct=Math.max(0,Math.round((rem/f.weight_total)*100));return `<div class="fil-option" id="fo-${f.id}" onclick="selectFilamentForSlot(${f.id})"><div class="fil-option-dot" style="background:${f.color_hex};"></div><div><div class="fil-option-name">${f.brand} ${f.color}</div><div class="fil-option-sub">${f.material}${f.temp_nozzle?' · '+f.temp_nozzle+'°C':''}</div></div><div class="fil-option-pct">${pct}% · ${Math.round(rem)}g</div></div>`;}).join('');}
   openModal('modal-ams-assign');
 }
-function selectFilamentForSlot(id) {
-  document.querySelectorAll('.fil-option').forEach(el => el.classList.remove('selected'));
-  const el = document.getElementById('fo-' + id); if (el) el.classList.add('selected');
-  assignCtx.selectedFilamentId = id;
-}
-async function saveAmsAssign() {
-  if (!assignCtx.selectedFilamentId) { toast('Bitte ein Filament wählen!','error'); return; }
-  await api('/api/ams/'+assignCtx.printerId+'/assign', 'POST', {unit_idx:assignCtx.unitIdx, slot_idx:assignCtx.slotIdx, filament_id:assignCtx.selectedFilamentId});
-  closeModal('modal-ams-assign'); toast('Slot zugewiesen ✅'); buildDashboard();
-}
-async function clearAmsSlot() {
-  await api('/api/ams/'+assignCtx.printerId+'/assign/'+assignCtx.unitIdx+'/'+assignCtx.slotIdx, 'DELETE');
-  closeModal('modal-ams-assign'); toast('Slot geleert'); buildDashboard();
-}
-function toggleAmsDetail(detailId, trayJson, pid, ui, si) {
-  document.querySelectorAll('.ams-detail').forEach(d => d.classList.remove('open'));
-  if (openAmsDetail === detailId) { openAmsDetail = null; return; }
-  openAmsDetail = detailId;
-  const panel = document.getElementById(detailId); if (!panel) return;
-  const tray = JSON.parse(trayJson);
-  const src = tray.source==='rfid' ? '<span style="color:var(--green)">● RFID</span>' : '<span style="color:var(--blue)">● Manuell</span>';
-  panel.innerHTML =
-    `<div class="ams-drow"><span class="ams-dk">Quelle</span><span class="ams-dv">${src}</span></div>`+
-    `<div class="ams-drow"><span class="ams-dk">Material</span><span class="ams-dv">${tray.type||'—'}</span></div>`+
-    `<div class="ams-drow"><span class="ams-dk">Hersteller</span><span class="ams-dv">${tray.brand||'—'}</span></div>`+
-    `<div class="ams-drow"><span class="ams-dk">Restmenge</span><span class="ams-dv">${tray.remain>=0?tray.remain+'%':'—'}</span></div>`+
-    `<div class="ams-drow"><span class="ams-dk">Düse</span><span class="ams-dv">${tray.nozzle_min?tray.nozzle_min+'–'+(tray.nozzle_max||'?')+'°C':'—'}</span></div>`+
-    `<div class="ams-dacts">`+
-    `<button class="btn btn-info btn-sm" onclick="openAmsAssign(${pid},${ui},${si},false)">✏️ Ändern</button>`+
-    `<button class="btn btn-danger btn-sm" onclick="assignCtx={printerId:${pid},unitIdx:${ui},slotIdx:${si}};clearAmsSlot()">Leeren</button>`+
-    `</div>`;
+function selectFilamentForSlot(id){document.querySelectorAll('.fil-option').forEach(el=>el.classList.remove('selected'));const el=document.getElementById('fo-'+id);if(el)el.classList.add('selected');assignCtx.selectedFilamentId=id;}
+async function saveAmsAssign(){if(!assignCtx.selectedFilamentId){toast('Bitte ein Filament wählen!','error');return;}await api('/api/ams/'+assignCtx.printerId+'/assign','POST',{unit_idx:assignCtx.unitIdx,slot_idx:assignCtx.slotIdx,filament_id:assignCtx.selectedFilamentId});closeModal('modal-ams-assign');toast('Slot zugewiesen ✅');buildDashboard();}
+async function clearAmsSlot(){await api('/api/ams/'+assignCtx.printerId+'/assign/'+assignCtx.unitIdx+'/'+assignCtx.slotIdx,'DELETE');closeModal('modal-ams-assign');toast('Slot geleert');buildDashboard();}
+function toggleAmsDetail(detailId,trayJson,pid,ui,si){
+  document.querySelectorAll('.ams-detail').forEach(d=>d.classList.remove('open'));
+  if(openAmsDetail===detailId){openAmsDetail=null;return;}
+  openAmsDetail=detailId;
+  const panel=document.getElementById(detailId);if(!panel)return;
+  const tray=JSON.parse(trayJson);
+  const src=tray.source==='rfid'?'<span style="color:var(--green)">● RFID</span>':'<span style="color:var(--blue)">● Manuell</span>';
+  panel.innerHTML=`<div class="ams-drow"><span class="ams-dk">Quelle</span><span class="ams-dv">${src}</span></div><div class="ams-drow"><span class="ams-dk">Material</span><span class="ams-dv">${tray.type||'—'}</span></div><div class="ams-drow"><span class="ams-dk">Hersteller</span><span class="ams-dv">${tray.brand||'—'}</span></div><div class="ams-drow"><span class="ams-dk">Restmenge</span><span class="ams-dv">${tray.remain>=0?tray.remain+'%':'—'}</span></div><div class="ams-drow"><span class="ams-dk">Düse</span><span class="ams-dv">${tray.nozzle_min?tray.nozzle_min+'–'+(tray.nozzle_max||'?')+'°C':'—'}</span></div><div class="ams-dacts"><button class="btn btn-info btn-sm" onclick="openAmsAssign(${pid},${ui},${si},false)">✏️ Ändern</button><button class="btn btn-danger btn-sm" onclick="assignCtx={printerId:${pid},unitIdx:${ui},slotIdx:${si}};clearAmsSlot()">Leeren</button></div>`;
   panel.classList.add('open');
 }
-
-function buildAmsHtml(amsData, pid) {
-  if (!amsData || !amsData.units || !amsData.units.length)
-    return `<div class="ams-panel"><div class="ams-title">AMS FILAMENT</div><div style="font-size:11px;color:var(--text3);">Keine Daten</div></div>`;
-
-  let html = `<div class="ams-panel"><div class="ams-title">AMS FILAMENT <span style="font-size:9px;color:var(--text3);font-weight:400;">Slot anklicken zum Zuweisen</span></div>`;
-
-  amsData.units.forEach((unit, ui) => {
-    const meta = [];
-    if (unit.temp!==null && unit.temp>-30) meta.push(unit.temp.toFixed(1)+'°C');
-    if (unit.humidity!==null) meta.push('Hum '+unit.humidity+'/5');
-    if (amsData.units.length > 1) html += `<div style="font-size:10px;color:var(--text3);margin-bottom:5px;font-family:var(--mono);">AMS ${ui+1}${meta.length?' · '+meta.join(' · '):''}</div>`;
-
-    html += `<div class="ams-slots">`;
-    unit.trays.forEach((tray, si) => {
-      const isActive = ui===amsData.active_unit && si===amsData.active_slot;
-      const did = `ams-detail-${pid}-${ui}-${si}`;
-      if (tray.empty) {
-        html += `<div class="ams-slot empty" onclick="openAmsAssign(${pid},${ui},${si},true)">
-          <div class="ams-dot" style="background:var(--surface3);"></div>
-          <div class="ams-num">S${si+1}</div>
-          <div class="ams-type" style="color:var(--blue);font-size:13px;">+</div></div>`;
-      } else {
-        const rw = tray.remain>=0 ? tray.remain : 0;
-        const isManu = tray.source==='manual';
-        const tj = JSON.stringify(tray).replace(/\\/g,'\\\\').replace(/"/g,'&quot;');
-        html += `<div class="ams-slot${isActive?' active':''}${isManu?' manual':''}" onclick="toggleAmsDetail('${did}','${tj}',${pid},${ui},${si})">
-          ${isActive?'<div class="ams-pip"></div>':''}${isManu?'<div class="ams-mbadge">M</div>':''}
-          <div class="ams-dot" style="background:${tray.color||'var(--surface3)'};"></div>
-          <div class="ams-num">S${si+1}</div>
-          <div class="ams-type">${tray.type||'?'}</div>
-          <div class="ams-brand">${tray.brand||''}</div>
-          <div class="ams-rbar"><div class="ams-rfill" style="width:${rw}%;background:${rcol(tray.remain)};"></div></div>
-          </div>`;
-      }
+function buildAmsHtml(amsData,pid){
+  if(!amsData||!amsData.units||!amsData.units.length)return`<div class="ams-panel"><div class="ams-title">AMS FILAMENT</div><div style="font-size:11px;color:var(--text3);">Keine Daten</div></div>`;
+  let html=`<div class="ams-panel"><div class="ams-title">AMS FILAMENT <span style="font-size:9px;color:var(--text3);font-weight:400;">Slot anklicken zum Zuweisen</span></div>`;
+  amsData.units.forEach((unit,ui)=>{
+    const meta=[];if(unit.temp!==null&&unit.temp>-30)meta.push(unit.temp.toFixed(1)+'°C');if(unit.humidity!==null)meta.push('Hum '+unit.humidity+'/5');
+    if(amsData.units.length>1)html+=`<div style="font-size:10px;color:var(--text3);margin-bottom:5px;font-family:var(--mono);">AMS ${ui+1}${meta.length?' · '+meta.join(' · '):''}</div>`;
+    html+=`<div class="ams-slots">`;
+    unit.trays.forEach((tray,si)=>{
+      const isActive=ui===amsData.active_unit&&si===amsData.active_slot;
+      const did=`ams-detail-${pid}-${ui}-${si}`;
+      if(tray.empty){html+=`<div class="ams-slot empty" onclick="openAmsAssign(${pid},${ui},${si},true)"><div class="ams-dot" style="background:var(--surface3);"></div><div class="ams-num">S${si+1}</div><div class="ams-type" style="color:var(--blue);font-size:13px;">+</div></div>`;}
+      else{const rw=tray.remain>=0?tray.remain:0;const isManu=tray.source==='manual';const tj=JSON.stringify(tray).replace(/\\/g,'\\\\').replace(/"/g,'&quot;');html+=`<div class="ams-slot${isActive?' active':''}${isManu?' manual':''}" onclick="toggleAmsDetail('${did}','${tj}',${pid},${ui},${si})">${isActive?'<div class="ams-pip"></div>':''}${isManu?'<div class="ams-mbadge">M</div>':''}<div class="ams-dot" style="background:${tray.color||'var(--surface3)'};"></div><div class="ams-num">S${si+1}</div><div class="ams-type">${tray.type||'?'}</div><div class="ams-brand">${tray.brand||''}</div><div class="ams-rbar"><div class="ams-rfill" style="width:${rw}%;background:${rcol(tray.remain)};"></div></div></div>`;}
     });
-    html += `</div>`;
-    unit.trays.forEach((tray, si) => {
-      if (!tray.empty) html += `<div class="ams-detail" id="ams-detail-${pid}-${ui}-${si}"></div>`;
-    });
+    html+=`</div>`;unit.trays.forEach((tray,si)=>{if(!tray.empty)html+=`<div class="ams-detail" id="ams-detail-${pid}-${ui}-${si}"></div>`;});
   });
-  return html + `</div>`;
+  return html+`</div>`;
 }
 
 // ── STATS ─────────────────────────────────────
-async function loadStats() {
-  const s = await api('/api/stats');
-  document.getElementById('stat-prints').textContent = s.total_prints;
-  document.getElementById('stat-grams').textContent  = s.total_grams + 'g';
-  document.getElementById('stat-hours').textContent  = s.total_hours + 'h';
-  document.getElementById('stat-cost').textContent   = s.total_cost.toFixed(2) + '€';
-}
+async function loadStats(){const s=await api('/api/stats');document.getElementById('stat-prints').textContent=s.total_prints;document.getElementById('stat-grams').textContent=s.total_grams+'g';document.getElementById('stat-hours').textContent=s.total_hours+'h';document.getElementById('stat-cost').textContent=s.total_cost.toFixed(2)+'€';}
 
 // ── DATEIMANAGER ──────────────────────────────
-async function initFilePage() {
-  const printers = await api('/api/printers');
-  const sel = document.getElementById('file-printer-select');
-  sel.innerHTML = '<option value="">-- Drucker wählen --</option>' + printers.map(p=>`<option value="${p.id}">${p.name} (${p.model})</option>`).join('');
-  loadPiFiles();
-}
-function switchFileTab(tab) {
-  currentFileTab = tab;
-  document.querySelectorAll('.file-tab').forEach((t,i) => { const tabs=['upload','sdcard','pifiles']; t.classList.toggle('active', tabs[i]===tab); });
-  document.querySelectorAll('.file-tab-content').forEach(c => c.classList.remove('active'));
-  document.getElementById('filetab-' + tab).classList.add('active');
-  if (tab==='sdcard') loadSdFiles();
-  if (tab==='pifiles') loadPiFiles();
-}
-async function loadFiles() { if (currentFileTab==='sdcard') loadSdFiles(); }
-async function loadSdFiles() {
-  const pid = document.getElementById('file-printer-select').value;
-  const container = document.getElementById('sdcard-files');
-  if (!pid) { container.innerHTML = '<div style="color:var(--text3);font-size:13px;">Drucker auswählen</div>'; return; }
-  container.innerHTML = '<div style="color:var(--text3);font-size:13px;">Lade...</div>';
-  try {
-    const result = await api('/api/printers/'+pid+'/files');
-    if (result.error) { container.innerHTML = '<div style="color:var(--red);font-size:13px;">⚠️ '+result.error+'</div>'; return; }
-    if (!result.length) { container.innerHTML = '<div style="color:var(--text3);font-size:13px;">Keine Dateien gefunden</div>'; return; }
-    container.innerHTML = result.map(f=>`<div class="file-row"><div><div class="file-name">${f.name}</div><div class="file-meta">${fmtSize(f.size||0)}</div></div><div class="file-actions"><button class="btn btn-primary btn-sm" onclick="startSdFile('${pid}','${f.name}')">▶️ Starten</button><button class="btn btn-danger btn-sm" onclick="deleteSdFile('${pid}','${f.name}')">🗑</button></div></div>`).join('');
-  } catch(e) { container.innerHTML = '<div style="color:var(--red);font-size:13px;">⚠️ '+e.message+'</div>'; }
-}
-async function loadPiFiles() {
-  const container = document.getElementById('pi-files');
-  const files = await api('/api/uploads');
-  if (!files.length) { container.innerHTML = '<div style="color:var(--text3);font-size:13px;">Noch keine Dateien hochgeladen</div>'; return; }
-  container.innerHTML = files.map(f=>`<div class="file-row"><div><div class="file-name">${f.filename.replace(/^\d+-/,'')}</div><div class="file-meta">${fmtSize(f.size)}</div></div><div class="file-actions"><button class="btn btn-primary btn-sm" onclick="printFromPi('${f.filename}')">▶️ Drucken</button><button class="btn btn-danger btn-sm" onclick="deletePiFile('${f.filename}')">🗑</button></div></div>`).join('');
-}
+async function initFilePage(){const printers=await api('/api/printers');const sel=document.getElementById('file-printer-select');sel.innerHTML='<option value="">-- Drucker wählen --</option>'+printers.map(p=>`<option value="${p.id}">${p.name} (${p.model})</option>`).join('');loadPiFiles();}
+function switchFileTab(tab){currentFileTab=tab;document.querySelectorAll('.file-tab').forEach((t,i)=>{const tabs=['upload','sdcard','pifiles'];t.classList.toggle('active',tabs[i]===tab);});document.querySelectorAll('.file-tab-content').forEach(c=>c.classList.remove('active'));document.getElementById('filetab-'+tab).classList.add('active');if(tab==='sdcard')loadSdFiles();if(tab==='pifiles')loadPiFiles();}
+async function loadFiles(){if(currentFileTab==='sdcard')loadSdFiles();}
+async function loadSdFiles(){const pid=document.getElementById('file-printer-select').value;const container=document.getElementById('sdcard-files');if(!pid){container.innerHTML='<div style="color:var(--text3);font-size:13px;">Drucker auswählen</div>';return;}container.innerHTML='<div style="color:var(--text3);font-size:13px;">Lade...</div>';try{const result=await api('/api/printers/'+pid+'/files');if(result.error){container.innerHTML='<div style="color:var(--red);font-size:13px;">⚠️ '+result.error+'</div>';return;}if(!result.length){container.innerHTML='<div style="color:var(--text3);font-size:13px;">Keine Dateien</div>';return;}container.innerHTML=result.map(f=>`<div class="file-row"><div><div class="file-name">${f.name}</div><div class="file-meta">${fmtSize(f.size||0)}</div></div><div class="file-actions"><button class="btn btn-primary btn-sm" onclick="startSdFile('${pid}','${f.name}')">▶️ Starten</button><button class="btn btn-danger btn-sm" onclick="deleteSdFile('${pid}','${f.name}')">🗑</button></div></div>`).join('');}catch(e){container.innerHTML='<div style="color:var(--red);font-size:13px;">⚠️ '+e.message+'</div>';}}
+async function loadPiFiles(){const container=document.getElementById('pi-files');const files=await api('/api/uploads');if(!files.length){container.innerHTML='<div style="color:var(--text3);font-size:13px;">Noch keine Dateien</div>';return;}container.innerHTML=files.map(f=>`<div class="file-row"><div><div class="file-name">${f.filename.replace(/^\d+-/,'')}</div><div class="file-meta">${fmtSize(f.size)}</div></div><div class="file-actions"><button class="btn btn-primary btn-sm" onclick="printFromPi('${f.filename}')">▶️ Drucken</button><button class="btn btn-danger btn-sm" onclick="deletePiFile('${f.filename}')">🗑</button></div></div>`).join('');}
 async function startSdFile(pid,filename){if(!confirm('Datei "'+filename+'" starten?'))return;await api('/api/printers/'+pid+'/startfile','POST',{filename});toast('▶️ Druck gestartet!');}
 async function deleteSdFile(pid,filename){if(!confirm('Löschen?'))return;await api('/api/printers/'+pid+'/files/'+encodeURIComponent(filename),'DELETE');toast('Gelöscht');loadSdFiles();}
 async function deletePiFile(filename){if(!confirm('Datei löschen?'))return;await api('/api/uploads/'+encodeURIComponent(filename),'DELETE');toast('Gelöscht');loadPiFiles();}
-async function printFromPi(filename){
-  const pid=document.getElementById('file-printer-select').value;
-  if(!pid){toast('Drucker auswählen!','error');return;}
-  if(!confirm('Hochladen und starten?'))return;
-  toast('⬆️ Wird hochgeladen...');
-  const result=await api('/api/printers/'+pid+'/print','POST',{filename,start:true});
-  if(result.ok)toast('✅ '+result.message);else toast('❌ '+(result.error||'Fehler'),'error');
-}
+async function printFromPi(filename){const pid=document.getElementById('file-printer-select').value;if(!pid){toast('Drucker auswählen!','error');return;}if(!confirm('Hochladen und starten?'))return;toast('⬆️ Wird hochgeladen...');const result=await api('/api/printers/'+pid+'/print','POST',{filename,start:true});if(result.ok)toast('✅ '+result.message);else toast('❌ '+(result.error||'Fehler'),'error');}
 function handleDrop(e){e.preventDefault();document.getElementById('upload-zone').classList.remove('drag');const files=e.dataTransfer.files;if(files.length)uploadFile(files[0]);}
 function handleFileSelect(e){const file=e.target.files[0];if(file)uploadFile(file);}
-async function uploadFile(file){
-  if(!file.name.endsWith('.3mf')&&!file.name.endsWith('.gcode')){toast('Nur .3mf und .gcode!','error');return;}
-  const q=document.getElementById('upload-queue');
-  q.innerHTML=`<div style="color:var(--text3);font-size:13px;padding:10px 0;">⬆️ Lade "${file.name}" hoch...</div>`;
-  const fd=new FormData();fd.append('file',file);
-  try{
-    const r=await fetch('/api/upload',{method:'POST',body:fd});const data=await r.json();
-    if(data.filename){
-      toast('✅ Hochgeladen!');
-      const pid=document.getElementById('file-printer-select').value;
-      q.innerHTML=`<div class="file-row"><div><div class="file-name">${file.name}</div><div class="file-meta">${fmtSize(file.size)}</div></div><div class="file-actions">${pid?`<button class="btn btn-primary btn-sm" onclick="printFromPiDirect('${data.filename}',${pid})">▶️ Jetzt drucken</button>`:''}</div></div>`;
-    }
-  }catch(e){toast('Upload Fehler!','error');q.innerHTML='';}
-}
-async function printFromPiDirect(filename,pid){
-  if(!confirm('Hochladen und starten?'))return;toast('⬆️ Wird hochgeladen...');
-  const result=await api('/api/printers/'+pid+'/print','POST',{filename,start:true});
-  if(result.ok)toast('✅ Gestartet!');else toast('❌ '+result.error,'error');
-}
+async function uploadFile(file){if(!file.name.endsWith('.3mf')&&!file.name.endsWith('.gcode')){toast('Nur .3mf und .gcode!','error');return;}const q=document.getElementById('upload-queue');q.innerHTML=`<div style="color:var(--text3);font-size:13px;padding:10px 0;">⬆️ Lade "${file.name}" hoch...</div>`;const fd=new FormData();fd.append('file',file);try{const r=await fetch('/api/upload',{method:'POST',body:fd});const data=await r.json();if(data.filename){toast('✅ Hochgeladen!');const pid=document.getElementById('file-printer-select').value;q.innerHTML=`<div class="file-row"><div><div class="file-name">${file.name}</div><div class="file-meta">${fmtSize(file.size)}</div></div><div class="file-actions">${pid?`<button class="btn btn-primary btn-sm" onclick="printFromPiDirect('${data.filename}',${pid})">▶️ Jetzt drucken</button>`:''}</div></div>`;}}catch(e){toast('Upload Fehler!','error');q.innerHTML='';}}
+async function printFromPiDirect(filename,pid){if(!confirm('Hochladen und starten?'))return;toast('⬆️ Wird hochgeladen...');const result=await api('/api/printers/'+pid+'/print','POST',{filename,start:true});if(result.ok)toast('✅ Gestartet!');else toast('❌ '+result.error,'error');}
 
-// ── DRUCKER SEITE ─────────────────────────────
-async function loadPrinters(){
-  const printers=await api('/api/printers');
-  document.getElementById('printers-list').innerHTML=!printers.length
-    ?'<div class="card" style="color:var(--text3);">Noch kein Drucker hinzugefügt.</div>'
-    :printers.map(p=>`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;"><div><div style="font-size:14px;font-weight:600;font-family:var(--mono);">🖨️ ${p.name}</div><div style="font-size:11px;color:var(--text3);margin-top:3px;font-family:var(--mono);">${p.model} · ${p.ip} · ${p.serial}</div></div><button class="btn btn-danger btn-sm" onclick="deletePrinter(${p.id})">Löschen</button></div></div>`).join('');
-}
-async function addPrinter(){
-  const data={name:document.getElementById('p-name').value,model:document.getElementById('p-model').value,ip:document.getElementById('p-ip').value,access_code:document.getElementById('p-code').value,serial:document.getElementById('p-serial').value};
-  if(!data.name||!data.ip||!data.access_code||!data.serial){toast('Bitte alle Felder ausfüllen!','error');return;}
-  await api('/api/printers','POST',data);closeModal('modal-add-printer');toast('Drucker hinzugefügt! ✅');loadPrinters();
-}
+// ── DRUCKER ───────────────────────────────────
+async function loadPrinters(){const printers=await api('/api/printers');document.getElementById('printers-list').innerHTML=!printers.length?'<div class="card" style="color:var(--text3);">Noch kein Drucker hinzugefügt.</div>':printers.map(p=>`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;"><div><div style="font-size:14px;font-weight:600;font-family:var(--mono);">🖨️ ${p.name}</div><div style="font-size:11px;color:var(--text3);margin-top:3px;font-family:var(--mono);">${p.model} · ${p.ip} · ${p.serial}</div></div><button class="btn btn-danger btn-sm" onclick="deletePrinter(${p.id})">Löschen</button></div></div>`).join('');}
+async function addPrinter(){const data={name:document.getElementById('p-name').value,model:document.getElementById('p-model').value,ip:document.getElementById('p-ip').value,access_code:document.getElementById('p-code').value,serial:document.getElementById('p-serial').value};if(!data.name||!data.ip||!data.access_code||!data.serial){toast('Bitte alle Felder ausfüllen!','error');return;}await api('/api/printers','POST',data);closeModal('modal-add-printer');toast('Drucker hinzugefügt! ✅');loadPrinters();}
 async function deletePrinter(id){if(!confirm('Drucker wirklich löschen?'))return;await api('/api/printers/'+id,'DELETE');toast('Gelöscht');loadPrinters();}
 
 // ── FILAMENTE ─────────────────────────────────
@@ -1258,53 +1116,76 @@ async function loadFilaments(){
   grid.innerHTML=list.map(f=>{
     const rem=f.weight_total-f.weight_used;const pct=Math.max(0,Math.round((rem/f.weight_total)*100));
     const bc=pct>50?'var(--green)':pct>20?'var(--orange)':'var(--red)';
-    return `<div class="fil-card"><div class="fil-top"><div class="fil-dot" style="background:${f.color_hex};"></div><div><div class="fil-name">${f.brand} ${f.color}</div><div class="fil-sub">${f.material}${f.temp_nozzle?' · '+f.temp_nozzle+'°C':''}</div></div></div><div class="fil-bar"><div class="fil-bar-fill" style="width:${pct}%;background:${bc};"></div></div><div class="fil-info"><span>${Math.round(rem)}g übrig</span><span>${pct}%</span></div>${f.price_per_kg>0?`<div style="font-size:11px;color:var(--text3);margin-top:4px;">💰 ${f.price_per_kg}€/kg</div>`:''} ${f.location?`<div style="font-size:11px;color:var(--text3);">📍 ${f.location}</div>`:''}<div class="fil-actions"><button class="btn btn-danger btn-sm" onclick="deleteFilament(${f.id})">Löschen</button></div></div>`;
+    const tags=[];
+    if(f.temp_nozzle_min&&f.temp_nozzle_max)tags.push(`${f.temp_nozzle_min}–${f.temp_nozzle_max}°C`);
+    else if(f.temp_nozzle)tags.push(`${f.temp_nozzle}°C`);
+    if(f.temp_bed)tags.push(`Bett ${f.temp_bed}°C`);
+    if(f.pa)tags.push(`PA ${f.pa}`);
+    if(f.ka)tags.push(`KA ${f.ka}`);
+    if(f.flow_rate&&f.flow_rate!==100)tags.push(`Flow ${f.flow_rate}%`);
+    if(f.temp_dry)tags.push(`Dry ${f.temp_dry}°C`);
+    if(f.diameter&&f.diameter!==1.75)tags.push(`${f.diameter}mm`);
+    return `<div class="fil-card">
+      <div class="fil-top">
+        <div class="fil-dot" style="background:${f.color_hex};"></div>
+        <div><div class="fil-name">${f.brand} ${f.color}</div><div class="fil-sub">${f.material}${f.diameter?' · '+f.diameter+'mm':''}</div></div>
+      </div>
+      <div class="fil-bar"><div class="fil-bar-fill" style="width:${pct}%;background:${bc};"></div></div>
+      <div class="fil-info"><span>${Math.round(rem)}g übrig</span><span>${pct}%</span></div>
+      ${tags.length?`<div class="fil-tags">${tags.map(t=>`<span class="fil-tag has-val">${t}</span>`).join('')}</div>`:''}
+      ${f.price_per_kg>0?`<div style="font-size:11px;color:var(--text3);margin-top:5px;">💰 ${f.price_per_kg}€/kg</div>`:''}
+      ${f.location?`<div style="font-size:11px;color:var(--text3);">📍 ${f.location}</div>`:''}
+      <div class="fil-actions"><button class="btn btn-danger btn-sm" onclick="deleteFilament(${f.id})">Löschen</button></div>
+    </div>`;
   }).join('');
 }
+
 async function addFilament(){
-  const data={brand:document.getElementById('f-brand').value,material:document.getElementById('f-material').value,color:document.getElementById('f-color').value,color_hex:document.getElementById('f-color-hex').value,weight_total:parseInt(document.getElementById('f-weight').value)||1000,price_per_kg:parseFloat(document.getElementById('f-price').value)||0,temp_nozzle:parseInt(document.getElementById('f-nozzle').value)||null,temp_bed:parseInt(document.getElementById('f-bed').value)||null,location:document.getElementById('f-location').value};
+  const data={
+    brand:document.getElementById('f-brand').value,
+    material:document.getElementById('f-material').value,
+    color:document.getElementById('f-color').value,
+    color_hex:document.getElementById('f-color-hex').value,
+    diameter:parseFloat(document.getElementById('f-diameter').value)||1.75,
+    weight_total:parseInt(document.getElementById('f-weight').value)||1000,
+    price_per_kg:parseFloat(document.getElementById('f-price').value)||0,
+    temp_nozzle_min:parseInt(document.getElementById('f-nozzle-min').value)||null,
+    temp_nozzle_max:parseInt(document.getElementById('f-nozzle-max').value)||null,
+    temp_nozzle:parseInt(document.getElementById('f-nozzle').value)||null,
+    temp_bed:parseInt(document.getElementById('f-bed').value)||null,
+    temp_dry:parseInt(document.getElementById('f-dry-temp').value)||null,
+    time_dry:parseInt(document.getElementById('f-dry-time').value)||null,
+    pa:parseFloat(document.getElementById('f-pa').value)||null,
+    ka:parseFloat(document.getElementById('f-ka').value)||null,
+    flow_rate:parseFloat(document.getElementById('f-flow').value)||100,
+    shrink_factor:parseFloat(document.getElementById('f-shrink').value)||100,
+    location:document.getElementById('f-location').value||null,
+    notes:document.getElementById('f-notes').value||null,
+  };
   if(!data.brand||!data.color){toast('Hersteller und Farbe sind Pflicht!','error');return;}
-  await api('/api/filaments','POST',data);closeModal('modal-add-filament');toast('Filament hinzugefügt! ✅');loadFilaments();
+  await api('/api/filaments','POST',data);
+  closeModal('modal-add-filament');
+  toast('Filament hinzugefügt! ✅');
+  loadFilaments();
 }
 async function deleteFilament(id){if(!confirm('Filament wirklich löschen?'))return;await api('/api/filaments/'+id,'DELETE');toast('Gelöscht');loadFilaments();}
 
 // ── HISTORIE ──────────────────────────────────
-async function loadHistory(){
-  const list=await api('/api/history');const tbody=document.getElementById('history-table');
-  if(!list.length){tbody.innerHTML='<tr><td colspan="7" style="color:var(--text3);text-align:center;padding:20px;">Noch keine Drucke</td></tr>';return;}
-  tbody.innerHTML=list.map(j=>`<tr><td style="font-family:var(--mono);">${new Date(j.started_at).toLocaleDateString('de-DE')}</td><td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${j.filename||'-'}</td><td>${j.printer_name||'-'}</td><td>${j.color_hex?`<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${j.color_hex};margin-right:4px;"></span>`:''}${j.brand?j.brand+' '+j.material:'-'}</td><td style="font-family:var(--mono);">${j.grams_used}g</td><td style="font-family:var(--mono);">${j.duration_min?Math.round(j.duration_min/60*10)/10+'h':'-'}</td><td style="font-family:var(--mono);">${j.total_cost?j.total_cost.toFixed(2)+'€':'-'}</td></tr>`).join('');
-}
+async function loadHistory(){const list=await api('/api/history');const tbody=document.getElementById('history-table');if(!list.length){tbody.innerHTML='<tr><td colspan="7" style="color:var(--text3);text-align:center;padding:20px;">Noch keine Drucke</td></tr>';return;}tbody.innerHTML=list.map(j=>`<tr><td style="font-family:var(--mono);">${new Date(j.started_at).toLocaleDateString('de-DE')}</td><td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${j.filename||'-'}</td><td>${j.printer_name||'-'}</td><td>${j.color_hex?`<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${j.color_hex};margin-right:4px;"></span>`:''}${j.brand?j.brand+' '+j.material:'-'}</td><td style="font-family:var(--mono);">${j.grams_used}g</td><td style="font-family:var(--mono);">${j.duration_min?Math.round(j.duration_min/60*10)/10+'h':'-'}</td><td style="font-family:var(--mono);">${j.total_cost?j.total_cost.toFixed(2)+'€':'-'}</td></tr>`).join('');}
 
 // ── KOSTENRECHNER ─────────────────────────────
 async function loadCalcFilaments(){const list=await api('/api/filaments');document.getElementById('calc-filament').innerHTML='<option value="">-- Filament wählen --</option>'+list.map(f=>`<option value="${f.id}">${f.brand} ${f.color} ${f.material}</option>`).join('');}
-async function calculate(){
-  const grams=parseFloat(document.getElementById('calc-grams').value)||0;
-  const duration=parseFloat(document.getElementById('calc-duration').value)||0;
-  const post=parseFloat(document.getElementById('calc-post').value)||0;
-  const rate=parseFloat(document.getElementById('calc-rate').value)||0;
-  const filament_id=document.getElementById('calc-filament').value;
-  if(!grams&&!duration)return;
-  const result=await api('/api/calculate','POST',{grams,duration_min:duration,filament_id,post_processing_min:post,hourly_rate:rate});
-  document.getElementById('calc-result').style.display='block';
-  document.getElementById('r-filament').textContent=result.filament_cost.toFixed(2)+' €';
-  document.getElementById('r-electricity').textContent=result.electricity_cost.toFixed(2)+' €';
-  document.getElementById('r-post').textContent=result.post_cost.toFixed(2)+' €';
-  document.getElementById('r-total').textContent=result.total_cost.toFixed(2)+' €';
-}
+async function calculate(){const grams=parseFloat(document.getElementById('calc-grams').value)||0;const duration=parseFloat(document.getElementById('calc-duration').value)||0;const post=parseFloat(document.getElementById('calc-post').value)||0;const rate=parseFloat(document.getElementById('calc-rate').value)||0;const filament_id=document.getElementById('calc-filament').value;if(!grams&&!duration)return;const result=await api('/api/calculate','POST',{grams,duration_min:duration,filament_id,post_processing_min:post,hourly_rate:rate});document.getElementById('calc-result').style.display='block';document.getElementById('r-filament').textContent=result.filament_cost.toFixed(2)+' €';document.getElementById('r-electricity').textContent=result.electricity_cost.toFixed(2)+' €';document.getElementById('r-post').textContent=result.post_cost.toFixed(2)+' €';document.getElementById('r-total').textContent=result.total_cost.toFixed(2)+' €';}
 
 // ── EINSTELLUNGEN ─────────────────────────────
 async function loadSettings(){const s=await api('/api/settings');document.getElementById('set-electricity').value=s.electricity_cost||0.35;document.getElementById('set-watt').value=s.printer_watt||350;}
 async function saveSettings(){await api('/api/settings','POST',{electricity_cost:document.getElementById('set-electricity').value,printer_watt:document.getElementById('set-watt').value});toast('Gespeichert ✅');}
 
-// ── START & LOOP ──────────────────────────────
+// ── START ─────────────────────────────────────
 loadStats();
 buildDashboard();
-setInterval(() => {
-  if (document.getElementById('page-dashboard').classList.contains('active')) realtimeUpdate();
-}, 2000);
-setInterval(() => {
-  if (document.getElementById('page-dashboard').classList.contains('active')) loadStats();
-}, 30000);
+setInterval(()=>{if(document.getElementById('page-dashboard').classList.contains('active'))realtimeUpdate();},2000);
+setInterval(()=>{if(document.getElementById('page-dashboard').classList.contains('active'))loadStats();},30000);
 </script>
 </body>
 </html>
