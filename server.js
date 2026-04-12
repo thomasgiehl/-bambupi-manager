@@ -6,6 +6,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const ftp = require('basic-ftp');
+let AdmZip; try { AdmZip = require('adm-zip'); } catch(e) { AdmZip = null; }
 require('dotenv').config();
 
 const app = express();
@@ -106,6 +107,61 @@ for (const [key, value] of Object.entries(defaultSettings)) {
 
 // ── MQTT ──────────────────────────────────────
 let printerStatus = {};
+const printStartTimes = {};
+
+const MATERIAL_DENSITY = {
+  'PLA-CF': 1.30, 'PETG-CF': 1.30, 'PA-CF': 1.20,
+  'PLA': 1.24, 'PETG': 1.27, 'ABS': 1.04, 'ASA': 1.07,
+  'TPU': 1.21, 'TPE': 1.20, 'PA': 1.14, 'PC': 1.20,
+  'PVA': 1.23, 'HIPS': 1.07
+};
+
+function handlePrintFinished(printerId, printData) {
+  try {
+    const durationMin = printStartTimes[printerId]
+      ? Math.round((Date.now() - printStartTimes[printerId]) / 60000) : 0;
+    delete printStartTimes[printerId];
+
+    // Aktiven AMS-Slot bestimmen (tray_now: 0-15, 255=extern)
+    const trayNow = parseInt(printData?.ams?.tray_now);
+    let row = null;
+    if (!isNaN(trayNow) && trayNow !== 255) {
+      row = db.prepare(
+        'SELECT a.filament_id, f.material, f.price_per_kg, f.diameter FROM ams_slots a JOIN filaments f ON a.filament_id=f.id WHERE a.printer_id=? AND a.unit_idx=? AND a.slot_idx=?'
+      ).get(printerId, Math.floor(trayNow / 4), trayNow % 4);
+    }
+    // Fallback: erster zugewiesener Slot
+    if (!row) {
+      row = db.prepare(
+        'SELECT a.filament_id, f.material, f.price_per_kg, f.diameter FROM ams_slots a JOIN filaments f ON a.filament_id=f.id WHERE a.printer_id=? ORDER BY a.unit_idx, a.slot_idx LIMIT 1'
+      ).get(printerId);
+    }
+    if (!row) return;
+
+    // Gramm berechnen aus filament_used (mm Länge → Gramm)
+    const usedMm = parseFloat(printData.filament_used) || 0;
+    let grams = 0;
+    if (usedMm > 0) {
+      const r = (row.diameter || 1.75) / 2 / 10; // mm → cm
+      const densityKey = Object.keys(MATERIAL_DENSITY).find(k => (row.material || '').startsWith(k)) || 'PLA';
+      grams = Math.round(Math.PI * r * r * (usedMm / 10) * MATERIAL_DENSITY[densityKey] * 10) / 10;
+    }
+
+    if (grams > 0) {
+      db.prepare('UPDATE filaments SET weight_used = weight_used + ? WHERE id = ?').run(grams, row.filament_id);
+    }
+
+    const s = Object.fromEntries(db.prepare('SELECT * FROM settings').all().map(r => [r.key, parseFloat(r.value)]));
+    const filamentCost = (grams / 1000) * (row.price_per_kg || 0);
+    const electricityCost = (durationMin / 60) * ((s.printer_watt || 350) / 1000) * (s.electricity_cost || 0.35);
+    db.prepare("INSERT INTO print_jobs (printer_id,filament_id,filename,grams_used,duration_min,electricity_cost,filament_cost,total_cost,status,finished_at) VALUES (?,?,?,?,?,?,?,?,'finished',CURRENT_TIMESTAMP)")
+      .run(printerId, row.filament_id, printData.subtask_name || '', grams, durationMin, electricityCost, filamentCost, filamentCost + electricityCost);
+
+    console.log(`✅ Auto-Tracking: "${printData.subtask_name || '?'}" — ${grams}g, ${durationMin}min, ${(filamentCost + electricityCost).toFixed(2)}€`);
+  } catch (e) {
+    console.log('⚠️ Auto-Tracking Fehler:', e.message);
+  }
+}
 
 function connectMQTT(ip, accessCode, serial, printerId) {
   const client = mqtt.connect(`mqtts://${ip}:8883`, {
@@ -119,7 +175,18 @@ function connectMQTT(ip, accessCode, serial, printerId) {
   client.on('message', (topic, msg) => {
     try {
       const data = JSON.parse(msg.toString());
-      if (data.print) printerStatus[printerId] = { ...data.print, last_update: new Date().toISOString() };
+      if (data.print) {
+        const prevState = printerStatus[printerId]?.gcode_state;
+        const newState = data.print.gcode_state;
+        printerStatus[printerId] = { ...data.print, last_update: new Date().toISOString() };
+        if (prevState !== 'RUNNING' && newState === 'RUNNING') {
+          printStartTimes[printerId] = Date.now();
+        }
+        if (prevState && prevState !== 'FINISH' && prevState !== 'FAILED' &&
+            (newState === 'FINISH' || newState === 'FAILED')) {
+          handlePrintFinished(printerId, printerStatus[printerId]);
+        }
+      }
     } catch (e) {}
   });
   client.on('error', (err) => console.log(`⚠️ MQTT Fehler ${ip}: ${err.message}`));
@@ -143,6 +210,150 @@ const mqttClients = {};
 const savedPrinters = db.prepare('SELECT * FROM printers').all();
 savedPrinters.forEach(p => {
   mqttClients[p.id] = connectMQTT(p.ip, p.access_code, p.serial, p.id);
+});
+
+// ── ORCA FILAMENT DATABASE ────────────────────
+const https = require('https');
+const ORCA_CACHE_FILE = './cache/orca_filaments.json';
+const ORCA_CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
+let orcaDb = {};
+
+function httpsGet(url) {
+  return new Promise((resolve, reject) => {
+    const headers = { 'User-Agent': 'BambuPi-Manager/1.0' };
+    if (process.env.GITHUB_TOKEN) headers['Authorization'] = `token ${process.env.GITHUB_TOKEN}`;
+    const req = https.get(url, { headers }, res => {
+      if (res.statusCode === 301 || res.statusCode === 302) return resolve(httpsGet(res.headers.location));
+      let data = '';
+      res.on('data', c => data += c);
+      res.on('end', () => { try { resolve(JSON.parse(data)); } catch(e) { reject(e); } });
+    });
+    req.on('error', reject);
+    req.setTimeout(15000, () => { req.destroy(); reject(new Error('timeout')); });
+  });
+}
+
+async function fetchParallel(urls, size = 10) {
+  const results = [];
+  for (let i = 0; i < urls.length; i += size) {
+    const batch = await Promise.allSettled(urls.slice(i, i + size).map(u => httpsGet(u)));
+    results.push(...batch);
+  }
+  return results;
+}
+
+function parseOrcaProfile(profile, brandFallback) {
+  const g = arr => Array.isArray(arr) ? arr[0] : arr;
+  const vendor = g(profile.filament_vendor) || brandFallback;
+  const material = g(profile.filament_type);
+  if (!vendor || !material) return null;
+  return {
+    vendor, material,
+    nozzle:     parseInt(g(profile.nozzle_temperature)) || null,
+    nozzle_min: parseInt(g(profile.nozzle_temperature_range_low)) || null,
+    nozzle_max: parseInt(g(profile.nozzle_temperature_range_high)) || null,
+    bed:        parseInt(g(profile.hot_plate_temp)) || parseInt(g(profile.textured_plate_temp)) || parseInt(g(profile.cool_plate_temp)) || null,
+    density:    parseFloat(g(profile.filament_density)) || null,
+    price:      parseFloat(g(profile.filament_cost)) || null,
+    dry_temp:   parseInt(g(profile.temperature_vitrification)) || null,
+  };
+}
+
+async function fetchProfilesFromRepo(repo, branch, db) {
+  const brandFolders = await httpsGet(`https://api.github.com/repos/${repo}/contents/resources/profiles`);
+  if (!Array.isArray(brandFolders)) throw new Error(`GitHub API Fehler (${repo}): ` + (brandFolders.message || ''));
+  for (const folder of brandFolders.filter(f => f.type === 'dir')) {
+    try {
+      const files = await httpsGet(`https://api.github.com/repos/${repo}/contents/resources/profiles/${encodeURIComponent(folder.name)}/filament`);
+      if (!Array.isArray(files)) continue;
+      const baseFiles = files.filter(f => f.type === 'file' && f.name.endsWith('.json') && (f.name.includes('@base') || !f.name.includes('@')));
+      const urls = baseFiles.map(f => `https://raw.githubusercontent.com/${repo}/${branch}/resources/profiles/${encodeURIComponent(folder.name)}/filament/${encodeURIComponent(f.name)}`);
+      const results = await fetchParallel(urls, 10);
+      results.forEach(r => {
+        if (r.status !== 'fulfilled') return;
+        const p = parseOrcaProfile(r.value, folder.name);
+        if (!p) return;
+        if (!db[p.vendor]) db[p.vendor] = {};
+        if (!db[p.vendor][p.material]) db[p.vendor][p.material] = p; // kein Überschreiben
+      });
+    } catch(e) {}
+  }
+}
+
+async function buildOrcaDb() {
+  const db = {};
+  const repos = [
+    { repo: 'bambulab/BambuStudio', branch: 'master', name: 'Bambu Studio' },
+  ];
+  for (const { repo, branch, name } of repos) {
+    try {
+      console.log(`🌐 Lade Filament-Profile von ${name}...`);
+      await fetchProfilesFromRepo(repo, branch, db);
+      console.log(`✅ ${name} geladen (jetzt ${Object.keys(db).length} Hersteller)`);
+    } catch(e) {
+      console.log(`⚠️ ${name} Fehler: ${e.message}`);
+    }
+  }
+  return db;
+}
+
+async function loadOrcaDb() {
+  try {
+    if (fs.existsSync(ORCA_CACHE_FILE)) {
+      const age = Date.now() - fs.statSync(ORCA_CACHE_FILE).mtimeMs;
+      if (age < ORCA_CACHE_TTL) {
+        orcaDb = JSON.parse(fs.readFileSync(ORCA_CACHE_FILE, 'utf8'));
+        mergeExtraVendors(orcaDb);
+        console.log(`📦 OrcaSlicer DB aus Cache (${Object.keys(orcaDb).length} Hersteller)`);
+        return;
+      }
+    }
+  } catch(e) {}
+  try {
+    orcaDb = await buildOrcaDb();
+    mergeExtraVendors(orcaDb);
+    fs.mkdirSync('./cache', { recursive: true });
+    fs.writeFileSync(ORCA_CACHE_FILE, JSON.stringify(orcaDb));
+    console.log(`✅ OrcaSlicer DB: ${Object.keys(orcaDb).length} Hersteller geladen`);
+  } catch(e) {
+    console.log('⚠️ OrcaSlicer DB Fehler:', e.message);
+  }
+}
+// Hersteller die nicht in GitHub-Repos sind → feste Einträge
+const EXTRA_VENDORS = {
+  'Sunlu': {
+    'PLA':      { vendor:'Sunlu', material:'PLA',      nozzle:215, nozzle_min:200, nozzle_max:230, bed:60,  density:1.24, price:18, dry_temp:45 },
+    'PLA+':     { vendor:'Sunlu', material:'PLA+',     nozzle:215, nozzle_min:200, nozzle_max:230, bed:60,  density:1.24, price:20, dry_temp:45 },
+    'PETG':     { vendor:'Sunlu', material:'PETG',     nozzle:225, nozzle_min:220, nozzle_max:235, bed:65,  density:1.27, price:22, dry_temp:55 },
+    'ABS':      { vendor:'Sunlu', material:'ABS',      nozzle:255, nozzle_min:250, nozzle_max:260, bed:90,  density:1.04, price:20, dry_temp:80 },
+    'ASA':      { vendor:'Sunlu', material:'ASA',      nozzle:250, nozzle_min:245, nozzle_max:255, bed:90,  density:1.07, price:24, dry_temp:80 },
+    'TPU':      { vendor:'Sunlu', material:'TPU',      nozzle:225, nozzle_min:210, nozzle_max:240, bed:40,  density:1.21, price:26, dry_temp:50 },
+    'PLA-CF':   { vendor:'Sunlu', material:'PLA-CF',   nozzle:220, nozzle_min:215, nozzle_max:225, bed:60,  density:1.30, price:28, dry_temp:55 },
+    'PETG-CF':  { vendor:'Sunlu', material:'PETG-CF',  nozzle:230, nozzle_min:220, nozzle_max:240, bed:65,  density:1.30, price:30, dry_temp:65 },
+    'PA6':      { vendor:'Sunlu', material:'PA6',      nozzle:265, nozzle_min:260, nozzle_max:270, bed:90,  density:1.14, price:32, dry_temp:80 },
+    'PA6-CF':   { vendor:'Sunlu', material:'PA6-CF',   nozzle:275, nozzle_min:270, nozzle_max:280, bed:100, density:1.20, price:45, dry_temp:80 },
+  },
+};
+
+function mergeExtraVendors(db) {
+  for (const [vendor, materials] of Object.entries(EXTRA_VENDORS)) {
+    if (!db[vendor]) db[vendor] = {};
+    for (const [mat, data] of Object.entries(materials)) {
+      if (!db[vendor][mat]) db[vendor][mat] = data;
+    }
+  }
+}
+
+loadOrcaDb().catch(() => {});
+setInterval(() => loadOrcaDb().catch(() => {}), ORCA_CACHE_TTL);
+
+app.get('/api/filament-db', (req, res) => res.json(orcaDb));
+app.post('/api/filament-db/refresh', async (req, res) => {
+  try {
+    if (fs.existsSync(ORCA_CACHE_FILE)) fs.unlinkSync(ORCA_CACHE_FILE);
+    await loadOrcaDb();
+    res.json({ ok: true, brands: Object.keys(orcaDb).length });
+  } catch(e) { res.json({ ok: false, error: e.message }); }
 });
 
 // ── API STATUS ────────────────────────────────
@@ -225,6 +436,16 @@ app.post('/api/printers/:id/fan', (req, res) => {
   res.json({ ok: sendGcode(req.params.id, gcode) });
 });
 
+// ── GCODE KONSOLE ─────────────────────────────
+app.post('/api/printers/:id/gcode', (req, res) => {
+  const { gcode } = req.body;
+  if (!gcode || typeof gcode !== 'string') return res.status(400).json({ error: 'gcode erforderlich' });
+  const lines = gcode.trim().split('\n').map(l => l.trim()).filter(Boolean);
+  let ok = false;
+  for (const line of lines) ok = sendGcode(req.params.id, line);
+  res.json({ ok });
+});
+
 // ── HOME ──────────────────────────────────────
 app.post('/api/printers/:id/home', (req, res) => {
   const { axes } = req.body;
@@ -264,6 +485,46 @@ app.post('/api/printers/:id/filament_unload', (req, res) => {
 });
 
 // ── DATEIMANAGER ──────────────────────────────
+const THUMB_CACHE = './thumbnails';
+if (!fs.existsSync(THUMB_CACHE)) fs.mkdirSync(THUMB_CACHE, { recursive: true });
+
+app.get('/api/printers/:id/files/:filename/thumbnail', async (req, res) => {
+  const { id, filename } = req.params;
+  const cacheKey = `${id}-${filename.replace(/[^a-zA-Z0-9._-]/g,'_')}.png`;
+  const cachePath = path.join(THUMB_CACHE, cacheKey);
+
+  // Serve from cache if available
+  if (fs.existsSync(cachePath)) {
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    return res.end(fs.readFileSync(cachePath));
+  }
+
+  const printer = db.prepare('SELECT * FROM printers WHERE id = ?').get(id);
+  if (!printer) return res.status(404).end();
+
+  const tmpPath = path.join(THUMB_CACHE, `tmp-${Date.now()}-${cacheKey}`);
+  const ftpClient = new ftp.Client(30000);
+  try {
+    await ftpClient.access({ host: printer.ip, port: 990, user: 'bblp', password: printer.access_code, secure: 'implicit', secureOptions: { rejectUnauthorized: false } });
+    await ftpClient.downloadTo(tmpPath, '/' + filename);
+    ftpClient.close();
+
+    const thumb = extractThumbnail(tmpPath);
+    fs.unlinkSync(tmpPath);
+    if (!thumb) return res.status(404).end();
+
+    fs.writeFileSync(cachePath, thumb);
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.end(thumb);
+  } catch(e) {
+    try { ftpClient.close(); } catch(_) {}
+    if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath);
+    res.status(500).end();
+  }
+});
+
 app.get('/api/printers/:id/files', async (req, res) => {
   const printer = db.prepare('SELECT * FROM printers WHERE id = ?').get(req.params.id);
   if (!printer) return res.status(404).json({ error: 'Drucker nicht gefunden' });
@@ -444,6 +705,72 @@ app.delete('/api/uploads/:filename', (req, res) => {
   const filePath = path.join('./uploads', req.params.filename);
   if (fs.existsSync(filePath)) { fs.unlinkSync(filePath); res.json({ ok: true }); }
   else res.status(404).json({ error: 'Datei nicht gefunden' });
+});
+
+// ── THUMBNAIL EXTRAKTION ──────────────────────
+function extractThumbnail(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  try {
+    if (ext === '.3mf') {
+      if (!AdmZip) return null;
+      const zip = new AdmZip(filePath);
+      for (const p of ['Metadata/plate_1.png','Metadata/thumbnail.png','Metadata/cover.png','thumbnail.png']) {
+        const entry = zip.getEntry(p);
+        if (entry) return entry.getData();
+      }
+      // try any png in Metadata/
+      const meta = zip.getEntries().find(e => e.entryName.startsWith('Metadata/') && e.entryName.endsWith('.png'));
+      if (meta) return meta.getData();
+      return null;
+    }
+    if (ext === '.gcode') {
+      // Read first 200KB — thumbnails are always near the top
+      const fd = fs.openSync(filePath, 'r');
+      const buf = Buffer.alloc(200000);
+      const bytesRead = fs.readSync(fd, buf, 0, 200000, 0);
+      fs.closeSync(fd);
+      const head = buf.toString('utf8', 0, bytesRead);
+
+      // Bambu Studio format: ;gimage:<base64> (single long line)
+      const gimageIdx = head.indexOf(';gimage:');
+      if (gimageIdx !== -1) {
+        const lineEnd = head.indexOf('\n', gimageIdx);
+        const b64 = (lineEnd === -1 ? head.substring(gimageIdx + 8) : head.substring(gimageIdx + 8, lineEnd)).trim();
+        if (b64.length > 100) return Buffer.from(b64, 'base64');
+      }
+
+      // PrusaSlicer / SuperSlicer format: ; thumbnail begin WxH size\n; base64\n; thumbnail end
+      const match = head.match(/;\s*thumbnail begin [^\n]+\n([\s\S]*?);\s*thumbnail end/);
+      if (match) {
+        const b64 = match[1].replace(/^;\s*/mg, '').replace(/\n/g, '');
+        if (b64.length > 100) return Buffer.from(b64, 'base64');
+      }
+      return null;
+    }
+  } catch(e) { return null; }
+  return null;
+}
+
+app.get('/api/uploads/:filename/debug', (req, res) => {
+  const filePath = path.join('./uploads', path.basename(req.params.filename));
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Datei nicht gefunden' });
+  const ext = path.extname(filePath).toLowerCase();
+  if (ext !== '.3mf' || !AdmZip) return res.json({ ext, admzip: !!AdmZip, entries: [] });
+  try {
+    const zip = new AdmZip(filePath);
+    const entries = zip.getEntries().map(e => ({ name: e.entryName, size: e.header.size }));
+    res.json({ entries });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/uploads/:filename/thumbnail', (req, res) => {
+  const filePath = path.join('./uploads', path.basename(req.params.filename));
+  if (!fs.existsSync(filePath)) return res.status(404).end();
+  const thumb = extractThumbnail(filePath);
+  if (!thumb) return res.status(404).end();
+  res.setHeader('Content-Type', 'image/png');
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+  res.end(thumb);
 });
 
 // ── STATISTIKEN ───────────────────────────────

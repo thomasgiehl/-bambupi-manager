@@ -1,32 +1,29 @@
-# Environment & Secrets
-.env
-.env.local
-.env.production
 
+cache/
 # Database (contains personal data)
 db/*.db
 db/*.db-shm
 db/*.db-wal
-
+.DS_Store
+# Editor
+.env
+# Environment & Secrets
+.env.local
+.env.production
+.idea/
+*.log
+# Logs
+node_modules/
+# Node modules
+npm-debug.log*
+# OS files
+server.log
+start.sh
+streams/*
+# Streams
+!streams/.gitkeep
+Thumbs.db
 # Uploaded files
 uploads/*
 !uploads/.gitkeep
-
-# Streams
-streams/*
-!streams/.gitkeep
-
-# Node modules
-node_modules/
-
-# Logs
-*.log
-npm-debug.log*
-
-# OS files
-.DS_Store
-Thumbs.db
-
-# Editor
 .vscode/settings.json
-.idea/
