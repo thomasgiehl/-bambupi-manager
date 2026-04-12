@@ -16,6 +16,13 @@ app.use(express.static('public'));
 app.use('/streams', express.static('streams'));
 app.use('/uploads', express.static('uploads'));
 
+// ── VERZEICHNISSE SICHERSTELLEN ───────────────
+fs.mkdirSync('./db', { recursive: true });
+fs.mkdirSync('./uploads', { recursive: true });
+fs.mkdirSync('./streams', { recursive: true });
+fs.mkdirSync('./cache', { recursive: true });
+fs.mkdirSync('./thumbnails', { recursive: true });
+
 // ── MULTER ────────────────────────────────────
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, './uploads'),
@@ -643,6 +650,7 @@ app.delete('/api/filaments/:id', (req, res) => {
 app.post('/api/filaments/:id/use', (req, res) => {
   const { grams, printer_id, filename, duration_min } = req.body;
   const filament = db.prepare('SELECT * FROM filaments WHERE id = ?').get(req.params.id);
+  if (!filament) return res.status(404).json({ error: 'Filament nicht gefunden' });
   const settings = db.prepare('SELECT * FROM settings').all();
   const s = Object.fromEntries(settings.map(r => [r.key, parseFloat(r.value)]));
   const filament_cost = (grams / 1000) * filament.price_per_kg;
@@ -696,9 +704,12 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
   res.json({ filename: req.file.filename, originalname: req.file.originalname });
 });
 app.get('/api/uploads', (req, res) => {
-  const files = fs.readdirSync('./uploads').map(f => ({
-    filename: f, size: fs.statSync(`./uploads/${f}`).size, uploaded_at: fs.statSync(`./uploads/${f}`).mtime
-  }));
+  if (!fs.existsSync('./uploads')) return res.json([]);
+  const files = fs.readdirSync('./uploads')
+    .filter(f => !f.startsWith('.'))
+    .map(f => ({
+      filename: f, size: fs.statSync(`./uploads/${f}`).size, uploaded_at: fs.statSync(`./uploads/${f}`).mtime
+    }));
   res.json(files);
 });
 app.delete('/api/uploads/:filename', (req, res) => {
@@ -833,7 +844,7 @@ app.post('/api/ams/:id/assign', (req, res) => {
 });
 
 app.delete('/api/ams/:id/assign/:unit/:slot', (req, res) => {
-  db.prepare('DELETE FROM ams_slots WHERE printer_id=? AND unit_idx=? AND slot_idx=?').run(req.params.id, req.params.unit, req.params.slot);
+  db.prepare('DELETE FROM ams_slots WHERE printer_id=? AND unit_idx=? AND slot_idx=?').run(req.params.id, parseInt(req.params.unit), parseInt(req.params.slot));
   res.json({ ok: true });
 });
 

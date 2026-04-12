@@ -594,8 +594,8 @@ function consoleLog(pid,text,type){
 function updateHeatStatus(pid,type,actual,target){
   const block=document.getElementById('tb-'+type+'-'+pid);
   const label=document.getElementById('hl-'+type+'-'+pid);
-  const bar=document.getElementById('hb-'+type+'-'+pid);
-  if(!block||!label||!bar)return;
+  const bar=document.getElementById(type==='nozzle'?'tro-bar-n-'+pid:'tro-bar-b-'+pid);
+  if(!block||!label)return;
   const diff=target-actual;
   const isHeating=target>0&&diff>3;
   const isCooling=target===0&&actual>30;
@@ -604,12 +604,12 @@ function updateHeatStatus(pid,type,actual,target){
   if(isHeating){
     block.classList.add('heating');label.style.color='var(--orange)';label.textContent='🔥 HEIZT';
     const progress=Math.max(0,Math.min(100,((actual-20)/(target-20))*100));
-    bar.style.width=progress+'%';bar.style.background='var(--orange)';
-  } else if(isCooling){label.style.color='var(--blue)';label.textContent='❄️ KÜHLT';bar.style.width='0%';
+    if(bar){bar.style.width=progress+'%';bar.style.background='var(--orange)';}
+  } else if(isCooling){label.style.color='var(--blue)';label.textContent='❄️ KÜHLT';if(bar)bar.style.width='0%';
   } else if(isAtTarget){
     block.classList.add('temp-ok');label.style.color='var(--green)';label.textContent='✅ BEREIT';
-    bar.style.width='100%';bar.style.background='var(--green)';
-  } else {label.style.color='var(--text3)';label.textContent='—';bar.style.width='0%';}
+    if(bar){bar.style.width='100%';bar.style.background='var(--green)';}
+  } else {label.style.color='var(--text3)';label.textContent='—';if(bar)bar.style.width='0%';}
 }
 async function motorsOff(pid){await api('/api/printers/'+pid+'/motors_off','POST');toast('⚡ Motoren aus');}
 async function filamentLoad(pid){await api('/api/printers/'+pid+'/filament_load','POST');toast('⬇ Filament wird eingezogen...');}
@@ -664,11 +664,11 @@ function buildAmsHtml(amsData,pid){
 async function loadStats(){const s=await api('/api/stats');document.getElementById('stat-prints').textContent=s.total_prints;document.getElementById('stat-grams').textContent=s.total_grams+'g';document.getElementById('stat-hours').textContent=s.total_hours+'h';document.getElementById('stat-cost').textContent=s.total_cost.toFixed(2)+'€';}
 
 // ── DATEIMANAGER ──────────────────────────────
-async function initFilePage(){const printers=await api('/api/printers');const sel=document.getElementById('file-printer-select');sel.innerHTML='<option value="">-- Drucker wählen --</option>'+printers.map(p=>`<option value="${p.id}">${p.name} (${p.model})</option>`).join('');loadPiFiles();}
+async function initFilePage(){try{const printers=await api('/api/printers');const sel=document.getElementById('file-printer-select');sel.innerHTML='<option value="">-- Drucker wählen --</option>'+(Array.isArray(printers)?printers:[]).map(p=>`<option value="${p.id}">${p.name} (${p.model})</option>`).join('');}catch(e){console.error('initFilePage Fehler:',e);}loadPiFiles();}
 function switchFileTab(tab){currentFileTab=tab;document.querySelectorAll('.file-tab').forEach((t,i)=>{const tabs=['upload','sdcard','pifiles'];t.classList.toggle('active',tabs[i]===tab);});document.querySelectorAll('.file-tab-content').forEach(c=>c.classList.remove('active'));document.getElementById('filetab-'+tab).classList.add('active');if(tab==='sdcard')loadSdFiles();if(tab==='pifiles')loadPiFiles();}
 async function loadFiles(){if(currentFileTab==='sdcard')loadSdFiles();}
 async function loadSdFiles(){const pid=document.getElementById('file-printer-select').value;const container=document.getElementById('sdcard-files');if(!pid){container.innerHTML='<div style="color:var(--text3);font-size:13px;">Drucker auswählen</div>';return;}container.innerHTML='<div style="color:var(--text3);font-size:13px;">Lade...</div>';try{const result=await api('/api/printers/'+pid+'/files');if(result.error){container.innerHTML='<div style="color:var(--red);font-size:13px;">⚠️ '+result.error+'</div>';return;}if(!result.length){container.innerHTML='<div style="color:var(--text3);font-size:13px;">Keine Dateien</div>';return;}container.innerHTML=result.map(f=>{const thumbUrl=`/api/printers/${pid}/files/${encodeURIComponent(f.name)}/thumbnail`;return`<div class="file-row"><img class="file-thumb" src="${thumbUrl}" alt="${f.name.endsWith('.3mf')?'3MF':'GCO'}" onerror="this.outerHTML='<div class=\\'file-thumb file-thumb-placeholder\\'>${f.name.endsWith('.3mf')?'3MF':'GCO'}</div>'"><div class="file-info"><div class="file-name">${f.name}</div><div class="file-meta">${fmtSize(f.size||0)}</div></div><div class="file-actions"><button class="btn btn-primary btn-sm" onclick="startSdFile('${pid}','${f.name}')">▶️ Starten</button><button class="btn btn-danger btn-sm" onclick="deleteSdFile('${pid}','${f.name}')">🗑</button></div></div>`;}).join('');}catch(e){container.innerHTML='<div style="color:var(--red);font-size:13px;">⚠️ '+e.message+'</div>';}}
-async function loadPiFiles(){const container=document.getElementById('pi-files');const files=await api('/api/uploads');if(!files.length){container.innerHTML='<div style="color:var(--text3);font-size:13px;">Noch keine Dateien</div>';return;}container.innerHTML=files.map(f=>{const dispName=f.filename.replace(/^\d+-/,'');const thumbUrl='/api/uploads/'+encodeURIComponent(f.filename)+'/thumbnail';return`<div class="file-row"><img class="file-thumb" src="${thumbUrl}" alt="" onerror="this.style.display='none'"><div class="file-info"><div class="file-name">${dispName}</div><div class="file-meta">${fmtSize(f.size)} · ${new Date(f.uploaded_at).toLocaleDateString('de-DE')}</div></div><div class="file-actions"><button class="btn btn-primary btn-sm" onclick="printFromPi('${f.filename}')">▶️ Drucken</button><button class="btn btn-danger btn-sm" onclick="deletePiFile('${f.filename}')">🗑</button></div></div>`;}).join('');}
+async function loadPiFiles(){const container=document.getElementById('pi-files');let files;try{files=await api('/api/uploads');}catch(e){container.innerHTML='<div style="color:var(--red);font-size:13px;">⚠️ Fehler beim Laden</div>';return;}if(!Array.isArray(files)||!files.length){container.innerHTML='<div style="color:var(--text3);font-size:13px;">Noch keine Dateien</div>';return;}container.innerHTML=files.map(f=>{const dispName=f.filename.replace(/^\d+-/,'');const thumbUrl='/api/uploads/'+encodeURIComponent(f.filename)+'/thumbnail';return`<div class="file-row"><img class="file-thumb" src="${thumbUrl}" alt="" onerror="this.style.display='none'"><div class="file-info"><div class="file-name">${dispName}</div><div class="file-meta">${fmtSize(f.size)} · ${new Date(f.uploaded_at).toLocaleDateString('de-DE')}</div></div><div class="file-actions"><button class="btn btn-primary btn-sm" onclick="printFromPi('${f.filename}')">▶️ Drucken</button><button class="btn btn-danger btn-sm" onclick="deletePiFile('${f.filename}')">🗑</button></div></div>`;}).join('');}
 async function startSdFile(pid,filename){if(!confirm('Datei "'+filename+'" starten?'))return;await api('/api/printers/'+pid+'/startfile','POST',{filename});toast('▶️ Druck gestartet!');}
 async function deleteSdFile(pid,filename){if(!confirm('Löschen?'))return;await api('/api/printers/'+pid+'/files/'+encodeURIComponent(filename),'DELETE');toast('Gelöscht');loadSdFiles();}
 async function deletePiFile(filename){if(!confirm('Datei löschen?'))return;await api('/api/uploads/'+encodeURIComponent(filename),'DELETE');toast('Gelöscht');loadPiFiles();}
