@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>BambuPi Manager</title>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
@@ -40,6 +41,7 @@
   <div class="topbar">
     <div class="topbar-title" id="topbar-title">DASHBOARD</div>
     <div class="topbar-right">
+      <button class="notif-btn" id="notif-btn" onclick="requestNotifPermission()" title="Benachrichtigungen aktivieren">🔔</button>
       <div class="status-pill" id="connection-chip"><div class="sdot sdot-gray"></div>INIT</div>
     </div>
   </div>
@@ -85,6 +87,22 @@
         <div class="csbar-item"><div class="csbar-lbl">Gramm verdruckt</div><div class="csbar-val" id="stat-grams">0g</div></div>
         <div class="csbar-item"><div class="csbar-lbl">Druckstunden</div><div class="csbar-val" id="stat-hours">0h</div></div>
         <div class="csbar-item"><div class="csbar-lbl">Gesamtkosten</div><div class="csbar-val" id="stat-cost">0€</div></div>
+      </div>
+
+      <!-- SYSTEM MONITOR -->
+      <div class="sys-monitor-bar" id="sys-monitor">
+        <div class="smb-item">
+          <span class="smb-lbl">PI CPU</span>
+          <div class="smb-bar-wrap"><div class="smb-fill smb-cpu" id="smb-cpu-bar" style="width:0%"></div></div>
+          <span class="smb-val" id="smb-cpu">—</span>
+        </div>
+        <div class="smb-item">
+          <span class="smb-lbl">RAM</span>
+          <div class="smb-bar-wrap"><div class="smb-fill smb-ram" id="smb-ram-bar" style="width:0%"></div></div>
+          <span class="smb-val" id="smb-ram">—</span>
+        </div>
+        <div class="smb-item"><span class="smb-lbl">PI TEMP</span><span class="smb-val" id="smb-temp">—</span></div>
+        <div class="smb-item"><span class="smb-lbl">UPTIME</span><span class="smb-val" id="smb-uptime">—</span></div>
       </div>
 
     </div>
@@ -310,6 +328,7 @@
   <div class="modal" style="width:320px;">
     <h2>Temperatur setzen</h2>
     <div class="modal-sub" id="temp-modal-sub"></div>
+    <div id="temp-presets" class="temp-preset-row"></div>
     <div class="form-group"><label id="temp-label">Temperatur (°C)</label><input type="number" id="temp-input" placeholder="0"></div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('modal-temp')">Abbrechen</button>

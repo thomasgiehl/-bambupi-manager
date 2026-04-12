@@ -10,6 +10,8 @@ let cachedAms = {};
 let dashboardBuilt = false;
 const printerHomeFlags = {};
 const printerPrevState = {};
+const tempHistory = {};
+const chartInstances = {};
 const PAGE_TITLES = {dashboard:'DASHBOARD',files:'DATEIMANAGER',printers:'DRUCKER',filaments:'FILAMENTE',history:'HISTORIE',calculator:'RECHNER',settings:'EINSTELLUNGEN'};
 
 // ── FILAMENT DATENBANK ────────────────────────
@@ -201,6 +203,9 @@ function updateConnectionChip(state) {
 
 // ── DASHBOARD ─────────────────────────────────
 async function buildDashboard() {
+  Object.keys(chartInstances).forEach(pid => {
+    if(chartInstances[pid]){chartInstances[pid].destroy();delete chartInstances[pid];}
+  });
   const printers = await api('/api/printers');
   const container = document.getElementById('dashboard-printers');
   if (!printers.length) {
@@ -214,7 +219,7 @@ async function buildDashboard() {
   container.innerHTML = printers.map(p => buildPrinterCard(p)).join('');
   dashboardBuilt = true;
   updateConnectionChip(printers[0]?.status?.gcode_state || 'offline');
-  printers.forEach(p => updatePosDisplay(p.id));
+  printers.forEach(p => { initTempChart(p.id); updatePosDisplay(p.id); });
 }
 
 async function realtimeUpdate() {
@@ -250,6 +255,8 @@ async function realtimeUpdate() {
     const pfEl=document.getElementById('cnc-pf-'+p.id); if(pfEl)pfEl.style.width=progress+'%';
     const ppEl=document.getElementById('cnc-pp-'+p.id); if(ppEl)ppEl.textContent=progress+'%';
     const ptEl=document.getElementById('cnc-eta-'+p.id); if(ptEl)ptEl.textContent=remaining?remaining+' min':'—';
+    const pfinEl=document.getElementById('cnc-fin-'+p.id);const pfinWrap=document.getElementById('cnc-fin-wrap-'+p.id);
+    if(pfinEl&&pfinWrap){if(remaining>0){pfinEl.textContent=new Date(Date.now()+remaining*60000).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});pfinWrap.style.display='';}else{pfinWrap.style.display='none';}}
     const plEl=document.getElementById('cnc-lay-'+p.id); if(plEl)plEl.textContent=layer+' / '+totalLayer;
     const pfnEl=document.getElementById('cnc-fn-'+p.id); if(pfnEl)pfnEl.textContent=s.subtask_name||'—';
     const prgEl=document.getElementById('cnc-prog-'+p.id);
@@ -275,11 +282,22 @@ async function realtimeUpdate() {
     }
     const csbFile=document.getElementById('csb-file'); if(csbFile)csbFile.textContent=s.subtask_name||'—';
     const csbPct=document.getElementById('csb-pct'); if(csbPct)csbPct.textContent=progress+'%';
-    const csbEta=document.getElementById('csb-eta'); if(csbEta)csbEta.textContent=remaining?remaining+' min':'—';
+    const csbEta=document.getElementById('csb-eta');if(csbEta){if(remaining>0){const ft=new Date(Date.now()+remaining*60000).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});csbEta.textContent=remaining+' min · ⏰ '+ft;}else csbEta.textContent='—';}
     const csbLay=document.getElementById('csb-layer'); if(csbLay)csbLay.textContent=layer+' / '+totalLayer;
     const csbSpd=document.getElementById('csb-speed'); if(csbSpd)csbSpd.textContent=speedMag+'%';
 
     updateConnectionChip(state);
+
+    // ── Temperatur-Graph ──
+    updateTempChart(p.id, nozzle, bed);
+
+    // ── Thumbnail aktualisieren ──
+    const thumbEl=document.getElementById('cnc-thumb-'+p.id);
+    if(thumbEl&&s.subtask_name&&thumbEl.dataset.file!==s.subtask_name){
+      thumbEl.dataset.file=s.subtask_name;
+      thumbEl.src=`/api/printers/${p.id}/files/${encodeURIComponent(s.subtask_name)}/thumbnail`;
+      thumbEl.style.display='';
+    }
 
     // ── Home-Erkennung ──
     const prevState = printerPrevState[p.id];
@@ -289,6 +307,10 @@ async function realtimeUpdate() {
       axisPos[p.id] = {x:0, y:0, z:0, homed:true};
       toast('🏠 Homing abgeschlossen — X:0 Y:0 Z:0');
     }
+    // ── Push-Benachrichtigung bei Druckende ──
+    if(prevState==='RUNNING'&&state==='FINISH') sendNotif('✅ Druck abgeschlossen!',`${p.name}${s.subtask_name?' · '+s.subtask_name:''}`);
+    else if(prevState==='RUNNING'&&state==='FAILED') sendNotif('❌ Druck fehlgeschlagen!',`${p.name}${s.subtask_name?' · '+s.subtask_name:''}`);
+
     printerPrevState[p.id] = state;
     printerHomeFlags[p.id] = s.home_flag;
 
@@ -393,11 +415,13 @@ function buildPrinterCard(p) {
                 <div class="cnc-vp-prog">
                   <div class="print-pct" id="cnc-pp-${p.id}">${progress}%</div>
                   <div style="font-size:10px;color:var(--text2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" id="cnc-fn-${p.id}">${s.subtask_name||'—'}</div>
+                  <img id="cnc-thumb-${p.id}" data-file="${s.subtask_name||''}" src="${s.subtask_name?`/api/printers/${p.id}/files/${encodeURIComponent(s.subtask_name)}/thumbnail`:''}" style="height:48px;width:auto;border-radius:2px;margin-top:4px;object-fit:cover;${!s.subtask_name?'display:none;':''}" onerror="this.style.display='none'" alt="">
                   <div class="print-pbar-wrap" style="margin:5px 0 3px;">
                     <div class="print-pbar-bg"><div class="print-pbar-fill" id="cnc-pf-${p.id}" style="width:${progress}%"></div></div>
                   </div>
-                  <div style="display:flex;gap:12px;font-size:10px;color:var(--text2);font-family:var(--mono);">
+                  <div style="display:flex;flex-wrap:wrap;gap:8px;font-size:10px;color:var(--text2);font-family:var(--mono);">
                     <span>⏱ <span id="cnc-eta-${p.id}">${remaining?remaining+' min':'—'}</span></span>
+                    <span id="cnc-fin-wrap-${p.id}" ${!remaining?'style="display:none"':''}>⏰ <span id="cnc-fin-${p.id}">${remaining?new Date(Date.now()+remaining*60000).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}):''}</span></span>
                     <span>Layer <span id="cnc-lay-${p.id}">${s.layer_num||0}/${s.total_layer_num||0}</span></span>
                   </div>
                 </div>
@@ -512,6 +536,17 @@ function buildPrinterCard(p) {
     </div>
   </div>
 
+  <!-- TEMPERATUR GRAPH -->
+  <div class="cnc-panel" style="margin-bottom:4px;">
+    <div class="cnc-panel-head">
+      <span class="cnc-panel-title">Temperaturverlauf</span>
+      <span style="font-size:9px;color:var(--text3);font-family:var(--mono);">letzte 2 Min</span>
+    </div>
+    <div style="height:110px;padding:6px 8px;">
+      <canvas id="temp-chart-${p.id}"></canvas>
+    </div>
+  </div>
+
   <!-- KONSOLE -->
   <div class="cnc-console">
     <div class="console-head">
@@ -615,7 +650,17 @@ async function motorsOff(pid){await api('/api/printers/'+pid+'/motors_off','POST
 async function filamentLoad(pid){await api('/api/printers/'+pid+'/filament_load','POST');toast('⬇ Filament wird eingezogen...');}
 async function filamentUnload(pid){await api('/api/printers/'+pid+'/filament_unload','POST');toast('⬆ Filament wird ausgeworfen...');}
 async function setFan(pid,percent,type='part'){await api('/api/printers/'+pid+'/fan','POST',{percent,type});toast('💨 Lüfter: '+percent+'%');}
-function openTempModal(pid,type,currentVal){tempCtx={printerId:pid,type};document.getElementById('temp-modal-sub').textContent=type==='nozzle'?'Nozzle Temperatur':'Bett Temperatur';document.getElementById('temp-label').textContent=type==='nozzle'?'Nozzle (°C)':'Bett (°C)';document.getElementById('temp-input').value=currentVal||0;openModal('modal-temp');}
+function openTempModal(pid,type,currentVal){
+  tempCtx={printerId:pid,type};
+  document.getElementById('temp-modal-sub').textContent=type==='nozzle'?'Nozzle Temperatur':'Bett Temperatur';
+  document.getElementById('temp-label').textContent=type==='nozzle'?'Nozzle (°C)':'Bett (°C)';
+  document.getElementById('temp-input').value=currentVal||0;
+  const presets=type==='nozzle'
+    ?[{n:'AUS',v:0},{n:'PLA',v:215},{n:'PLA+',v:220},{n:'PETG',v:240},{n:'ABS',v:260},{n:'ASA',v:260},{n:'PA',v:270}]
+    :[{n:'AUS',v:0},{n:'PLA',v:60},{n:'PLA+',v:65},{n:'PETG',v:80},{n:'ABS',v:100},{n:'ASA',v:100}];
+  document.getElementById('temp-presets').innerHTML=presets.map(p=>`<button class="temp-preset-btn" onclick="document.getElementById('temp-input').value=${p.v}">${p.n}<span>${p.v}°</span></button>`).join('');
+  openModal('modal-temp');
+}
 async function sendTemp(){const temp=parseInt(document.getElementById('temp-input').value);if(isNaN(temp)||temp<0||temp>350){toast('Ungültige Temperatur!','error');return;}await api('/api/printers/'+tempCtx.printerId+'/temperature','POST',{type:tempCtx.type,temp});closeModal('modal-temp');toast('🌡 '+temp+'°C gesetzt');}
 
 // ── AMS ───────────────────────────────────────
@@ -851,8 +896,76 @@ async function refreshFilamentDb(){
   status.textContent=r.ok?`✅ ${r.brands} Hersteller geladen`:'❌ Fehler: '+r.error;
 }
 
+// ── TEMPERATUR CHART ──────────────────────────
+function initTempChart(pid){
+  if(typeof Chart==='undefined')return;
+  const canvas=document.getElementById('temp-chart-'+pid);
+  if(!canvas||chartInstances[pid])return;
+  if(!tempHistory[pid])tempHistory[pid]={n:[],b:[],t:[]};
+  chartInstances[pid]=new Chart(canvas.getContext('2d'),{
+    type:'line',
+    data:{
+      labels:tempHistory[pid].t,
+      datasets:[
+        {label:'Nozzle',data:tempHistory[pid].n,borderColor:'#f44336',backgroundColor:'rgba(244,67,54,0.07)',borderWidth:1.5,pointRadius:0,tension:0.4,fill:true},
+        {label:'Bett',data:tempHistory[pid].b,borderColor:'#2196f3',backgroundColor:'rgba(33,150,243,0.07)',borderWidth:1.5,pointRadius:0,tension:0.4,fill:true}
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,animation:false,
+      interaction:{intersect:false,mode:'index'},
+      plugins:{
+        legend:{labels:{color:'#7a869e',font:{size:10,family:"'JetBrains Mono',monospace"},boxWidth:10,padding:10}},
+        tooltip:{backgroundColor:'rgba(8,10,13,0.95)',titleColor:'#dde2f0',bodyColor:'#7a869e',borderColor:'#1e2430',borderWidth:1}
+      },
+      scales:{
+        x:{display:false},
+        y:{min:0,grid:{color:'rgba(255,255,255,0.03)'},ticks:{color:'#3d4460',font:{size:9},maxTicksLimit:4,callback:v=>v+'°'}}
+      }
+    }
+  });
+}
+function updateTempChart(pid,nozzle,bed){
+  if(!chartInstances[pid])return;
+  const h=tempHistory[pid];
+  const t=new Date().toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  h.t.push(t);h.n.push(nozzle);h.b.push(bed);
+  if(h.t.length>60){h.t.shift();h.n.shift();h.b.shift();}
+  chartInstances[pid].update('none');
+}
+
+// ── SYSTEM MONITOR ────────────────────────────
+async function loadSystemStats(){
+  try{
+    const s=await api('/api/system');
+    const cpuEl=document.getElementById('smb-cpu');const cpuBar=document.getElementById('smb-cpu-bar');
+    const ramEl=document.getElementById('smb-ram');const ramBar=document.getElementById('smb-ram-bar');
+    const tempEl=document.getElementById('smb-temp');const uptEl=document.getElementById('smb-uptime');
+    if(cpuEl)cpuEl.textContent=s.cpu+'%';if(cpuBar)cpuBar.style.width=s.cpu+'%';
+    if(ramEl)ramEl.textContent=s.mem_pct+'%';if(ramBar)ramBar.style.width=s.mem_pct+'%';
+    if(tempEl)tempEl.textContent=s.pi_temp?s.pi_temp+'°C':'—';
+    if(uptEl){const h=Math.floor(s.uptime_min/60);const m=s.uptime_min%60;uptEl.textContent=h+'h '+String(m).padStart(2,'0')+'m';}
+  }catch(e){}
+}
+
+// ── PUSH BENACHRICHTIGUNGEN ───────────────────
+async function requestNotifPermission(){
+  if(!('Notification' in window)){toast('Browser unterstützt keine Benachrichtigungen','error');return;}
+  const perm=await Notification.requestPermission();
+  const btn=document.getElementById('notif-btn');
+  if(perm==='granted'){if(btn)btn.classList.add('active');toast('🔔 Benachrichtigungen aktiviert!');}
+  else toast('Benachrichtigungen abgelehnt','error');
+}
+function sendNotif(title,body){
+  if(!('Notification' in window)||Notification.permission!=='granted')return;
+  try{new Notification(title,{body,icon:'/favicon.ico'});}catch(e){}
+}
+
 // ── START ─────────────────────────────────────
+if('Notification' in window&&Notification.permission==='granted'){const b=document.getElementById('notif-btn');if(b)b.classList.add('active');}
 loadStats();
+loadSystemStats();
 buildDashboard();
 setInterval(()=>{if(document.getElementById('page-dashboard').classList.contains('active'))realtimeUpdate();},2000);
 setInterval(()=>{if(document.getElementById('page-dashboard').classList.contains('active'))loadStats();},30000);
+setInterval(loadSystemStats,30000);

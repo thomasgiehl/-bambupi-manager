@@ -435,3 +435,26 @@ tr:hover td{background:rgba(255,255,255,0.01);}
 .csbar-lbl{font-size:8px;font-weight:700;color:var(--text3);letter-spacing:0.15em;text-transform:uppercase;font-family:var(--mono);margin-bottom:4px;}
 .csbar-val{font-size:16px;font-weight:700;font-family:var(--mono);color:var(--text);}
 
+/* SYSTEM MONITOR BAR */
+.sys-monitor-bar{display:flex;gap:6px;margin-top:6px;background:var(--surface);border:1px solid var(--border);border-radius:3px;padding:6px 10px;}
+.smb-item{display:flex;align-items:center;gap:6px;flex:1;min-width:0;}
+.smb-item:not(:last-child){padding-right:10px;border-right:1px solid var(--border);}
+.smb-lbl{font-size:8px;font-weight:700;color:var(--text3);letter-spacing:0.15em;text-transform:uppercase;font-family:var(--mono);white-space:nowrap;flex-shrink:0;}
+.smb-bar-wrap{flex:1;height:4px;background:var(--surface3);border-radius:2px;overflow:hidden;}
+.smb-fill{height:100%;border-radius:2px;transition:width 0.5s;}
+.smb-cpu{background:linear-gradient(90deg,var(--blue),var(--cnc));}
+.smb-ram{background:linear-gradient(90deg,var(--green),var(--blue));}
+.smb-val{font-size:11px;font-weight:700;font-family:var(--mono);color:var(--cnc);white-space:nowrap;}
+
+/* NOTIFICATION BUTTON */
+.notif-btn{background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text3);font-size:13px;padding:3px 8px;cursor:pointer;transition:all 0.1s;}
+.notif-btn:hover{border-color:var(--text3);color:var(--text);}
+.notif-btn.active{border-color:rgba(76,175,80,0.4);color:var(--green);background:rgba(76,175,80,0.05);}
+
+/* TEMPERATUR PRESET BUTTONS */
+.temp-preset-row{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:12px;}
+.temp-preset-btn{flex:1;min-width:48px;padding:6px 4px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);color:var(--text2);font-size:10px;font-weight:700;font-family:var(--mono);cursor:pointer;text-align:center;transition:all 0.1s;display:flex;flex-direction:column;align-items:center;gap:1px;}
+.temp-preset-btn span{font-size:9px;color:var(--text3);font-weight:400;}
+.temp-preset-btn:hover{border-color:var(--cnc);color:var(--cnc);background:var(--cnc-dim);}
+.temp-preset-btn:active{transform:scale(0.95);}
+

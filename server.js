@@ -6,6 +6,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const ftp = require('basic-ftp');
+const os = require('os');
 let AdmZip; try { AdmZip = require('adm-zip'); } catch(e) { AdmZip = null; }
 require('dotenv').config();
 
@@ -365,6 +366,25 @@ app.post('/api/filament-db/refresh', async (req, res) => {
 
 // ── API STATUS ────────────────────────────────
 app.get('/api/status', (req, res) => res.json({ ok: true, uptime: process.uptime() }));
+
+// ── SYSTEM MONITOR ────────────────────────────
+app.get('/api/system', (req, res) => {
+  const load = os.loadavg()[0];
+  const cpuPct = Math.min(100, Math.round((load / os.cpus().length) * 100));
+  const totalMem = os.totalmem();
+  const freeMem = os.freemem();
+  const usedMemPct = Math.round(((totalMem - freeMem) / totalMem) * 100);
+  let piTemp = null;
+  try { piTemp = (parseInt(fs.readFileSync('/sys/class/thermal/thermal_zone0/temp', 'utf8')) / 1000).toFixed(1); } catch(e) {}
+  res.json({
+    cpu: cpuPct,
+    mem_pct: usedMemPct,
+    mem_total_mb: Math.round(totalMem / 1048576),
+    mem_free_mb: Math.round(freeMem / 1048576),
+    pi_temp: piTemp,
+    uptime_min: Math.round(os.uptime() / 60)
+  });
+});
 
 // ── DRUCKER ───────────────────────────────────
 app.get('/api/printers', (req, res) => {
