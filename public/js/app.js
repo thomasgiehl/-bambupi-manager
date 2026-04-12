@@ -547,19 +547,6 @@ function buildPrinterCard(p) {
     </div>
   </div>
 
-  <!-- KONSOLE -->
-  <div class="cnc-console">
-    <div class="console-head">
-      <span class="cnc-panel-title">G-Code Konsole</span>
-      <span style="font-size:9px;color:var(--text3);font-family:var(--mono);">Drucker: ${p.name}</span>
-    </div>
-    <div class="console-log" id="console-log-${p.id}"></div>
-    <div class="console-input-row">
-      <span class="console-prompt">&gt;</span>
-      <input class="console-field" id="console-input-${p.id}" type="text" placeholder="G-Code eingeben... (z.B. M104 S200)" onkeydown="if(event.key==='Enter')sendConsole(${p.id})">
-      <button class="console-send-btn" onclick="sendConsole(${p.id})">SENDEN</button>
-    </div>
-  </div>
   `;
 }
 
@@ -601,30 +588,6 @@ function updatePosDisplay(pid){
   if(yEl){yEl.textContent=pos.y.toFixed(3);yEl.classList.remove('dro-unknown');yEl.classList.add('dro-homed');}
   if(zEl){zEl.textContent=pos.z.toFixed(3);zEl.classList.remove('dro-unknown');zEl.classList.add('dro-homed');}
   if(warn)warn.style.display='none';
-}
-async function sendConsole(pid){
-  const input=document.getElementById('console-input-'+pid);
-  if(!input)return;
-  const cmd=input.value.trim();
-  if(!cmd)return;
-  consoleLog(pid,'> '+cmd,'cmd');
-  input.value='';
-  try{
-    const r=await api('/api/printers/'+pid+'/gcode','POST',{gcode:cmd});
-    if(r&&r.ok)consoleLog(pid,'OK','ok');
-    else consoleLog(pid,'FEHLER: '+(r&&r.error||'Unbekannt'),'err');
-  }catch(e){consoleLog(pid,'FEHLER: '+e.message,'err');}
-}
-function consoleLog(pid,text,type){
-  const log=document.getElementById('console-log-'+pid);
-  if(!log)return;
-  const line=document.createElement('div');
-  line.className='console-line'+(type==='cmd'?' console-cmd':type==='err'?' console-err':type==='ok'?' console-ok':'');
-  line.textContent=text;
-  log.appendChild(line);
-  log.scrollTop=log.scrollHeight;
-  // keep max 200 lines
-  while(log.children.length>200)log.removeChild(log.firstChild);
 }
 function updateHeatStatus(pid,type,actual,target){
   const block=document.getElementById('tb-'+type+'-'+pid);

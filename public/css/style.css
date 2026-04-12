@@ -396,22 +396,6 @@ tr:hover td{background:rgba(255,255,255,0.01);}
 /* POS WARNING */
 .pos-warn{font-size:9px;color:var(--orange);font-family:var(--mono);margin:5px 0;padding:3px 7px;background:var(--orange-dim);border-radius:2px;border:1px solid rgba(255,152,0,0.2);}
 
-/* CONSOLE */
-.cnc-console{background:var(--surface);border:1px solid var(--border);border-radius:3px;margin-top:8px;overflow:hidden;}
-.console-head{display:flex;align-items:center;justify-content:space-between;padding:5px 10px;background:var(--surface2);border-bottom:1px solid var(--border);}
-.console-log{height:70px;overflow-y:auto;padding:5px 10px;font-family:var(--mono);font-size:11px;color:var(--text2);}
-.console-log .cl-in{color:var(--cnc);}
-.console-log .cl-ok{color:var(--green);}
-.console-log .cl-err{color:var(--red);}
-.console-line{line-height:1.6;}
-.console-line.console-cmd{color:var(--cnc);}
-.console-line.console-ok{color:var(--green);}
-.console-line.console-err{color:var(--red);}
-.console-input-row{display:flex;border-top:1px solid var(--border);padding:5px 10px;gap:8px;align-items:center;}
-.console-prompt{font-family:var(--mono);font-size:11px;color:var(--cnc);flex-shrink:0;font-weight:700;}
-.console-field{flex:1;background:transparent;border:none;outline:none;color:var(--text);font-family:var(--mono);font-size:11px;}
-.console-send-btn{padding:3px 12px;background:var(--cnc-dim);border:1px solid rgba(232,113,26,0.4);border-radius:2px;color:var(--cnc);font-family:var(--mono);font-size:10px;font-weight:700;cursor:pointer;letter-spacing:0.05em;}
-.console-send-btn:hover{background:rgba(232,113,26,0.2);}
 
 /* PRINTER HEADER */
 .cnc-printer-header{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:3px;margin-bottom:8px;}
