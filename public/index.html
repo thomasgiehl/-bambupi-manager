@@ -427,6 +427,58 @@ tr:hover td { background: rgba(255,255,255,0.01); }
 /* PAGE TITLE */
 .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
 .page-title { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
+
+/* ── HAMBURGER ── */
+.hamburger { display: none; flex-direction: column; gap: 5px; cursor: pointer; padding: 6px; border: none; background: none; border-radius: 6px; }
+.hamburger span { display: block; width: 20px; height: 2px; background: var(--text2); border-radius: 2px; transition: all 0.2s; }
+
+/* ── SIDEBAR OVERLAY ── */
+.sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 150; backdrop-filter: blur(2px); }
+.sidebar-overlay.open { display: block; }
+
+/* ── BOTTOM NAV ── */
+.bottom-nav { display: none; position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface); border-top: 1px solid var(--border); z-index: 120; padding: 6px 0 max(6px, env(safe-area-inset-bottom)); }
+.bottom-nav-items { display: flex; justify-content: space-around; align-items: center; }
+.bnav-item { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 4px 10px; cursor: pointer; color: var(--text3); font-size: 9px; font-weight: 600; border: none; background: none; transition: color 0.15s; min-width: 52px; font-family: var(--sans); text-transform: uppercase; letter-spacing: 0.04em; }
+.bnav-item svg { width: 20px; height: 20px; opacity: 0.6; transition: opacity 0.15s; }
+.bnav-item.active { color: var(--accent); }
+.bnav-item.active svg { opacity: 1; }
+
+/* ── MOBILE ── */
+@media (max-width: 768px) {
+  .hamburger { display: flex; }
+  .sidebar { transform: translateX(-260px); transition: transform 0.25s ease; width: 260px; }
+  .sidebar.open { transform: translateX(0); box-shadow: 4px 0 24px rgba(0,0,0,0.5); }
+  .main { margin-left: 0; }
+  .content { padding: 12px; padding-bottom: 76px; }
+  .topbar { padding: 0 14px; height: 48px; }
+  .topbar-title { font-size: 13px; font-family: var(--mono); }
+  .stats-row { grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+  .stat-card { padding: 10px 12px; border-radius: 8px; }
+  .stat-val { font-size: 16px; }
+  .pcard-body { grid-template-columns: 1fr; }
+  .pcard-col { border-right: none; border-bottom: 1px solid var(--border); }
+  .pcard-col:last-child { border-bottom: none; }
+  .camera-wrap { height: 200px; }
+  .form-row { grid-template-columns: 1fr; }
+  .grid2 { grid-template-columns: 1fr; }
+  .fil-grid { grid-template-columns: 1fr; }
+  .page-title { font-size: 16px; }
+  .card { overflow-x: auto; }
+  table { min-width: 500px; }
+  .bottom-nav { display: block; }
+  .print-btns { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .pbtn { padding: 12px 6px; }
+  .pbtn-icon { font-size: 18px; }
+  .modal { padding: 18px; border-radius: 12px; }
+  .modal h2 { font-size: 15px; }
+}
+
+@media (max-width: 400px) {
+  .stats-row { grid-template-columns: 1fr 1fr; gap: 6px; }
+  .stat-lbl { font-size: 10px; }
+  .content { padding: 10px; padding-bottom: 76px; }
+}
 </style>
 </head>
 <body>
@@ -475,9 +527,16 @@ tr:hover td { background: rgba(255,255,255,0.01); }
   <div class="sidebar-footer">BambuPi © 2025</div>
 </div>
 
+<div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
+
 <div class="main">
   <div class="topbar">
-    <div class="topbar-title" id="topbar-title">Dashboard</div>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <button class="hamburger" id="hamburger-btn" onclick="toggleSidebar()" aria-label="Menü">
+        <span></span><span></span><span></span>
+      </button>
+      <div class="topbar-title" id="topbar-title">Dashboard</div>
+    </div>
     <div class="topbar-right">
       <div class="status-chip" id="connection-chip">
         <div class="status-dot dot-gray"></div>
@@ -660,8 +719,6 @@ tr:hover td { background: rgba(255,255,255,0.01); }
   </div>
 </div>
 
-<div class="toast" id="toast"></div>
-
 <script>
 const CAMERA_URL='http://192.168.178.30:1984/stream.html?src=bambu&mode=webrtc';
 let assignCtx={printerId:null,unitIdx:null,slotIdx:null,selectedFilamentId:null};
@@ -687,6 +744,22 @@ function showPage(name){
   if(name==='calculator')loadCalcFilaments();
   if(name==='settings')loadSettings();
   if(name==='files')initFilePage();
+  // Bottom nav sync
+  document.querySelectorAll('.bnav-item').forEach(b=>b.classList.remove('active'));
+  const bn=document.querySelector('.bnav-item[data-page="'+name+'"]');
+  if(bn)bn.classList.add('active');
+  // Close sidebar on mobile after navigation
+  closeSidebar();
+}
+function toggleSidebar(){
+  const sb=document.querySelector('.sidebar');
+  const ov=document.getElementById('sidebar-overlay');
+  sb.classList.toggle('open');
+  ov.classList.toggle('open');
+}
+function closeSidebar(){
+  document.querySelector('.sidebar').classList.remove('open');
+  document.getElementById('sidebar-overlay').classList.remove('open');
 }
 function openModal(id){document.getElementById(id).classList.add('open');}
 function closeModal(id){document.getElementById(id).classList.remove('open');}
@@ -1199,6 +1272,16 @@ async function calculate(){
 async function loadSettings(){const s=await api('/api/settings');document.getElementById('set-electricity').value=s.electricity_cost||0.35;document.getElementById('set-watt').value=s.printer_watt||350;}
 async function saveSettings(){await api('/api/settings','POST',{electricity_cost:document.getElementById('set-electricity').value,printer_watt:document.getElementById('set-watt').value});toast('Gespeichert ✅');}
 
+// ── MOBILE SWIPE TO CLOSE SIDEBAR ─────────────
+(function(){
+  let startX=0;
+  document.addEventListener('touchstart',e=>{startX=e.touches[0].clientX;},{passive:true});
+  document.addEventListener('touchend',e=>{
+    const dx=e.changedTouches[0].clientX-startX;
+    if(dx<-60&&document.querySelector('.sidebar').classList.contains('open'))closeSidebar();
+  },{passive:true});
+})();
+
 // ── START ─────────────────────────────────────
 loadStats();
 buildDashboard();
@@ -1209,5 +1292,33 @@ setInterval(()=>{
   if(document.getElementById('page-dashboard').classList.contains('active')) loadStats();
 },30000);
 </script>
+
+<!-- BOTTOM NAVIGATION (Mobile) -->
+<nav class="bottom-nav">
+  <div class="bottom-nav-items">
+    <button class="bnav-item active" data-page="dashboard" onclick="showPage('dashboard')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      Dashboard
+    </button>
+    <button class="bnav-item" data-page="printers" onclick="showPage('printers')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+      Drucker
+    </button>
+    <button class="bnav-item" data-page="files" onclick="showPage('files')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+      Dateien
+    </button>
+    <button class="bnav-item" data-page="filaments" onclick="showPage('filaments')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
+      Filamente
+    </button>
+    <button class="bnav-item" data-page="settings" onclick="showPage('settings')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      Einstellungen
+    </button>
+  </div>
+</nav>
+
+<div class="toast" id="toast"></div>
 </body>
 </html>
