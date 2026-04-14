@@ -248,6 +248,7 @@ nav a.active svg { opacity: 1; }
 .pbtn-motor { background: var(--surface2); color: var(--text3); border: 1px solid var(--border); }
 .pbtn-load { background: rgba(102,187,106,0.1); color: var(--green); border: 1px solid rgba(102,187,106,0.2); }
 .pbtn-unload { background: rgba(255,167,38,0.1); color: var(--orange); border: 1px solid rgba(255,167,38,0.2); }
+.pbtn-cooldown { background: rgba(41,182,246,0.08); color: var(--accent); border: 1px solid rgba(41,182,246,0.2); }
 
 /* Home row */
 .home-row { display: flex; gap: 4px; }
@@ -1102,6 +1103,15 @@ function buildPrinterCard(p){
               <button class="pbtn pbtn-unload" onclick="filamentUnload(${p.id})"><span class="pbtn-icon">⬆️</span><span class="pbtn-label">Auswerfen</span></button>
             </div>
           </div>
+
+          <div class="ctrl-section">
+            <div class="ctrl-section-title">Cooldown</div>
+            <div class="print-btns">
+              <button class="pbtn pbtn-cooldown" onclick="cooldown(${p.id},'nozzle')"><span class="pbtn-icon">❄️</span><span class="pbtn-label">Nozzle</span></button>
+              <button class="pbtn pbtn-cooldown" onclick="cooldown(${p.id},'bed')"><span class="pbtn-icon">🧊</span><span class="pbtn-label">Bett</span></button>
+            </div>
+            <button class="pbtn pbtn-cooldown" style="width:100%;flex-direction:row;gap:8px;margin-top:6px;" onclick="cooldown(${p.id},'all')"><span class="pbtn-icon" style="font-size:13px;">❄️</span><span class="pbtn-label" style="font-size:10px;">Alles kühlen</span></button>
+          </div>
         </div>
       </div>
     </div>
@@ -1144,6 +1154,13 @@ async function homeAxes(pid,axes){
 async function motorsOff(pid){
   await api('/api/printers/'+pid+'/motors_off','POST');
   toast('⚡ Motoren aus');
+}
+async function cooldown(pid, target='all'){
+  const labels={nozzle:'Nozzle',bed:'Bett',all:'Nozzle & Bett'};
+  if(!confirm(`${labels[target]} auf 0°C kühlen?`))return;
+  if(target==='nozzle'||target==='all') await api('/api/printers/'+pid+'/temperature','POST',{type:'nozzle',temp:0});
+  if(target==='bed'   ||target==='all') await api('/api/printers/'+pid+'/temperature','POST',{type:'bed',temp:0});
+  toast('❄️ Cooldown gestartet — '+labels[target]+' kühlt ab');
 }
 async function filamentLoad(pid){
   await api('/api/printers/'+pid+'/filament_load','POST');
