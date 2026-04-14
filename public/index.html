@@ -436,6 +436,14 @@ tr:hover td { background: rgba(255,255,255,0.01); }
 
 /* ── NOTIFICATION BUTTON ── */
 .notif-btn { background: none; border: 1px solid var(--border); border-radius: 7px; color: var(--text3); padding: 5px 9px; cursor: pointer; font-size: 14px; line-height: 1; transition: all 0.15s; }
+.preheat-btn { background:var(--surface3);border:1px solid var(--border2);border-radius:6px;color:var(--text2);font-size:10px;font-weight:700;font-family:var(--mono);padding:5px 2px;cursor:pointer;transition:all 0.12s;letter-spacing:0.02em; }
+.preheat-btn:hover { background:var(--accent);border-color:var(--accent);color:#fff; }
+.sse-chip { display:flex;align-items:center;gap:5px;padding:4px 9px;border:1px solid var(--border);border-radius:7px;font-size:10px;font-weight:600;font-family:var(--mono);color:var(--text3);transition:all 0.3s; }
+.sse-chip.live { border-color:#66bb6a30;color:var(--green); }
+.sse-chip.polling { border-color:#ffa72630;color:var(--orange); }
+.sse-dot { width:6px;height:6px;border-radius:50%;background:var(--text3);flex-shrink:0; }
+.sse-chip.live .sse-dot { background:var(--green);box-shadow:0 0 5px var(--green); }
+.sse-chip.polling .sse-dot { background:var(--orange); }
 .notif-btn:hover { border-color: var(--accent); color: var(--accent); }
 .notif-btn.active { color: var(--green); border-color: rgba(102,187,106,0.4); }
 
@@ -546,6 +554,10 @@ tr:hover td { background: rgba(255,255,255,0.01); }
     </div>
     <div class="topbar-right">
       <button id="notif-btn" class="notif-btn" onclick="requestNotifPermission()" title="Benachrichtigungen aktivieren">🔔</button>
+      <div class="sse-chip" id="sse-chip" title="Verbindungstyp">
+        <span class="sse-dot" id="sse-dot"></span>
+        <span id="sse-label">Live</span>
+      </div>
       <div class="status-chip" id="connection-chip">
         <div class="status-dot dot-gray"></div>
         Verbinde...
@@ -604,7 +616,10 @@ tr:hover td { background: rgba(255,255,255,0.01); }
     <div id="page-filaments" class="page">
       <div class="page-header">
         <div class="page-title">Filamente</div>
-        <button class="btn btn-primary" onclick="openModal('modal-add-filament')">+ Filament hinzufügen</button>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-secondary" onclick="openFilamentSearch()" title="Aus Bambu Studio Profil-Datenbank importieren">📥 Bambu Studio</button>
+          <button class="btn btn-primary" onclick="openModal('modal-add-filament')">+ Manuell</button>
+        </div>
       </div>
       <div class="fil-grid" id="filament-grid"></div>
     </div>
@@ -698,6 +713,20 @@ tr:hover td { background: rgba(255,255,255,0.01); }
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('modal-add-filament')">Abbrechen</button>
       <button class="btn btn-primary" onclick="addFilament()">Hinzufügen</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-filament-search">
+  <div class="modal" style="width:520px;max-height:80vh;display:flex;flex-direction:column;">
+    <h2>📥 Bambu Studio Filament</h2>
+    <div class="modal-sub">Profil wählen → Felder werden vorausgefüllt</div>
+    <input type="text" id="filsearch-input" placeholder="Suchen (z.B. PLA, Bambu, PETG…)"
+      style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:8px 12px;color:var(--text);font-size:13px;margin-bottom:10px;font-family:var(--sans);"
+      oninput="filterFilamentSearch(this.value)">
+    <div id="filsearch-list" style="overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:4px;"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-filament-search')">Schließen</button>
     </div>
   </div>
 </div>
@@ -804,21 +833,28 @@ async function buildDashboard(){
   }));
   container.innerHTML=printers.map(p=>buildPrinterCard(p)).join('');
   dashboardBuilt=true;
-  // Init temp charts and seed with current temperature
-  printers.forEach(p=>{
-    const s=p.status||{};
-    const nozzle=s.nozzle_temper||0;
-    const bed=s.bed_temper||0;
-    if(!tempHistory[p.id])tempHistory[p.id]={n:[],b:[],t:[]};
-    // Seed with current value so chart is not empty on load
-    if(nozzle>0||bed>0){
-      const t=new Date().toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
-      tempHistory[p.id].t.push(t);
-      tempHistory[p.id].n.push(nozzle);
-      tempHistory[p.id].b.push(bed);
+  // Temperaturverlauf vom Server laden (Ringbuffer) + Chart initialisieren
+  await Promise.all(printers.map(async p=>{
+    try{
+      const hist=await api('/api/printers/'+p.id+'/temp-history');
+      if(hist&&hist.t&&hist.t.length>0){
+        tempHistory[p.id]=hist; // komplette Server-History übernehmen
+      } else {
+        // Fallback: aktuellen Wert als Startwert
+        const s=p.status||{};
+        const nozzle=s.nozzle_temper||0;
+        const bed=s.bed_temper||0;
+        if(!tempHistory[p.id])tempHistory[p.id]={n:[],b:[],t:[]};
+        if(nozzle>0||bed>0){
+          const t=new Date().toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+          tempHistory[p.id].t.push(t);tempHistory[p.id].n.push(nozzle);tempHistory[p.id].b.push(bed);
+        }
+      }
+    }catch(e){
+      if(!tempHistory[p.id])tempHistory[p.id]={n:[],b:[],t:[]};
     }
     initTempChart(p.id);
-  });
+  }));
   // Set connection status based on first printer
   const s=printers[0]?.status||{};
   const state=s.gcode_state||'offline';
@@ -966,6 +1002,14 @@ async function realtimeUpdate(){
 let sseSource=null;
 let sseFallbackTimer=null;
 
+function setSSEChip(mode){
+  const chip=document.getElementById('sse-chip');
+  const label=document.getElementById('sse-label');
+  if(!chip)return;
+  chip.className='sse-chip '+mode;
+  label.textContent=mode==='live'?'Live':'Polling';
+}
+
 function startSSE(){
   if(sseSource){sseSource.close();sseSource=null;}
   if(sseFallbackTimer){clearInterval(sseFallbackTimer);sseFallbackTimer=null;}
@@ -975,18 +1019,14 @@ function startSSE(){
       try{
         const msg=JSON.parse(e.data);
         if(msg.type==='status'){
-          // Update cachedPrinters
           const printer=cachedPrinters.find(p=>p.id===msg.id);
           if(printer){printer.status=msg.status;applyPrinterStatus(printer);}
         }
       }catch(err){}
     };
-    sseSource.onopen=()=>{
-      const chip=document.getElementById('connection-chip');
-      // SSE aktiv — Chip zeigt Echtzeitstatus
-    };
+    sseSource.onopen=()=>setSSEChip('live');
     sseSource.onerror=()=>{
-      // SSE fehlgeschlagen → Fallback auf 2s Polling
+      setSSEChip('polling');
       sseSource.close();sseSource=null;
       if(!sseFallbackTimer){
         sseFallbackTimer=setInterval(()=>{
@@ -995,7 +1035,7 @@ function startSSE(){
       }
     };
   }catch(err){
-    // EventSource nicht verfügbar → direkt polling
+    setSSEChip('polling');
     sseFallbackTimer=setInterval(()=>{
       if(document.getElementById('page-dashboard').classList.contains('active'))realtimeUpdate();
     },2000);
@@ -1070,6 +1110,16 @@ function buildPrinterCard(p){
               <div class="temp-target" id="bt-${p.id}">→ ${s.bed_target_temper||0}°C</div>
             </div>
             <div class="temp-bar"><div class="temp-bar-fill bed" id="bb-${p.id}" style="width:${Math.min(100,bed/1.2)}%"></div></div>
+          </div>
+
+          <div class="ctrl-section" style="margin-top:10px;">
+            <div class="ctrl-section-title">Vorheizen</div>
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:5px;">
+              <button class="preheat-btn" onclick="preheat(${p.id},'PLA')">PLA</button>
+              <button class="preheat-btn" onclick="preheat(${p.id},'PETG')">PETG</button>
+              <button class="preheat-btn" onclick="preheat(${p.id},'ABS')">ABS</button>
+              <button class="preheat-btn" onclick="preheat(${p.id},'TPU')">TPU</button>
+            </div>
           </div>
 
           <div class="ctrl-section" style="margin-top:14px;">
@@ -1187,6 +1237,24 @@ async function cooldown(pid, target='all'){
   if(target==='nozzle'||target==='all') await api('/api/printers/'+pid+'/temperature','POST',{type:'nozzle',temp:0});
   if(target==='bed'   ||target==='all') await api('/api/printers/'+pid+'/temperature','POST',{type:'bed',temp:0});
 }
+const PREHEAT_PROFILES={
+  PLA: {nozzle:220,bed:60},
+  PETG:{nozzle:250,bed:70},
+  ABS: {nozzle:270,bed:100},
+  TPU: {nozzle:230,bed:40},
+};
+async function preheat(pid,profile){
+  const p=PREHEAT_PROFILES[profile];
+  if(!p)return;
+  // Optimistic UI
+  const ntEl=document.getElementById('nt-'+pid);
+  const btEl=document.getElementById('bt-'+pid);
+  if(ntEl)ntEl.textContent='→ '+p.nozzle+'°C';
+  if(btEl)btEl.textContent='→ '+p.bed+'°C';
+  toast('🔥 Vorheizen: '+profile+' ('+p.nozzle+'° / '+p.bed+'°)');
+  await api('/api/printers/'+pid+'/temperature','POST',{type:'nozzle',temp:p.nozzle});
+  await api('/api/printers/'+pid+'/temperature','POST',{type:'bed',temp:p.bed});
+}
 async function filamentLoad(pid){
   await api('/api/printers/'+pid+'/filament_load','POST');
   toast('⬇️ Filament wird eingezogen...');
@@ -1217,6 +1285,62 @@ async function sendTemp(){
   closeModal('modal-temp');
   toast('🌡️ '+temp+'°C gesetzt');
   await api('/api/printers/'+pid+'/temperature','POST',{type,temp});
+}
+
+// ── BAMBU STUDIO FILAMENT-IMPORT ──────────────
+let filSearchData=[];
+async function openFilamentSearch(){
+  const list=document.getElementById('filsearch-list');
+  list.innerHTML='<div style="color:var(--text3);font-size:13px;padding:12px 0;">Lade Bambu Studio Profile...</div>';
+  openModal('modal-filament-search');
+  document.getElementById('filsearch-input').value='';
+  try{
+    const db=await api('/api/filament-db');
+    filSearchData=[];
+    for(const [vendor,materials] of Object.entries(db)){
+      for(const [mat,data] of Object.entries(materials)){
+        filSearchData.push({vendor,material:mat,...data});
+      }
+    }
+    filSearchData.sort((a,b)=>a.vendor.localeCompare(b.vendor)||a.material.localeCompare(b.material));
+    renderFilamentSearch(filSearchData);
+  }catch(e){list.innerHTML='<div style="color:var(--red);font-size:13px;">Fehler: '+e.message+'</div>';}
+}
+function filterFilamentSearch(q){
+  const lq=q.toLowerCase();
+  const filtered=filSearchData.filter(f=>(f.vendor+' '+f.material).toLowerCase().includes(lq));
+  renderFilamentSearch(filtered);
+}
+function renderFilamentSearch(items){
+  const list=document.getElementById('filsearch-list');
+  if(!items.length){list.innerHTML='<div style="color:var(--text3);font-size:13px;padding:8px 0;">Keine Treffer</div>';return;}
+  list.innerHTML=items.slice(0,80).map(f=>{
+    const n=f.nozzle||f.nozzle_min||0;
+    const b=f.bed||0;
+    return `<div onclick="selectFilamentPreset(${JSON.stringify(f).replace(/"/g,'&quot;')})"
+      style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:7px;cursor:pointer;border:1px solid var(--border);background:var(--surface2);"
+      onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+      <div style="flex:1;">
+        <div style="font-size:12px;font-weight:600;">${f.vendor} <span style="color:var(--text3)">${f.material}</span></div>
+        <div style="font-size:10px;color:var(--text3);font-family:var(--mono);">🌡️ ${n}°C Nozzle · 🛏️ ${b}°C Bett${f.density?' · '+f.density+'g/cm³':''}</div>
+      </div>
+      <div style="font-size:10px;color:var(--accent);font-weight:600;white-space:nowrap;">Wählen →</div>
+    </div>`;
+  }).join('');
+}
+function selectFilamentPreset(f){
+  closeModal('modal-filament-search');
+  // Felder im Add-Filament-Modal vorausfüllen
+  document.getElementById('f-brand').value=f.vendor||'';
+  document.getElementById('f-material').value=f.material||'';
+  const colors={'white':'#FFFFFF','black':'#000000','grey':'#888888','gray':'#888888','red':'#E53935','blue':'#1E88E5','green':'#43A047','yellow':'#FDD835','orange':'#FB8C00'};
+  const hexMatch=Object.entries(colors).find(([k])=>(f.material||'').toLowerCase().includes(k));
+  // document.getElementById('f-color-hex').value=hexMatch?hexMatch[1]:'#888888';
+  document.getElementById('f-nozzle').value=f.nozzle||f.nozzle_min||0;
+  document.getElementById('f-bed').value=f.bed||0;
+  if(f.price)document.getElementById('f-price').value=f.price;
+  openModal('modal-add-filament');
+  toast('📥 Profil geladen — bitte Farbe & Gewicht ergänzen');
 }
 
 // ── AMS ───────────────────────────────────────

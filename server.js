@@ -139,6 +139,8 @@ setInterval(() => {
 // ── MQTT ──────────────────────────────────────
 let printerStatus = {};
 const printStartTimes = {};
+const tempBuffers = {};          // { printerId: { n:[], b:[], t:[] } }
+const TEMP_BUFFER_MAX = 600;     // ~10 Min bei 1 Update/Sek
 
 const MATERIAL_DENSITY = {
   'PLA-CF': 1.30, 'PETG-CF': 1.30, 'PA-CF': 1.20,
@@ -210,6 +212,17 @@ function connectMQTT(ip, accessCode, serial, printerId) {
         const prevState = printerStatus[printerId]?.gcode_state;
         const newState = data.print.gcode_state;
         printerStatus[printerId] = { ...data.print, last_update: new Date().toISOString() };
+        // Temperatur-Ringbuffer befüllen
+        const nozzle = data.print.nozzle_temper || 0;
+        const bed    = data.print.bed_temper    || 0;
+        if (nozzle > 0 || bed > 0) {
+          if (!tempBuffers[printerId]) tempBuffers[printerId] = { n: [], b: [], t: [] };
+          const buf = tempBuffers[printerId];
+          buf.t.push(new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+          buf.n.push(Math.round(nozzle * 10) / 10);
+          buf.b.push(Math.round(bed    * 10) / 10);
+          if (buf.t.length > TEMP_BUFFER_MAX) { buf.t.shift(); buf.n.shift(); buf.b.shift(); }
+        }
         broadcastSSE(printerId);
         if (prevState !== 'RUNNING' && newState === 'RUNNING') {
           printStartTimes[printerId] = Date.now();
@@ -415,6 +428,11 @@ app.get('/api/events', (req, res) => {
     });
     res.write(`data: ${payload}\n\n`);
   });
+});
+
+// ── TEMPERATUR-HISTORIE (Server-Ringbuffer) ───
+app.get('/api/printers/:id/temp-history', (req, res) => {
+  res.json(tempBuffers[req.params.id] || { n: [], b: [], t: [] });
 });
 
 // ── SYSTEM MONITOR ────────────────────────────
