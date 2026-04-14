@@ -804,8 +804,21 @@ async function buildDashboard(){
   }));
   container.innerHTML=printers.map(p=>buildPrinterCard(p)).join('');
   dashboardBuilt=true;
-  // Init temp charts
-  printers.forEach(p=>initTempChart(p.id));
+  // Init temp charts and seed with current temperature
+  printers.forEach(p=>{
+    const s=p.status||{};
+    const nozzle=s.nozzle_temper||0;
+    const bed=s.bed_temper||0;
+    if(!tempHistory[p.id])tempHistory[p.id]={n:[],b:[],t:[]};
+    // Seed with current value so chart is not empty on load
+    if(nozzle>0||bed>0){
+      const t=new Date().toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+      tempHistory[p.id].t.push(t);
+      tempHistory[p.id].n.push(nozzle);
+      tempHistory[p.id].b.push(bed);
+    }
+    initTempChart(p.id);
+  });
   // Set connection status based on first printer
   const s=printers[0]?.status||{};
   const state=s.gcode_state||'offline';
@@ -876,25 +889,35 @@ function updateTempChart(pid,nozzle,bed){
   chartInstances[pid].update('none');
 }
 
+// ── HILFSFUNKTION: Aufheiz-/Kühl-Pfeil ──────
+function tempArrow(actual, target){
+  if(target>0 && actual<target-2) return '<span style="color:var(--orange);font-size:12px;margin-left:2px;">↑</span>';
+  if((target===0||target<actual-2) && actual>30) return '<span style="color:var(--accent);font-size:12px;margin-left:2px;">↓</span>';
+  if(target>0 && Math.abs(actual-target)<=2) return '<span style="color:var(--green);font-size:11px;margin-left:2px;">✓</span>';
+  return '';
+}
+
 // ── REALTIME UPDATE (SSE + Fallback-Polling) ──
 function applyPrinterStatus(p){
   if(!dashboardBuilt)return;
   const s=p.status||{};
   const nozzle=s.nozzle_temper||0;
   const bed=s.bed_temper||0;
+  const nTarget=s.nozzle_temper_target||0;
+  const bTarget=s.bed_target_temper||0;
   const progress=s.mc_percent||0;
   const remaining=s.mc_remaining_time||0;
   const state=s.gcode_state||'offline';
 
   const nEl=document.getElementById('nv-'+p.id);
   const bEl=document.getElementById('bv-'+p.id);
-  if(nEl){nEl.textContent=nozzle.toFixed(1)+'°';nEl.className='temp-actual '+(nozzle>150?'hot':nozzle>50?'warm':nozzle>0?'cool':'off');}
-  if(bEl){bEl.textContent=bed.toFixed(1)+'°';bEl.className='temp-actual '+(bed>50?'warm':bed>0?'cool':'off');}
+  if(nEl){nEl.innerHTML=nozzle.toFixed(1)+'°'+tempArrow(nozzle,nTarget);nEl.className='temp-actual '+(nozzle>150?'hot':nozzle>50?'warm':nozzle>0?'cool':'off');}
+  if(bEl){bEl.innerHTML=bed.toFixed(1)+'°'+tempArrow(bed,bTarget);bEl.className='temp-actual '+(bed>50?'warm':bed>0?'cool':'off');}
 
   const ntEl=document.getElementById('nt-'+p.id);
   const btEl=document.getElementById('bt-'+p.id);
-  if(ntEl)ntEl.textContent='→ '+(s.nozzle_temper_target||0)+'°C';
-  if(btEl)btEl.textContent='→ '+(s.bed_target_temper||0)+'°C';
+  if(ntEl)ntEl.textContent='→ '+nTarget+'°C';
+  if(btEl)btEl.textContent='→ '+bTarget+'°C';
 
   const nbEl=document.getElementById('nb-'+p.id);
   const bbEl=document.getElementById('bb-'+p.id);
@@ -1157,9 +1180,12 @@ async function motorsOff(pid){
 }
 async function cooldown(pid, target='all'){
   const labels={nozzle:'Nozzle',bed:'Bett',all:'Nozzle & Bett'};
+  // Optimistic UI: immediately show target = 0 without waiting for MQTT round-trip
+  if(target==='nozzle'||target==='all'){const el=document.getElementById('nt-'+pid);if(el)el.textContent='→ 0°C';}
+  if(target==='bed'   ||target==='all'){const el=document.getElementById('bt-'+pid);if(el)el.textContent='→ 0°C';}
+  toast('❄️ Cooldown — '+labels[target]+' kühlt ab');
   if(target==='nozzle'||target==='all') await api('/api/printers/'+pid+'/temperature','POST',{type:'nozzle',temp:0});
   if(target==='bed'   ||target==='all') await api('/api/printers/'+pid+'/temperature','POST',{type:'bed',temp:0});
-  toast('❄️ Cooldown — '+labels[target]+' kühlt ab');
 }
 async function filamentLoad(pid){
   await api('/api/printers/'+pid+'/filament_load','POST');
@@ -1183,9 +1209,14 @@ function openTempModal(pid,type,currentVal){
 async function sendTemp(){
   const temp=parseInt(document.getElementById('temp-input').value);
   if(isNaN(temp)||temp<0||temp>350){toast('Ungültige Temperatur!','error');return;}
-  await api('/api/printers/'+tempCtx.printerId+'/temperature','POST',{type:tempCtx.type,temp});
+  // Optimistic UI: immediately show target temp so display doesn't flicker
+  const pid=tempCtx.printerId;
+  const type=tempCtx.type;
+  if(type==='nozzle'){const el=document.getElementById('nt-'+pid);if(el)el.textContent='→ '+temp+'°C';}
+  if(type==='bed')   {const el=document.getElementById('bt-'+pid);if(el)el.textContent='→ '+temp+'°C';}
   closeModal('modal-temp');
   toast('🌡️ '+temp+'°C gesetzt');
+  await api('/api/printers/'+pid+'/temperature','POST',{type,temp});
 }
 
 // ── AMS ───────────────────────────────────────
