@@ -4,6 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>BambuPi Manager</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#13161e">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <style>
@@ -450,6 +455,12 @@ tr:hover td { background: rgba(255,255,255,0.01); }
 .sse-chip.polling .sse-dot { background:var(--orange); }
 .notif-btn:hover { border-color: var(--accent); color: var(--accent); }
 .notif-btn.active { color: var(--green); border-color: rgba(102,187,106,0.4); }
+.kiosk-btn { background: none; border: 1px solid var(--border); border-radius: 7px; color: var(--text3); padding: 5px 9px; cursor: pointer; font-size: 13px; line-height: 1; transition: all 0.15s; }
+.kiosk-btn:hover { border-color: var(--accent); color: var(--accent); }
+body.kiosk .sidebar { display: none; }
+body.kiosk .bottom-nav { display: none; }
+body.kiosk .main { margin-left: 0; }
+body.kiosk .kiosk-btn { color: var(--accent); border-color: rgba(41,182,246,0.4); }
 
 /* ── SIDEBAR OVERLAY ── */
 .sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 150; backdrop-filter: blur(2px); }
@@ -557,6 +568,7 @@ tr:hover td { background: rgba(255,255,255,0.01); }
       <div class="topbar-title" id="topbar-title">Dashboard</div>
     </div>
     <div class="topbar-right">
+      <button id="kiosk-btn" class="kiosk-btn" onclick="toggleKiosk()" title="Kiosk-Modus">⛶</button>
       <button id="notif-btn" class="notif-btn" onclick="requestNotifPermission()" title="Benachrichtigungen aktivieren">🔔</button>
       <div class="sse-chip" id="sse-chip" title="Verbindungstyp">
         <span class="sse-dot" id="sse-dot"></span>
@@ -929,6 +941,32 @@ function sendNotif(title,body){
   try{new Notification(title,{body,icon:'/favicon.ico'});}catch(e){}
 }
 
+// ── KIOSK-MODUS ────────────────────────────────
+function toggleKiosk(){
+  document.body.classList.toggle('kiosk');
+  const btn=document.getElementById('kiosk-btn');
+  const isKiosk=document.body.classList.contains('kiosk');
+  if(btn)btn.title=isKiosk?'Kiosk beenden':'Kiosk-Modus';
+  toast(isKiosk?'⛶ Kiosk-Modus aktiv':'Kiosk-Modus beendet');
+}
+
+// ── TEMPERATUR-ALARM ───────────────────────────
+const tempAlarmTimers={};
+function checkTempAlarm(pid,nozzle,state){
+  const idle=state!=='RUNNING'&&state!=='PAUSE';
+  if(idle&&nozzle>50){
+    if(!tempAlarmTimers[pid]){
+      tempAlarmTimers[pid]=setTimeout(()=>{
+        sendNotif('🌡️ Düse noch heiß!','Nozzle bei '+nozzle+'°C aber kein aktiver Druck.');
+        toast('⚠️ Düse noch heiß ('+nozzle+'°C)!','error');
+        delete tempAlarmTimers[pid];
+      },5*60*1000);
+    }
+  } else {
+    if(tempAlarmTimers[pid]){clearTimeout(tempAlarmTimers[pid]);delete tempAlarmTimers[pid];}
+  }
+}
+
 // ── TEMPERATUR CHARTS ─────────────────────────
 function initTempChart(pid){
   if(typeof Chart==='undefined')return;
@@ -1026,6 +1064,9 @@ function applyPrinterStatus(p){
   if(prev==='RUNNING'&&state==='FINISH') sendNotif('✅ Druck abgeschlossen!',p.name+(s.subtask_name?' · '+s.subtask_name:''));
   else if(prev==='RUNNING'&&state==='FAILED') sendNotif('❌ Druck fehlgeschlagen!',p.name+(s.subtask_name?' · '+s.subtask_name:''));
   prevStates[p.id]=state;
+
+  // Temperatur-Alarm: Düse heiß aber kein Druck
+  checkTempAlarm(p.id,nozzle,state);
 
   // Temperatur-Graph aktualisieren
   updateTempChart(p.id,nozzle,bed);
