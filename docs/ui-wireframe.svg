@@ -1,0 +1,275 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" font-family="JetBrains Mono, monospace">
+  <rect width="1200" height="800" fill="#0d0f14"/>
+
+  <!-- ── SIDEBAR ── -->
+  <rect x="0" y="0" width="220" height="800" fill="#13161e" stroke="#252c3f" stroke-width="1"/>
+
+  <!-- Logo -->
+  <rect x="0" y="0" width="220" height="60" fill="#13161e" stroke="#252c3f" stroke-width="1"/>
+  <text x="18" y="30" fill="#29b6f6" font-size="20">🖨️</text>
+  <text x="48" y="28" fill="#e2e8f4" font-size="13" font-weight="bold">BambuPi</text>
+  <text x="48" y="44" fill="#5a6785" font-size="10">Manager v2</text>
+
+  <!-- Nav items -->
+  <g font-size="12" fill="#9aa5be">
+    <text x="16" y="92" fill="#5a6785" font-size="9" letter-spacing="2">NAVIGATION</text>
+
+    <!-- Active: Dashboard -->
+    <rect x="8" y="100" width="204" height="36" rx="7" fill="#1a1e28"/>
+    <rect x="8" y="100" width="3" height="36" rx="2" fill="#29b6f6"/>
+    <text x="22" y="122" font-size="14">🖨️</text>
+    <text x="44" y="123" fill="#e2e8f4" font-size="12" font-weight="600">Dashboard</text>
+
+    <text x="22" y="158" font-size="14">📊</text>
+    <text x="44" y="159" font-size="12">Statistiken</text>
+    <rect x="180" y="148" width="28" height="16" rx="8" fill="#29b6f620"/>
+    <text x="186" y="160" fill="#29b6f6" font-size="9" font-weight="700">NEU</text>
+
+    <text x="22" y="193" font-size="14">📁</text>
+    <text x="44" y="194" font-size="12">Dateien</text>
+
+    <text x="22" y="228" font-size="14">🧵</text>
+    <text x="44" y="229" font-size="12">Filamente</text>
+
+    <text x="22" y="263" font-size="14">⏱️</text>
+    <text x="44" y="264" font-size="12">Verlauf</text>
+
+    <text x="22" y="298" font-size="14">🎬</text>
+    <text x="44" y="299" fill="#9aa5be" font-size="12">Timelapse</text>
+    <rect x="180" y="288" width="28" height="16" rx="8" fill="#29b6f620"/>
+    <text x="186" y="300" fill="#29b6f6" font-size="9" font-weight="700">NEU</text>
+
+    <text x="22" y="333" font-size="14">📟</text>
+    <text x="44" y="334" fill="#9aa5be" font-size="12">Events</text>
+    <rect x="180" y="323" width="28" height="16" rx="8" fill="#29b6f620"/>
+    <text x="186" y="335" fill="#29b6f6" font-size="9" font-weight="700">NEU</text>
+
+    <text x="22" y="368" font-size="14">⚙️</text>
+    <text x="44" y="369" font-size="12">Einstellungen</text>
+  </g>
+
+  <!-- Connection chip bottom -->
+  <rect x="12" y="755" width="196" height="32" rx="8" fill="#1a1e28" stroke="#252c3f" stroke-width="1"/>
+  <circle cx="28" cy="771" r="5" fill="#66bb6a"/>
+  <text x="40" y="775" fill="#9aa5be" font-size="11">Verbunden · DRUCKT</text>
+
+  <!-- ── TOPBAR ── -->
+  <rect x="220" y="0" width="980" height="56" fill="#13161e" stroke="#252c3f" stroke-width="1"/>
+  <text x="240" y="33" fill="#e2e8f4" font-size="15" font-weight="600">Dashboard</text>
+  <text x="350" y="32" fill="#5a6785" font-size="10" font-family="monospace">Live · SSE aktiv</text>
+  <circle cx="395" cy="28" r="4" fill="#66bb6a"/>
+
+  <!-- Notif + Settings in topbar -->
+  <rect x="1060" y="14" width="30" height="28" rx="7" fill="#1a1e28" stroke="#252c3f" stroke-width="1"/>
+  <text x="1068" y="33" font-size="14">🔔</text>
+  <rect x="1098" y="14" width="30" height="28" rx="7" fill="#1a1e28" stroke="#252c3f" stroke-width="1"/>
+  <text x="1106" y="33" font-size="14">⚙️</text>
+  <rect x="1136" y="14" width="58" height="28" rx="7" fill="#1a1e28" stroke="#252c3f" stroke-width="1"/>
+  <text x="1148" y="33" fill="#29b6f6" font-size="11" font-weight="600">+ Drucker</text>
+
+  <!-- ── STATS ROW ── -->
+  <g>
+    <!-- Stat 1 -->
+    <rect x="236" y="70" width="170" height="64" rx="8" fill="#13161e" stroke="#252c3f" stroke-width="1"/>
+    <text x="252" y="92" fill="#5a6785" font-size="9" letter-spacing="1">GESAMTDRUCKE</text>
+    <text x="252" y="116" fill="#e2e8f4" font-size="22" font-weight="700" font-family="monospace">247</text>
+
+    <!-- Stat 2 -->
+    <rect x="416" y="70" width="170" height="64" rx="8" fill="#13161e" stroke="#252c3f" stroke-width="1"/>
+    <text x="432" y="92" fill="#5a6785" font-size="9" letter-spacing="1">VERBRAUCH</text>
+    <text x="432" y="116" fill="#e2e8f4" font-size="22" font-weight="700" font-family="monospace">12.4<tspan font-size="12" fill="#5a6785">kg</tspan></text>
+
+    <!-- Stat 3 -->
+    <rect x="596" y="70" width="170" height="64" rx="8" fill="#13161e" stroke="#252c3f" stroke-width="1"/>
+    <text x="612" y="92" fill="#5a6785" font-size="9" letter-spacing="1">DRUCKSTUNDEN</text>
+    <text x="612" y="116" fill="#e2e8f4" font-size="22" font-weight="700" font-family="monospace">183<tspan font-size="12" fill="#5a6785">h</tspan></text>
+
+    <!-- Stat 4 -->
+    <rect x="776" y="70" width="170" height="64" rx="8" fill="#13161e" stroke="#252c3f" stroke-width="1"/>
+    <text x="792" y="92" fill="#5a6785" font-size="9" letter-spacing="1">GESAMTKOSTEN</text>
+    <text x="792" y="116" fill="#e2e8f4" font-size="22" font-weight="700" font-family="monospace">94<tspan font-size="12" fill="#5a6785">€</tspan></text>
+
+    <!-- Stat 5 CPU -->
+    <rect x="956" y="70" width="238" height="64" rx="8" fill="#13161e" stroke="#252c3f" stroke-width="1"/>
+    <text x="972" y="92" fill="#5a6785" font-size="9" letter-spacing="1">SYSTEM</text>
+    <text x="972" y="112" fill="#e2e8f4" font-size="12" font-weight="600">CPU <tspan fill="#66bb6a">23%</tspan></text>
+    <text x="1060" y="112" fill="#e2e8f4" font-size="12" font-weight="600">RAM <tspan fill="#ffa726">61%</tspan></text>
+    <text x="972" y="128" fill="#e2e8f4" font-size="12" font-weight="600">Pi Temp <tspan fill="#29b6f6">48°C</tspan></text>
+  </g>
+
+  <!-- ── PRINTER CARD (main) ── -->
+  <rect x="236" y="148" width="580" height="396" rx="10" fill="#13161e" stroke="#252c3f" stroke-width="1"/>
+
+  <!-- Card header -->
+  <text x="256" y="176" fill="#e2e8f4" font-size="14" font-weight="600">🖨️ X1 Carbon</text>
+  <text x="256" y="194" fill="#5a6785" font-size="10" font-family="monospace">X1C · 192.168.178.46 · ABC123</text>
+  <rect x="660" y="162" width="68" height="20" rx="10" fill="#66bb6a20"/>
+  <circle cx="674" cy="172" r="4" fill="#66bb6a"/>
+  <text x="682" y="176" fill="#66bb6a" font-size="9" font-weight="700">DRUCKT</text>
+
+  <!-- Camera -->
+  <rect x="256" y="205" width="540" height="152" rx="8" fill="#0d0f14" stroke="#252c3f" stroke-width="1"/>
+  <text x="490" y="280" fill="#252c3f" font-size="40" text-anchor="middle">📷</text>
+  <text x="490" y="310" fill="#5a6785" font-size="11" text-anchor="middle">Live Stream · WebRTC</text>
+  <!-- Snapshot button overlay -->
+  <rect x="748" y="210" width="42" height="26" rx="6" fill="#00000060"/>
+  <text x="769" y="227" fill="#9aa5be" font-size="11" text-anchor="middle">📸</text>
+
+  <!-- Progress bar -->
+  <rect x="256" y="368" width="540" height="8" rx="4" fill="#1a1e28"/>
+  <rect x="256" y="368" width="337" height="8" rx="4" fill="#29b6f6"/>
+  <text x="256" y="395" fill="#e2e8f4" font-size="11" font-weight="600">benchy.3mf</text>
+  <text x="696" y="395" fill="#66bb6a" font-size="16" font-weight="700" font-family="monospace" text-anchor="end">62%</text>
+  <text x="256" y="410" fill="#5a6785" font-size="10" font-family="monospace">⏱ 47 Min · Layer 124/200</text>
+
+  <!-- Temp section -->
+  <rect x="256" y="425" width="256" height="90" rx="8" fill="#1a1e28" stroke="#252c3f" stroke-width="1"/>
+  <text x="272" y="445" fill="#5a6785" font-size="9" letter-spacing="1">NOZZLE</text>
+  <text x="272" y="475" fill="#ef5350" font-size="26" font-weight="700" font-family="monospace">219.8°</text>
+  <text x="360" y="473" fill="#ffa726" font-size="12">↑</text>
+  <text x="272" y="493" fill="#5a6785" font-size="11" font-family="monospace">→ 220°C</text>
+  <!-- Pre-heat quick buttons -->
+  <rect x="390" y="428" width="34" height="18" rx="5" fill="#252c3f"/>
+  <text x="407" y="441" fill="#9aa5be" font-size="9" text-anchor="middle">PLA</text>
+  <rect x="428" y="428" width="36" height="18" rx="5" fill="#252c3f"/>
+  <text x="446" y="441" fill="#9aa5be" font-size="9" text-anchor="middle">PETG</text>
+  <rect x="468" y="428" width="32" height="18" rx="5" fill="#252c3f"/>
+  <text x="484" y="441" fill="#9aa5be" font-size="9" text-anchor="middle">ABS</text>
+  <rect x="504" y="428" width="30" height="18" rx="5" fill="#252c3f"/>
+  <text x="519" y="441" fill="#9aa5be" font-size="9" text-anchor="middle">TPU</text>
+
+  <rect x="540" y="425" width="256" height="90" rx="8" fill="#1a1e28" stroke="#252c3f" stroke-width="1"/>
+  <text x="556" y="445" fill="#5a6785" font-size="9" letter-spacing="1">BETT</text>
+  <text x="556" y="475" fill="#29b6f6" font-size="26" font-weight="700" font-family="monospace">59.6°</text>
+  <text x="644" y="473" fill="#29b6f6" font-size="12">✓</text>
+  <text x="556" y="493" fill="#5a6785" font-size="11" font-family="monospace">→ 60°C</text>
+  <!-- Cooldown button -->
+  <rect x="680" y="448" width="100" height="28" rx="7" fill="#1a1e2850" stroke="#252c3f" stroke-width="1"/>
+  <text x="730" y="466" fill="#9aa5be" font-size="11" text-anchor="middle">❄️ Kühlen</text>
+
+  <!-- Temp Chart -->
+  <rect x="256" y="524" width="540" height="14" rx="4" fill="#1a1e28"/>
+  <text x="256" y="536" fill="#5a6785" font-size="9" letter-spacing="1">TEMPERATURVERLAUF (10 MIN)</text>
+  <!-- Fake chart lines -->
+  <polyline points="256,548 296,545 336,543 376,542 416,541 456,540 496,539 536,540 576,541 616,540 656,539 696,539 736,540 776,540 796,540" fill="none" stroke="#ef5350" stroke-width="1.5" opacity="0.7"/>
+  <polyline points="256,555 296,553 336,551 376,550 416,550 456,549 496,549 536,550 576,550 616,550 656,550 696,549 736,549 776,549 796,549" fill="none" stroke="#29b6f6" stroke-width="1.5" opacity="0.7"/>
+
+  <!-- ── RECHTS: Controls + AMS ── -->
+  <!-- Controls -->
+  <rect x="830" y="148" width="364" height="188" rx="10" fill="#13161e" stroke="#252c3f" stroke-width="1"/>
+  <text x="850" y="174" fill="#5a6785" font-size="9" letter-spacing="1">DRUCKSTEUERUNG</text>
+  <!-- Control buttons 2x3 -->
+  <rect x="850" y="182" width="80" height="52" rx="8" fill="#1a1e28"/>
+  <text x="890" y="208" font-size="18" text-anchor="middle">⏸</text>
+  <text x="890" y="224" fill="#9aa5be" font-size="9" text-anchor="middle">PAUSE</text>
+
+  <rect x="942" y="182" width="80" height="52" rx="8" fill="#1a1e28"/>
+  <text x="982" y="208" font-size="18" text-anchor="middle">▶️</text>
+  <text x="982" y="224" fill="#9aa5be" font-size="9" text-anchor="middle">WEITER</text>
+
+  <rect x="1034" y="182" width="80" height="52" rx="8" fill="#ef535015" stroke="#ef535030" stroke-width="1"/>
+  <text x="1074" y="208" font-size="18" text-anchor="middle">⏹</text>
+  <text x="1074" y="224" fill="#ef5350" font-size="9" text-anchor="middle">STOP</text>
+
+  <rect x="1126" y="182" width="54" height="52" rx="8" fill="#1a1e28"/>
+  <text x="1153" y="208" font-size="16" text-anchor="middle">🔁</text>
+  <text x="1153" y="224" fill="#9aa5be" font-size="9" text-anchor="middle">NOCHMAL</text>
+
+  <!-- Speed -->
+  <text x="850" y="258" fill="#5a6785" font-size="9" letter-spacing="1">GESCHWINDIGKEIT</text>
+  <rect x="850" y="264" width="55" height="24" rx="6" fill="#1a1e28"/>
+  <text x="877" y="280" fill="#9aa5be" font-size="10" text-anchor="middle">Silent</text>
+  <rect x="913" y="264" width="55" height="24" rx="6" fill="#29b6f620" stroke="#29b6f6" stroke-width="1"/>
+  <text x="940" y="280" fill="#29b6f6" font-size="10" text-anchor="middle">Normal</text>
+  <rect x="976" y="264" width="55" height="24" rx="6" fill="#1a1e28"/>
+  <text x="1003" y="280" fill="#9aa5be" font-size="10" text-anchor="middle">Sport</text>
+  <rect x="1039" y="264" width="55" height="24" rx="6" fill="#1a1e28"/>
+  <text x="1066" y="280" fill="#9aa5be" font-size="10" text-anchor="middle">Turbo</text>
+
+  <!-- Flow Rate Slider (NEU) -->
+  <text x="850" y="308" fill="#5a6785" font-size="9" letter-spacing="1">FLOW RATE <tspan fill="#29b6f6">NEU</tspan></text>
+  <rect x="850" y="314" width="280" height="6" rx="3" fill="#252c3f"/>
+  <rect x="850" y="314" width="196" height="6" rx="3" fill="#29b6f6"/>
+  <circle cx="1046" cy="317" r="7" fill="#e2e8f4" stroke="#29b6f6" stroke-width="2"/>
+  <text x="1140" y="322" fill="#e2e8f4" font-size="11" font-family="monospace">70%</text>
+
+  <!-- Fan row -->
+  <text x="850" y="342" fill="#5a6785" font-size="9" letter-spacing="1">LÜFTER</text>
+  <rect x="850" y="348" width="280" height="6" rx="3" fill="#252c3f"/>
+  <rect x="850" y="348" width="224" height="6" rx="3" fill="#ffa726"/>
+  <circle cx="1074" cy="351" r="7" fill="#e2e8f4" stroke="#ffa726" stroke-width="2"/>
+  <text x="1140" y="356" fill="#e2e8f4" font-size="11" font-family="monospace">80%</text>
+
+  <!-- AMS Panel -->
+  <rect x="830" y="348" width="364" height="196" rx="10" fill="#13161e" stroke="#252c3f" stroke-width="1"/>
+  <text x="850" y="372" fill="#5a6785" font-size="9" letter-spacing="1">AMS FILAMENT</text>
+  <!-- AMS slots -->
+  <g>
+    <!-- Slot 1 -->
+    <rect x="850" y="382" width="72" height="120" rx="8" fill="#ef535030" stroke="#ef5350" stroke-width="1.5"/>
+    <rect x="858" y="390" width="56" height="8" rx="4" fill="#ef5350"/>
+    <text x="886" y="415" fill="#ef5350" font-size="9" text-anchor="middle">Bambu</text>
+    <text x="886" y="428" fill="#e2e8f4" font-size="10" font-weight="600" text-anchor="middle">PLA Basic</text>
+    <text x="886" y="441" fill="#5a6785" font-size="9" text-anchor="middle">Rot</text>
+    <text x="886" y="490" fill="#5a6785" font-size="9" text-anchor="middle">247g · 82%</text>
+
+    <!-- Slot 2 (active) -->
+    <rect x="932" y="382" width="72" height="120" rx="8" fill="#29b6f630" stroke="#29b6f6" stroke-width="2"/>
+    <rect x="940" y="390" width="56" height="8" rx="4" fill="#29b6f6"/>
+    <text x="968" y="403" fill="#29b6f6" font-size="8" text-anchor="middle">AKTIV</text>
+    <text x="968" y="415" fill="#29b6f6" font-size="9" text-anchor="middle">Bambu</text>
+    <text x="968" y="428" fill="#e2e8f4" font-size="10" font-weight="600" text-anchor="middle">PLA Matte</text>
+    <text x="968" y="441" fill="#5a6785" font-size="9" text-anchor="middle">Blau</text>
+    <text x="968" y="490" fill="#5a6785" font-size="9" text-anchor="middle">189g · 63%</text>
+
+    <!-- Slot 3 -->
+    <rect x="1014" y="382" width="72" height="120" rx="8" fill="#66bb6a20" stroke="#66bb6a" stroke-width="1"/>
+    <rect x="1022" y="390" width="56" height="8" rx="4" fill="#66bb6a"/>
+    <text x="1050" y="415" fill="#66bb6a" font-size="9" text-anchor="middle">eSUN</text>
+    <text x="1050" y="428" fill="#e2e8f4" font-size="10" font-weight="600" text-anchor="middle">PETG</text>
+    <text x="1050" y="441" fill="#5a6785" font-size="9" text-anchor="middle">Grün</text>
+    <text x="1050" y="490" fill="#ffa726" font-size="9" text-anchor="middle">⚠ 45g · 15%</text>
+
+    <!-- Slot 4 (empty) -->
+    <rect x="1096" y="382" width="72" height="120" rx="8" fill="#1a1e28" stroke="#252c3f" stroke-width="1" stroke-dasharray="4,3"/>
+    <text x="1132" y="445" fill="#5a6785" font-size="20" text-anchor="middle">+</text>
+    <text x="1132" y="465" fill="#5a6785" font-size="9" text-anchor="middle">Leer</text>
+  </g>
+
+  <!-- ── EVENT LOG PANEL (NEU) ── -->
+  <rect x="830" y="556" width="364" height="116" rx="10" fill="#13161e" stroke="#252c3f" stroke-width="1"/>
+  <text x="850" y="578" fill="#5a6785" font-size="9" letter-spacing="1">LIVE EVENTS <tspan fill="#29b6f6">NEU</tspan></text>
+  <g font-size="10" font-family="monospace">
+    <text x="850" y="598" fill="#66bb6a">✅</text>
+    <text x="868" y="598" fill="#9aa5be">22:14  Druck abgeschlossen · benchy.3mf</text>
+    <text x="850" y="616" fill="#ffa726">⚠️</text>
+    <text x="868" y="616" fill="#9aa5be">21:03  Filament Slot 3 unter 15%</text>
+    <text x="850" y="634" fill="#29b6f6">ℹ️</text>
+    <text x="868" y="634" fill="#9aa5be">20:47  Druck gestartet · vase.3mf</text>
+    <text x="850" y="652" fill="#ef5350">❌</text>
+    <text x="868" y="652" fill="#9aa5be">19:22  Verbindung unterbrochen (5s)</text>
+  </g>
+
+  <!-- ── MOBILE HINT ── -->
+  <rect x="236" y="556" width="580" height="116" rx="10" fill="#13161e" stroke="#252c3f" stroke-width="1"/>
+  <text x="256" y="578" fill="#5a6785" font-size="9" letter-spacing="1">TEMPERATURVERLAUF — LETZTE 10 MIN</text>
+  <!-- Fake chart area -->
+  <rect x="256" y="585" width="540" height="76" rx="4" fill="#1a1e28"/>
+  <!-- Y axis ticks -->
+  <text x="262" y="596" fill="#5a6785" font-size="8">250°</text>
+  <text x="262" y="621" fill="#5a6785" font-size="8">150°</text>
+  <text x="262" y="646" fill="#5a6785" font-size="8">60°</text>
+  <text x="262" y="657" fill="#5a6785" font-size="8">0°</text>
+  <!-- Nozzle line -->
+  <polyline points="280,640 310,638 340,636 370,634 400,633 430,632 460,631 490,631 520,631 550,631 580,630 610,630 640,630 670,630 700,630 730,631 760,630 790,629" fill="none" stroke="#ef5350" stroke-width="1.5"/>
+  <!-- Bed line -->
+  <polyline points="280,647 310,646 340,645 370,644 400,644 430,644 460,643 490,643 520,643 550,643 580,643 610,642 640,642 670,643 700,643 730,642 760,642 790,642" fill="none" stroke="#29b6f6" stroke-width="1.5"/>
+  <!-- Legend -->
+  <line x1="256" y1="672" x2="272" y2="672" stroke="#ef5350" stroke-width="2"/>
+  <text x="276" y="676" fill="#9aa5be" font-size="9">Nozzle 219.8°</text>
+  <line x1="360" y1="672" x2="376" y2="672" stroke="#29b6f6" stroke-width="2"/>
+  <text x="380" y="676" fill="#9aa5be" font-size="9">Bett 59.6°</text>
+
+  <!-- ── TITLE ── -->
+  <text x="600" y="790" fill="#252c3f" font-size="11" text-anchor="middle" font-family="monospace">BambuPi Manager — UI Wireframe v2 · docs/ui-wireframe.svg</text>
+</svg>
