@@ -719,7 +719,7 @@ tr:hover td { background: rgba(255,255,255,0.01); }
   <div class="modal" style="width:340px;">
     <h2>Temperatur setzen</h2>
     <div class="modal-sub" id="temp-modal-sub"></div>
-    <div class="form-group"><label id="temp-label">Temperatur (°C)</label><input type="number" id="temp-input" placeholder="0"></div>
+    <div class="form-group"><label id="temp-label">Temperatur (°C)</label><input type="number" id="temp-input" placeholder="0" onkeydown="if(event.key==='Enter')sendTemp()"></div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('modal-temp')">Abbrechen</button>
       <button class="btn btn-primary" onclick="sendTemp()">Setzen</button>
@@ -888,8 +888,8 @@ function applyPrinterStatus(p){
 
   const nEl=document.getElementById('nv-'+p.id);
   const bEl=document.getElementById('bv-'+p.id);
-  if(nEl){nEl.textContent=Math.round(nozzle)+'°';nEl.className='temp-actual '+(nozzle>150?'hot':nozzle>50?'warm':nozzle>0?'cool':'off');}
-  if(bEl){bEl.textContent=Math.round(bed)+'°';bEl.className='temp-actual '+(bed>50?'warm':bed>0?'cool':'off');}
+  if(nEl){nEl.textContent=nozzle.toFixed(1)+'°';nEl.className='temp-actual '+(nozzle>150?'hot':nozzle>50?'warm':nozzle>0?'cool':'off');}
+  if(bEl){bEl.textContent=bed.toFixed(1)+'°';bEl.className='temp-actual '+(bed>50?'warm':bed>0?'cool':'off');}
 
   const ntEl=document.getElementById('nt-'+p.id);
   const btEl=document.getElementById('bt-'+p.id);
@@ -1035,7 +1035,7 @@ function buildPrinterCard(p){
           <div class="temp-card" onclick="openTempModal(${p.id},'nozzle',${Math.round(nozzle)})">
             <div class="temp-card-label">🌡️ Nozzle <span class="temp-edit">✏️ setzen</span></div>
             <div class="temp-row">
-              <div class="temp-actual ${nc}" id="nv-${p.id}">${Math.round(nozzle)}°</div>
+              <div class="temp-actual ${nc}" id="nv-${p.id}">${nozzle.toFixed(1)}°</div>
               <div class="temp-target" id="nt-${p.id}">→ ${s.nozzle_temper_target||0}°C</div>
             </div>
             <div class="temp-bar"><div class="temp-bar-fill nozzle" id="nb-${p.id}" style="width:${Math.min(100,nozzle/3)}%"></div></div>
@@ -1043,7 +1043,7 @@ function buildPrinterCard(p){
           <div class="temp-card" onclick="openTempModal(${p.id},'bed',${Math.round(bed)})">
             <div class="temp-card-label">🛏️ Bett <span class="temp-edit">✏️ setzen</span></div>
             <div class="temp-row">
-              <div class="temp-actual ${bc}" id="bv-${p.id}">${Math.round(bed)}°</div>
+              <div class="temp-actual ${bc}" id="bv-${p.id}">${bed.toFixed(1)}°</div>
               <div class="temp-target" id="bt-${p.id}">→ ${s.bed_target_temper||0}°C</div>
             </div>
             <div class="temp-bar"><div class="temp-bar-fill bed" id="bb-${p.id}" style="width:${Math.min(100,bed/1.2)}%"></div></div>
@@ -1157,10 +1157,9 @@ async function motorsOff(pid){
 }
 async function cooldown(pid, target='all'){
   const labels={nozzle:'Nozzle',bed:'Bett',all:'Nozzle & Bett'};
-  if(!confirm(`${labels[target]} auf 0°C kühlen?`))return;
   if(target==='nozzle'||target==='all') await api('/api/printers/'+pid+'/temperature','POST',{type:'nozzle',temp:0});
   if(target==='bed'   ||target==='all') await api('/api/printers/'+pid+'/temperature','POST',{type:'bed',temp:0});
-  toast('❄️ Cooldown gestartet — '+labels[target]+' kühlt ab');
+  toast('❄️ Cooldown — '+labels[target]+' kühlt ab');
 }
 async function filamentLoad(pid){
   await api('/api/printers/'+pid+'/filament_load','POST');
