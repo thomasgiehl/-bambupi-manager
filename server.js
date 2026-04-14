@@ -141,6 +141,19 @@ let printerStatus = {};
 const printStartTimes = {};
 const tempBuffers = {};          // { printerId: { n:[], b:[], t:[] } }
 const TEMP_BUFFER_MAX = 600;     // ~10 Min bei 1 Update/Sek
+const eventLog = [];             // Letzte 50 Events für Event-Log Panel
+const EVENT_LOG_MAX = 50;
+
+function addEvent(type, message, printerId = null) {
+  eventLog.unshift({
+    type,       // 'finish' | 'fail' | 'pause' | 'start' | 'offline' | 'info'
+    message,
+    printerId,
+    time: new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }),
+    ts: Date.now()
+  });
+  if (eventLog.length > EVENT_LOG_MAX) eventLog.pop();
+}
 
 const MATERIAL_DENSITY = {
   'PLA-CF': 1.30, 'PETG-CF': 1.30, 'PA-CF': 1.20,
@@ -224,6 +237,16 @@ function connectMQTT(ip, accessCode, serial, printerId) {
           if (buf.t.length > TEMP_BUFFER_MAX) { buf.t.shift(); buf.n.shift(); buf.b.shift(); }
         }
         broadcastSSE(printerId);
+        // Event-Log befüllen bei Zustandswechsel
+        const printerName = db.prepare('SELECT name FROM printers WHERE id=?').get(printerId)?.name || 'Drucker';
+        const jobName = data.print.subtask_name ? ' · ' + data.print.subtask_name : '';
+        if (prevState !== newState) {
+          if (newState === 'RUNNING')  addEvent('start',  printerName + jobName + ' — Druck gestartet', printerId);
+          if (newState === 'FINISH')   addEvent('finish', printerName + jobName + ' — Fertig ✅', printerId);
+          if (newState === 'FAILED')   addEvent('fail',   printerName + jobName + ' — Fehlgeschlagen ❌', printerId);
+          if (newState === 'PAUSE')    addEvent('pause',  printerName + ' — Pausiert', printerId);
+          if (newState === 'offline')  addEvent('offline',printerName + ' — Verbindung verloren', printerId);
+        }
         if (prevState !== 'RUNNING' && newState === 'RUNNING') {
           printStartTimes[printerId] = Date.now();
         }
@@ -434,6 +457,10 @@ app.get('/api/events', (req, res) => {
 app.get('/api/printers/:id/temp-history', (req, res) => {
   res.json(tempBuffers[req.params.id] || { n: [], b: [], t: [] });
 });
+
+// ── EVENT-LOG ─────────────────────────────────
+app.get('/api/event-log', (req, res) => res.json(eventLog));
+app.post('/api/event-log/clear', (req, res) => { eventLog.length = 0; res.json({ ok: true }); });
 
 // ── SYSTEM MONITOR ────────────────────────────
 app.get('/api/system', (req, res) => {
