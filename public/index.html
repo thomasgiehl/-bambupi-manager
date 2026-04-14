@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>BambuPi Manager</title>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <style>
 :root {
   --bg: #0d0f14;
@@ -432,6 +433,11 @@ tr:hover td { background: rgba(255,255,255,0.01); }
 .hamburger { display: none; flex-direction: column; gap: 5px; cursor: pointer; padding: 6px; border: none; background: none; border-radius: 6px; }
 .hamburger span { display: block; width: 20px; height: 2px; background: var(--text2); border-radius: 2px; transition: all 0.2s; }
 
+/* ── NOTIFICATION BUTTON ── */
+.notif-btn { background: none; border: 1px solid var(--border); border-radius: 7px; color: var(--text3); padding: 5px 9px; cursor: pointer; font-size: 14px; line-height: 1; transition: all 0.15s; }
+.notif-btn:hover { border-color: var(--accent); color: var(--accent); }
+.notif-btn.active { color: var(--green); border-color: rgba(102,187,106,0.4); }
+
 /* ── SIDEBAR OVERLAY ── */
 .sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 150; backdrop-filter: blur(2px); }
 .sidebar-overlay.open { display: block; }
@@ -538,6 +544,7 @@ tr:hover td { background: rgba(255,255,255,0.01); }
       <div class="topbar-title" id="topbar-title">Dashboard</div>
     </div>
     <div class="topbar-right">
+      <button id="notif-btn" class="notif-btn" onclick="requestNotifPermission()" title="Benachrichtigungen aktivieren">🔔</button>
       <div class="status-chip" id="connection-chip">
         <div class="status-dot dot-gray"></div>
         Verbinde...
@@ -728,6 +735,9 @@ let currentFileTab='upload';
 let cachedPrinters=[];
 let cachedAms={};
 let dashboardBuilt=false;
+const prevStates={};
+const tempHistory={};
+const chartInstances={};
 
 const PAGE_TITLES={dashboard:'Dashboard',files:'Dateimanager',printers:'Drucker',filaments:'Filamente',history:'Historie',calculator:'Kostenrechner',settings:'Einstellungen'};
 
@@ -778,6 +788,8 @@ function rcol(pct){if(pct<0)return'#333';if(pct>50)return'var(--green)';if(pct>2
 
 // ── DASHBOARD BUILD ───────────────────────────
 async function buildDashboard(){
+  // Destroy existing charts
+  Object.keys(chartInstances).forEach(pid=>{if(chartInstances[pid]){chartInstances[pid].destroy();delete chartInstances[pid];}});
   const printers=await api('/api/printers');
   const container=document.getElementById('dashboard-printers');
   if(!printers.length){
@@ -791,10 +803,14 @@ async function buildDashboard(){
   }));
   container.innerHTML=printers.map(p=>buildPrinterCard(p)).join('');
   dashboardBuilt=true;
+  // Init temp charts
+  printers.forEach(p=>initTempChart(p.id));
   // Set connection status based on first printer
   const s=printers[0]?.status||{};
   const state=s.gcode_state||'offline';
   updateConnectionChip(state);
+  // (Re)start SSE connection
+  startSSE();
 }
 
 function updateConnectionChip(state){
@@ -856,6 +872,158 @@ async function realtimeUpdate(){
     }
     updateConnectionChip(state);
   });
+// ── BENACHRICHTIGUNGEN ────────────────────────
+async function requestNotifPermission(){
+  if(!('Notification' in window)){toast('Browser unterstützt keine Benachrichtigungen','error');return;}
+  const perm=await Notification.requestPermission();
+  const btn=document.getElementById('notif-btn');
+  if(perm==='granted'){if(btn)btn.classList.add('active');toast('🔔 Benachrichtigungen aktiviert!');}
+  else toast('Benachrichtigungen abgelehnt','error');
+}
+function sendNotif(title,body){
+  if(!('Notification' in window)||Notification.permission!=='granted')return;
+  try{new Notification(title,{body,icon:'/favicon.ico'});}catch(e){}
+}
+
+// ── TEMPERATUR CHARTS ─────────────────────────
+function initTempChart(pid){
+  if(typeof Chart==='undefined')return;
+  const canvas=document.getElementById('temp-chart-'+pid);
+  if(!canvas||chartInstances[pid])return;
+  if(!tempHistory[pid])tempHistory[pid]={n:[],b:[],t:[]};
+  chartInstances[pid]=new Chart(canvas.getContext('2d'),{
+    type:'line',
+    data:{
+      labels:tempHistory[pid].t,
+      datasets:[
+        {label:'Nozzle',data:tempHistory[pid].n,borderColor:'#ef5350',backgroundColor:'rgba(239,83,80,0.07)',borderWidth:1.5,pointRadius:0,tension:0.4,fill:true},
+        {label:'Bett',data:tempHistory[pid].b,borderColor:'#29b6f6',backgroundColor:'rgba(41,182,246,0.07)',borderWidth:1.5,pointRadius:0,tension:0.4,fill:true}
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,animation:false,
+      interaction:{intersect:false,mode:'index'},
+      plugins:{
+        legend:{labels:{color:'#9aa5be',font:{size:10},boxWidth:10,padding:10}},
+        tooltip:{backgroundColor:'rgba(13,15,20,0.95)',titleColor:'#e2e8f4',bodyColor:'#9aa5be',borderColor:'#252c3f',borderWidth:1}
+      },
+      scales:{
+        x:{display:false},
+        y:{min:0,max:280,grid:{color:'rgba(255,255,255,0.03)'},ticks:{color:'#5a6785',font:{size:9},maxTicksLimit:4,callback:v=>v+'°'}}
+      }
+    }
+  });
+}
+function updateTempChart(pid,nozzle,bed){
+  if(!chartInstances[pid])return;
+  const h=tempHistory[pid];
+  const t=new Date().toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  h.t.push(t);h.n.push(nozzle);h.b.push(bed);
+  if(h.t.length>120){h.t.shift();h.n.shift();h.b.shift();}
+  chartInstances[pid].update('none');
+}
+
+// ── REALTIME UPDATE (SSE + Fallback-Polling) ──
+function applyPrinterStatus(p){
+  if(!dashboardBuilt)return;
+  const s=p.status||{};
+  const nozzle=s.nozzle_temper||0;
+  const bed=s.bed_temper||0;
+  const progress=s.mc_percent||0;
+  const remaining=s.mc_remaining_time||0;
+  const state=s.gcode_state||'offline';
+
+  const nEl=document.getElementById('nv-'+p.id);
+  const bEl=document.getElementById('bv-'+p.id);
+  if(nEl){nEl.textContent=Math.round(nozzle)+'°';nEl.className='temp-actual '+(nozzle>150?'hot':nozzle>50?'warm':nozzle>0?'cool':'off');}
+  if(bEl){bEl.textContent=Math.round(bed)+'°';bEl.className='temp-actual '+(bed>50?'warm':bed>0?'cool':'off');}
+
+  const ntEl=document.getElementById('nt-'+p.id);
+  const btEl=document.getElementById('bt-'+p.id);
+  if(ntEl)ntEl.textContent='→ '+(s.nozzle_temper_target||0)+'°C';
+  if(btEl)btEl.textContent='→ '+(s.bed_target_temper||0)+'°C';
+
+  const nbEl=document.getElementById('nb-'+p.id);
+  const bbEl=document.getElementById('bb-'+p.id);
+  if(nbEl)nbEl.style.width=Math.min(100,nozzle/3)+'%';
+  if(bbEl)bbEl.style.width=Math.min(100,bed/1.2)+'%';
+
+  const paEl=document.getElementById('pa-'+p.id);
+  const pfEl=document.getElementById('pf-'+p.id);
+  const ppEl=document.getElementById('pp-'+p.id);
+  const ptEl=document.getElementById('pt-'+p.id);
+  if(paEl){
+    paEl.style.display=state==='RUNNING'?'block':'none';
+    if(pfEl)pfEl.style.width=progress+'%';
+    if(ppEl)ppEl.textContent=progress+'%';
+    if(ptEl)ptEl.textContent='⏱ '+remaining+' Min';
+  }
+
+  const bdEl=document.getElementById('badge-'+p.id);
+  if(bdEl){
+    if(state==='RUNNING')bdEl.className='badge badge-printing';
+    else if(state==='offline')bdEl.className='badge badge-offline';
+    else bdEl.className='badge badge-ready';
+    bdEl.innerHTML=state==='RUNNING'?'<div class="status-dot dot-green"></div>DRUCKT':state==='offline'?'<div class="status-dot dot-gray"></div>OFFLINE':'<div class="status-dot dot-green"></div>BEREIT';
+  }
+
+  // Push-Benachrichtigungen bei Zustandswechsel
+  const prev=prevStates[p.id];
+  if(prev==='RUNNING'&&state==='FINISH') sendNotif('✅ Druck abgeschlossen!',p.name+(s.subtask_name?' · '+s.subtask_name:''));
+  else if(prev==='RUNNING'&&state==='FAILED') sendNotif('❌ Druck fehlgeschlagen!',p.name+(s.subtask_name?' · '+s.subtask_name:''));
+  prevStates[p.id]=state;
+
+  // Temperatur-Graph aktualisieren
+  updateTempChart(p.id,nozzle,bed);
+
+  updateConnectionChip(state);
+}
+
+// Fallback: polling falls SSE nicht verfügbar
+async function realtimeUpdate(){
+  if(!dashboardBuilt)return;
+  const printers=await api('/api/printers');
+  printers.forEach(applyPrinterStatus);
+}
+
+// ── SSE VERBINDUNG ────────────────────────────
+let sseSource=null;
+let sseFallbackTimer=null;
+
+function startSSE(){
+  if(sseSource){sseSource.close();sseSource=null;}
+  if(sseFallbackTimer){clearInterval(sseFallbackTimer);sseFallbackTimer=null;}
+  try{
+    sseSource=new EventSource('/api/events');
+    sseSource.onmessage=(e)=>{
+      try{
+        const msg=JSON.parse(e.data);
+        if(msg.type==='status'){
+          // Update cachedPrinters
+          const printer=cachedPrinters.find(p=>p.id===msg.id);
+          if(printer){printer.status=msg.status;applyPrinterStatus(printer);}
+        }
+      }catch(err){}
+    };
+    sseSource.onopen=()=>{
+      const chip=document.getElementById('connection-chip');
+      // SSE aktiv — Chip zeigt Echtzeitstatus
+    };
+    sseSource.onerror=()=>{
+      // SSE fehlgeschlagen → Fallback auf 2s Polling
+      sseSource.close();sseSource=null;
+      if(!sseFallbackTimer){
+        sseFallbackTimer=setInterval(()=>{
+          if(document.getElementById('page-dashboard').classList.contains('active'))realtimeUpdate();
+        },2000);
+      }
+    };
+  }catch(err){
+    // EventSource nicht verfügbar → direkt polling
+    sseFallbackTimer=setInterval(()=>{
+      if(document.getElementById('page-dashboard').classList.contains('active'))realtimeUpdate();
+    },2000);
+  }
 }
 
 function buildPrinterCard(p){
@@ -988,6 +1156,15 @@ function buildPrinterCard(p){
 
     <!-- AMS — volle Breite unten -->
     ${buildAmsHtml(ams,p.id)}
+
+    <!-- TEMPERATUR GRAPH -->
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-top:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <span style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;">Temperaturverlauf</span>
+        <span style="font-size:9px;color:var(--text3);font-family:var(--mono);">letzte 10 Min</span>
+      </div>
+      <div style="height:90px;"><canvas id="temp-chart-${p.id}"></canvas></div>
+    </div>
   </div>`;
 }
 
@@ -1291,6 +1468,17 @@ setInterval(()=>{
 setInterval(()=>{
   if(document.getElementById('page-dashboard').classList.contains('active')) loadStats();
 },30000);
+// Benachrichtigungs-Button Zustand setzen
+if('Notification' in window && Notification.permission==='granted'){
+  const b=document.getElementById('notif-btn');if(b)b.classList.add('active');
+}
+loadStats();
+buildDashboard();
+// Stats alle 30s aktualisieren
+setInterval(()=>{
+  if(document.getElementById('page-dashboard').classList.contains('active')) loadStats();
+},30000);
+// SSE wird in buildDashboard gestartet — kein setInterval für realtimeUpdate mehr nötig
 </script>
 
 <!-- BOTTOM NAVIGATION (Mobile) -->

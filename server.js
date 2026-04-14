@@ -113,6 +113,29 @@ for (const [key, value] of Object.entries(defaultSettings)) {
   if (!exists) db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run(key, value);
 }
 
+// ── SSE ───────────────────────────────────────
+const sseClients = new Set();
+
+function broadcastSSE(printerId) {
+  if (sseClients.size === 0) return;
+  const payload = JSON.stringify({
+    type: 'status',
+    id: printerId,
+    status: printerStatus[printerId] || { gcode_state: 'offline' }
+  });
+  const chunk = `data: ${payload}\n\n`;
+  for (const res of sseClients) {
+    try { res.write(chunk); } catch(e) { sseClients.delete(res); }
+  }
+}
+
+// Heartbeat — verhindert Timeout bei inaktiver Verbindung
+setInterval(() => {
+  for (const res of sseClients) {
+    try { res.write(': ping\n\n'); } catch(e) { sseClients.delete(res); }
+  }
+}, 25000);
+
 // ── MQTT ──────────────────────────────────────
 let printerStatus = {};
 const printStartTimes = {};
@@ -187,6 +210,7 @@ function connectMQTT(ip, accessCode, serial, printerId) {
         const prevState = printerStatus[printerId]?.gcode_state;
         const newState = data.print.gcode_state;
         printerStatus[printerId] = { ...data.print, last_update: new Date().toISOString() };
+        broadcastSSE(printerId);
         if (prevState !== 'RUNNING' && newState === 'RUNNING') {
           printStartTimes[printerId] = Date.now();
         }
@@ -366,6 +390,32 @@ app.post('/api/filament-db/refresh', async (req, res) => {
 
 // ── API STATUS ────────────────────────────────
 app.get('/api/status', (req, res) => res.json({ ok: true, uptime: process.uptime() }));
+
+// ── SERVER-SENT EVENTS ────────────────────────
+app.get('/api/events', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no'); // nginx: kein buffering
+  res.flushHeaders();
+
+  sseClients.add(res);
+  req.on('close', () => sseClients.delete(res));
+
+  // Sofort aktuellen Status senden
+  const printers = db.prepare('SELECT * FROM printers').all();
+  printers.forEach(p => {
+    const payload = JSON.stringify({
+      type: 'status',
+      id: p.id,
+      name: p.name,
+      model: p.model,
+      ip: p.ip,
+      status: printerStatus[p.id] || { gcode_state: 'offline' }
+    });
+    res.write(`data: ${payload}\n\n`);
+  });
+});
 
 // ── SYSTEM MONITOR ────────────────────────────
 app.get('/api/system', (req, res) => {

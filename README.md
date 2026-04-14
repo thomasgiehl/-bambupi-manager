@@ -10,6 +10,10 @@ Built as an open-source alternative to Bambu Studio — fully local, no cloud re
 ## ✨ Features
 
 - **Live Dashboard** — Real-time camera stream, temperatures, print progress
+- **Server-Sent Events** — Push updates directly from MQTT to browser, no polling overhead
+- **Temperature Graphs** — Live Chart.js graphs showing nozzle & bed temperature history
+- **Push Notifications** — Browser notifications when print finishes or fails (works in background tab)
+- **Mobile Ready** — Responsive design with hamburger menu and bottom navigation bar
 - **Full Printer Control** — Pause, resume, stop, home axes, control lights & fans
 - **AMS Support** — RFID auto-detection + manual assignment for third-party filaments
 - **Filament Management** — Track spools, remaining weight, costs per kg
