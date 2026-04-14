@@ -824,54 +824,6 @@ function updateConnectionChip(state){
   }
 }
 
-// Realtime — nur Werte patchen
-async function realtimeUpdate(){
-  if(!dashboardBuilt)return;
-  const printers=await api('/api/printers');
-  printers.forEach(p=>{
-    const s=p.status||{};
-    const nozzle=s.nozzle_temper||0;
-    const bed=s.bed_temper||0;
-    const progress=s.mc_percent||0;
-    const remaining=s.mc_remaining_time||0;
-    const state=s.gcode_state||'offline';
-
-    const nEl=document.getElementById('nv-'+p.id);
-    const bEl=document.getElementById('bv-'+p.id);
-    if(nEl){nEl.textContent=Math.round(nozzle)+'°';nEl.className='temp-actual '+(nozzle>150?'hot':nozzle>50?'warm':nozzle>0?'cool':'off');}
-    if(bEl){bEl.textContent=Math.round(bed)+'°';bEl.className='temp-actual '+(bed>50?'warm':bed>0?'cool':'off');}
-
-    const ntEl=document.getElementById('nt-'+p.id);
-    const btEl=document.getElementById('bt-'+p.id);
-    if(ntEl)ntEl.textContent='→ '+(s.nozzle_temper_target||0)+'°C';
-    if(btEl)btEl.textContent='→ '+(s.bed_target_temper||0)+'°C';
-
-    // Temp bars (0-300°C for nozzle, 0-120°C for bed)
-    const nbEl=document.getElementById('nb-'+p.id);
-    const bbEl=document.getElementById('bb-'+p.id);
-    if(nbEl)nbEl.style.width=Math.min(100,nozzle/3)+'%';
-    if(bbEl)bbEl.style.width=Math.min(100,bed/1.2)+'%';
-
-    const paEl=document.getElementById('pa-'+p.id);
-    const pfEl=document.getElementById('pf-'+p.id);
-    const ppEl=document.getElementById('pp-'+p.id);
-    const ptEl=document.getElementById('pt-'+p.id);
-    if(paEl){
-      paEl.style.display=state==='RUNNING'?'block':'none';
-      if(pfEl)pfEl.style.width=progress+'%';
-      if(ppEl)ppEl.textContent=progress+'%';
-      if(ptEl)ptEl.textContent='⏱ '+remaining+' Min';
-    }
-
-    const bdEl=document.getElementById('badge-'+p.id);
-    if(bdEl){
-      if(state==='RUNNING')bdEl.className='badge badge-printing';
-      else if(state==='offline')bdEl.className='badge badge-offline';
-      else bdEl.className='badge badge-ready';
-      bdEl.innerHTML=state==='RUNNING'?'<div class="status-dot dot-green"></div>DRUCKT':state==='offline'?'<div class="status-dot dot-gray"></div>OFFLINE':'<div class="status-dot dot-green"></div>BEREIT';
-    }
-    updateConnectionChip(state);
-  });
 // ── BENACHRICHTIGUNGEN ────────────────────────
 async function requestNotifPermission(){
   if(!('Notification' in window)){toast('Browser unterstützt keine Benachrichtigungen','error');return;}
