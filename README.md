@@ -5,24 +5,31 @@
 Ein lokales Web-Dashboard für Bambu Lab 3D-Drucker auf dem Raspberry Pi — ohne Cloud, ohne Bambu Studio, ohne Abo.  
 A local web dashboard for Bambu Lab 3D printers on Raspberry Pi — no cloud, no Bambu Studio, no subscription.
 
+> 📋 **Vollständige Feature-Übersicht / Full feature overview:** [docs/FEATURES.md](docs/FEATURES.md)
+
 ---
 
-## ✨ Features
+## ✨ Features (Übersicht / Overview)
 
 | Feature | Beschreibung / Description |
 |---|---|
-| 📊 Live Dashboard | Echtzeit-Temperatur, Fortschritt, Kamera / Real-time temp, progress, camera |
-| 🌡️ Temperaturkontrolle | Nozzle & Bett direkt setzen, Vorheizprofile / Set temps, preheat profiles |
-| 📡 SSE Realtime | Push-Updates ohne Polling, kein Neuladen nötig / Push updates, no reload needed |
-| 🎨 AMS Support | RFID-Erkennung + manuelle Zuweisung / RFID detection + manual assignment |
-| 🧵 Filament-Datenbank | Spulen verwalten, Restmenge, Kosten / Track spools, remaining weight, costs |
-| 📁 Dateimanager | .3mf & .gcode direkt per FTP übertragen / Upload files directly via FTP |
-| 💰 Kostenrechner | Filament + Strom pro Druck / Filament + electricity cost per print |
-| 📜 Druckhistorie | Alle Drucke mit Kosten und Dauer / Full print log with costs |
-| 🖥️ Multi-Drucker | Mehrere Bambu Lab Drucker gleichzeitig / Multiple printers at once |
-| 📱 Mobile | Responsive Design, Bottom-Navigation, Swipe / Responsive, bottom nav, swipe |
+| 📊 Live Dashboard | SSE Echtzeit, Temp-Charts, Kamera / SSE real-time, temp charts, camera |
+| 🌡️ Temperaturkontrolle | Setzen, Vorheizprofile PLA/PETG/ABS/TPU, Cooldown / Set, preheat, cooldown |
+| 🎛️ Druckersteuerung | Pause, Stop, Speed, Lüfter, Licht, Flow Rate / Pause, stop, speed, fan, light, flow |
+| 📡 SSE + Polling | Push-Updates mit automatischem Fallback / Push updates with auto fallback |
+| 🔔 Benachrichtigungen | Browser-Push + Temperatur-Alarm / Browser push + temperature alarm |
+| 📟 Event-Log | Live-Ereignisprotokoll / Live event log (last 50 events) |
+| 🎨 AMS | RFID-Erkennung + manuelle Zuweisung / RFID detection + manual slot assignment |
+| 🧵 Filament-DB | Spulen, Restmenge, Warn-Badge, Bambu Studio Import / Spools, low-warning, BS import |
+| 📁 Dateimanager | Upload, Drag & Drop, FTP, SD-Karte / Upload, drag & drop, FTP, SD card |
+| 📊 Auto-Kostenanalyse | .3mf-Metadaten → Kosten-Preview (Opt-in) / .3mf metadata → cost preview |
+| 💰 Kostenrechner | Filament + Strom + Maschine + Fehldruck + Marge / Full cost breakdown + margin |
+| 📜 Druckhistorie | Log + CSV-Export / Print log + CSV export |
+| 🔄 In-App Updates | Git pull + Neustart per Knopf / One-click git pull + restart |
 | ⛶ Kiosk-Modus | Vollbild für Wandtablet / Fullscreen for wall tablet |
-| 📲 PWA | Als App installierbar (Homescreen) / Installable as app on homescreen |
+| 📲 PWA | Als App installierbar / Installable as home screen app |
+| 🖥️ Multi-Drucker | Beliebig viele Drucker / Any number of printers |
+| 📱 Mobil | Responsive, Bottom-Nav, Swipe / Responsive, bottom nav, swipe |
 
 ---
 
