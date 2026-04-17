@@ -633,6 +633,13 @@ body.kiosk .kiosk-btn { color: var(--accent); border-color: rgba(41,182,246,0.4)
         <div class="file-tab" onclick="switchFileTab('pifiles')">🗂️ Pi-Speicher</div>
       </div>
       <div id="filetab-upload" class="file-tab-content active">
+        <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-bottom:10px;font-size:11px;color:var(--text3);">
+          <span>💰 Kostenberechnung</span>
+          <div style="position:relative;width:34px;height:18px;cursor:pointer;" onclick="toggleAutoCost()">
+            <div id="uc-track" style="position:absolute;inset:0;border-radius:9px;background:var(--border2);transition:0.2s;"></div>
+            <div id="uc-knob" style="position:absolute;width:12px;height:12px;border-radius:50%;background:#fff;top:3px;left:3px;transition:0.2s;"></div>
+          </div>
+        </div>
         <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-input').click()" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="handleDrop(event)">
           <p style="font-size:36px;margin-bottom:10px;">📂</p>
           <p style="font-weight:600;color:var(--text);margin-bottom:4px;">Datei hier ablegen oder klicken</p>
@@ -1679,6 +1686,29 @@ async function initFilePage(){
   const sel=document.getElementById('file-printer-select');
   sel.innerHTML='<option value="">-- Drucker wählen --</option>'+printers.map(p=>`<option value="${p.id}">${p.name} (${p.model})</option>`).join('');
   loadPiFiles();
+  // Toggle-Status laden
+  try{const s=await api('/api/settings');setAutoCostToggle(s.auto_cost_calc==='1');}catch(e){}
+}
+function setAutoCostToggle(on){
+  const track=document.getElementById('uc-track');
+  const knob=document.getElementById('uc-knob');
+  if(!track)return;
+  track.style.background=on?'var(--accent)':'var(--border2)';
+  knob.style.left=on?'19px':'3px';
+}
+async function toggleAutoCost(){
+  try{
+    const s=await api('/api/settings');
+    const newVal=s.auto_cost_calc==='1'?'0':'1';
+    await api('/api/settings','POST',{auto_cost_calc:newVal});
+    setAutoCostToggle(newVal==='1');
+    // auch Settings-Toggle syncen falls offen
+    const cb=document.getElementById('set-auto-cost');
+    const track2=document.getElementById('toggle-auto-cost');
+    const knob2=document.getElementById('toggle-knob');
+    if(cb){cb.checked=newVal==='1';if(track2)track2.classList.toggle('toggle-on',newVal==='1');if(knob2)knob2.style.left=newVal==='1'?'21px':'3px';}
+    toast(newVal==='1'?'💰 Kostenberechnung aktiviert':'Kostenberechnung deaktiviert');
+  }catch(e){}
 }
 function switchFileTab(tab){
   currentFileTab=tab;
