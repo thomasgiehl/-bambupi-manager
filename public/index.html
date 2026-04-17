@@ -441,8 +441,9 @@ tr:hover td { background: rgba(255,255,255,0.01); }
 
 /* ── NOTIFICATION BUTTON ── */
 .notif-btn { background: none; border: 1px solid var(--border); border-radius: 7px; color: var(--text3); padding: 5px 9px; cursor: pointer; font-size: 14px; line-height: 1; transition: all 0.15s; }
-.preheat-btn { background:var(--surface3);border:1px solid var(--border2);border-radius:6px;color:var(--text2);font-size:10px;font-weight:700;font-family:var(--mono);padding:5px 2px;cursor:pointer;transition:all 0.12s;letter-spacing:0.02em; }
+.preheat-btn { background:var(--surface3);border:1px solid var(--border2);border-radius:6px;color:var(--text2);font-size:10px;font-weight:700;font-family:var(--mono);padding:6px 2px;cursor:pointer;transition:all 0.12s;letter-spacing:0.02em;line-height:1.3;display:flex;flex-direction:column;align-items:center;gap:2px; }
 .preheat-btn:hover { background:var(--accent);border-color:var(--accent);color:#fff; }
+.preheat-temps { font-size:8px;font-weight:400;opacity:0.7;letter-spacing:0; }
 .ev-row { display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:7px;background:var(--surface2);font-size:11px; }
 .ev-icon { font-size:14px;flex-shrink:0; }
 .ev-msg { flex:1;color:var(--text2); }
@@ -1246,10 +1247,10 @@ function buildPrinterCard(p){
           <div class="ctrl-section" style="margin-top:10px;">
             <div class="ctrl-section-title">Vorheizen</div>
             <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:5px;">
-              <button class="preheat-btn" onclick="preheat(${p.id},'PLA')">PLA</button>
-              <button class="preheat-btn" onclick="preheat(${p.id},'PETG')">PETG</button>
-              <button class="preheat-btn" onclick="preheat(${p.id},'ABS')">ABS</button>
-              <button class="preheat-btn" onclick="preheat(${p.id},'TPU')">TPU</button>
+              <button class="preheat-btn" onclick="preheat(${p.id},'PLA')">PLA<span class="preheat-temps">220° / 60°</span></button>
+              <button class="preheat-btn" onclick="preheat(${p.id},'PETG')">PETG<span class="preheat-temps">250° / 70°</span></button>
+              <button class="preheat-btn" onclick="preheat(${p.id},'ABS')">ABS<span class="preheat-temps">270° / 100°</span></button>
+              <button class="preheat-btn" onclick="preheat(${p.id},'TPU')">TPU<span class="preheat-temps">230° / 40°</span></button>
             </div>
           </div>
 
