@@ -460,8 +460,6 @@ tr:hover td { background: rgba(255,255,255,0.01); }
 .kiosk-btn:hover { border-color: var(--accent); color: var(--accent); }
 .nav-badge { display:inline-flex;align-items:center;justify-content:center;background:var(--red);color:#fff;font-size:9px;font-weight:700;min-width:16px;height:16px;border-radius:8px;padding:0 4px;margin-left:auto;font-family:var(--mono); }
 .fil-warn { display:inline-flex;align-items:center;gap:4px;background:rgba(239,83,80,0.12);border:1px solid rgba(239,83,80,0.3);border-radius:5px;color:var(--red);font-size:10px;font-weight:600;padding:3px 7px;margin-top:5px; }
-.toggle-on { background:var(--accent) !important; }
-.toggle-on #toggle-knob, .toggle-on + span span { left:21px !important; }
 .cost-preview { border:1px solid rgba(41,182,246,0.3);border-radius:10px;background:rgba(41,182,246,0.05);padding:14px;margin-top:12px; }
 .cost-preview-title { font-size:11px;font-weight:600;color:var(--accent);font-family:var(--mono);margin-bottom:10px;letter-spacing:0.05em; }
 .cost-preview-row { display:flex;justify-content:space-between;font-size:12px;padding:3px 0;color:var(--text2); }
@@ -764,18 +762,16 @@ body.kiosk .kiosk-btn { color: var(--accent); border-color: rgba(41,182,246,0.4)
 
       <div class="card" style="max-width:440px;margin-top:16px;">
         <div class="card-title">Dateimanager</div>
-        <label style="display:flex;align-items:center;gap:12px;cursor:pointer;padding:4px 0;">
-          <div style="position:relative;width:40px;height:22px;flex-shrink:0;">
-            <input type="checkbox" id="set-auto-cost" onchange="saveSettings()" style="opacity:0;width:0;height:0;position:absolute;">
-            <span id="toggle-auto-cost" onclick="document.getElementById('set-auto-cost').click()" style="position:absolute;inset:0;border-radius:11px;background:var(--border2);cursor:pointer;transition:0.2s;">
-              <span style="position:absolute;width:16px;height:16px;border-radius:50%;background:#fff;top:3px;left:3px;transition:0.2s;" id="toggle-knob"></span>
-            </span>
+        <div style="display:flex;align-items:center;gap:12px;padding:4px 0;">
+          <div style="position:relative;width:40px;height:22px;flex-shrink:0;cursor:pointer;" onclick="toggleAutoCost()">
+            <div id="set-auto-cost-track" style="position:absolute;inset:0;border-radius:11px;background:var(--border2);transition:0.2s;"></div>
+            <div id="set-auto-cost-knob" style="position:absolute;width:16px;height:16px;border-radius:50%;background:#fff;top:3px;left:3px;transition:0.2s;"></div>
           </div>
           <div>
             <div style="font-size:13px;font-weight:500;">Automatische Kostenberechnung beim Upload</div>
             <div style="font-size:11px;color:var(--text3);margin-top:2px;">Nach dem Hochladen einer .3mf Datei werden Gewicht und Druckzeit automatisch aus der Datei gelesen und ein Kosten-Preview angezeigt</div>
           </div>
-        </label>
+        </div>
       </div>
 
       <div class="card" style="max-width:440px;margin-top:16px;">
@@ -1690,11 +1686,12 @@ async function initFilePage(){
   try{const s=await api('/api/settings');setAutoCostToggle(s.auto_cost_calc==='1');}catch(e){}
 }
 function setAutoCostToggle(on){
-  const track=document.getElementById('uc-track');
-  const knob=document.getElementById('uc-knob');
-  if(!track)return;
-  track.style.background=on?'var(--accent)':'var(--border2)';
-  knob.style.left=on?'19px':'3px';
+  // Upload-Tab Toggle
+  const t1=document.getElementById('uc-track'),k1=document.getElementById('uc-knob');
+  if(t1){t1.style.background=on?'var(--accent)':'var(--border2)';k1.style.left=on?'19px':'3px';t1.dataset.on=on?'1':'0';}
+  // Settings-Toggle
+  const t2=document.getElementById('set-auto-cost-track'),k2=document.getElementById('set-auto-cost-knob');
+  if(t2){t2.style.background=on?'var(--accent)':'var(--border2)';k2.style.left=on?'21px':'3px';t2.dataset.on=on?'1':'0';}
 }
 async function toggleAutoCost(){
   try{
@@ -1702,11 +1699,6 @@ async function toggleAutoCost(){
     const newVal=s.auto_cost_calc==='1'?'0':'1';
     await api('/api/settings','POST',{auto_cost_calc:newVal});
     setAutoCostToggle(newVal==='1');
-    // auch Settings-Toggle syncen falls offen
-    const cb=document.getElementById('set-auto-cost');
-    const track2=document.getElementById('toggle-auto-cost');
-    const knob2=document.getElementById('toggle-knob');
-    if(cb){cb.checked=newVal==='1';if(track2)track2.classList.toggle('toggle-on',newVal==='1');if(knob2)knob2.style.left=newVal==='1'?'21px':'3px';}
     toast(newVal==='1'?'💰 Kostenberechnung aktiviert':'Kostenberechnung deaktiviert');
   }catch(e){}
 }
@@ -1970,20 +1962,14 @@ async function loadSettings(){
   const fr=parseInt(s.failure_rate)||10;
   document.getElementById('set-failure-rate').value=fr;
   document.getElementById('set-failure-val').textContent=fr+'%';
-  const autoCost=s.auto_cost_calc==='1';
-  const cb=document.getElementById('set-auto-cost');
-  const knob=document.getElementById('toggle-knob');
-  const track=document.getElementById('toggle-auto-cost');
-  if(cb){cb.checked=autoCost;track.classList.toggle('toggle-on',autoCost);knob.style.left=autoCost?'21px':'3px';}
+  setAutoCostToggle(s.auto_cost_calc==='1');
   updateMachineCostPreview();
   loadCurrentVersion();
   checkForUpdateSilent();
 }
 async function saveSettings(){
-  const autoCost=document.getElementById('set-auto-cost')?.checked?'1':'0';
-  const track=document.getElementById('toggle-auto-cost');
-  const knob=document.getElementById('toggle-knob');
-  if(track){track.classList.toggle('toggle-on',autoCost==='1');if(knob)knob.style.left=autoCost==='1'?'21px':'3px';}
+  const t2=document.getElementById('set-auto-cost-track');
+  const autoCost=t2?.dataset.on==='1'?'1':'0';
   await api('/api/settings','POST',{
     electricity_cost:document.getElementById('set-electricity').value,
     printer_watt:document.getElementById('set-watt').value,
