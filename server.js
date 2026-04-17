@@ -110,7 +110,8 @@ const defaultSettings = {
   currency: 'EUR',
   machine_price: '700',
   machine_hours: '5000',
-  failure_rate: '10'
+  failure_rate: '10',
+  auto_cost_calc: '0'
 };
 for (const [key, value] of Object.entries(defaultSettings)) {
   const exists = db.prepare('SELECT key FROM settings WHERE key = ?').get(key);
@@ -901,10 +902,79 @@ app.post('/api/update/apply', (req, res) => {
   }
 });
 
+// ── PRINT-METADATEN EXTRAKTION ────────────────
+function parseTimeString(str) {
+  let s = 0;
+  const h = str.match(/(\d+)\s*h/i); const m = str.match(/(\d+)\s*m(?!s)/i); const sec = str.match(/(\d+)\s*s/i);
+  if (h) s += parseInt(h[1]) * 3600; if (m) s += parseInt(m[1]) * 60; if (sec) s += parseInt(sec[1]);
+  return s || null;
+}
+function formatSeconds(s) {
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+  return [h > 0 ? h + 'h' : '', m > 0 ? m + 'm' : ''].filter(Boolean).join(' ') || '< 1m';
+}
+function parseSliceInfoXml(xml) {
+  const r = { weight_g: null, time_s: null, printer_model: null, filaments: [] };
+  const wm = xml.match(/key="weight"\s+value="([0-9.]+)"/);     if (wm) r.weight_g = parseFloat(wm[1]);
+  const tm = xml.match(/key="time"\s+value="([0-9]+)"/);        if (tm) r.time_s = parseInt(tm[1]);
+  if (!r.time_s) { const pm = xml.match(/key="prediction"\s+value="([0-9]+)"/); if (pm) r.time_s = parseInt(pm[1]); }
+  const prmm = xml.match(/key="printer_model_id"\s+value="([^"]+)"/); if (prmm) r.printer_model = prmm[1];
+  const fRe = /<filament[^>]+id="([^"]+)"[^>]+type="([^"]+)"[^>]+color="([^"]+)"[^>]+used_m="([^"]+)"[^>]+used_g="([^"]+)"/g;
+  let fm; while ((fm = fRe.exec(xml)) !== null) r.filaments.push({ id: parseInt(fm[1]), type: fm[2], color: fm[3], used_m: parseFloat(fm[4]), used_g: parseFloat(fm[5]) });
+  if (!r.weight_g && r.filaments.length) r.weight_g = r.filaments.reduce((s, f) => s + f.used_g, 0);
+  return r;
+}
+function parseGcodeHeader(text) {
+  const r = { weight_g: null, time_s: null, filaments: [], filament_type: null };
+  const weights = [];
+  for (const line of text.split('\n').slice(0, 200)) {
+    if (!line.startsWith(';')) continue;
+    let m;
+    m = line.match(/;\s*total filament weight\s*=\s*([0-9.]+)/i); if (m) { r.weight_g = parseFloat(m[1]); continue; }
+    m = line.match(/;\s*filament used \[g\]\s*=\s*([0-9.]+)/i);   if (m) { weights.push(parseFloat(m[1])); continue; }
+    m = line.match(/;\s*estimated printing time.*?=\s*(.+)/i);     if (m) { r.time_s = parseTimeString(m[1].trim()); continue; }
+    m = line.match(/;\s*filament_type\s*=\s*(.+)/i);               if (m) { r.filament_type = m[1].trim(); continue; }
+  }
+  if (!r.weight_g && weights.length) r.weight_g = weights.reduce((a, b) => a + b, 0);
+  return r;
+}
+function extractPrintMetadata(filePath) {
+  try {
+    const ext = path.extname(filePath).toLowerCase();
+    if (ext === '.3mf' && AdmZip) {
+      const zip = new AdmZip(filePath);
+      const entry = zip.getEntry('Metadata/slice_info.config');
+      if (entry) return parseSliceInfoXml(entry.getData().toString('utf8'));
+      const gc = zip.getEntry('Metadata/plate_1.gcode');
+      if (gc) return parseGcodeHeader(gc.getData().slice(0, 8192).toString('utf8'));
+    }
+    if (ext === '.gcode') {
+      const fd = fs.openSync(filePath, 'r'); const buf = Buffer.alloc(16384);
+      const n = fs.readSync(fd, buf, 0, 16384, 0); fs.closeSync(fd);
+      return parseGcodeHeader(buf.toString('utf8', 0, n));
+    }
+  } catch (e) { console.error('extractPrintMetadata:', e.message); }
+  return null;
+}
+
 // ── UPLOAD ────────────────────────────────────
 app.post('/api/upload', upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Keine Datei' });
-  res.json({ filename: req.file.filename, originalname: req.file.originalname });
+  const meta = extractPrintMetadata(req.file.path);
+  res.json({
+    filename: req.file.filename,
+    originalname: req.file.originalname,
+    metadata: meta ? {
+      weight_g: meta.weight_g,
+      time_s: meta.time_s,
+      time_formatted: meta.time_s ? formatSeconds(meta.time_s) : null,
+      filament_type: meta.filament_type || (meta.filaments[0] ? meta.filaments[0].type : null),
+      filament_color: meta.filaments[0] ? meta.filaments[0].color : null,
+      multi_color: meta.filaments.length > 1,
+      filament_count: meta.filaments.length,
+      printer_model: meta.printer_model || null
+    } : null
+  });
 });
 app.get('/api/uploads', (req, res) => {
   if (!fs.existsSync('./uploads')) return res.json([]);

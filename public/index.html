@@ -460,6 +460,12 @@ tr:hover td { background: rgba(255,255,255,0.01); }
 .kiosk-btn:hover { border-color: var(--accent); color: var(--accent); }
 .nav-badge { display:inline-flex;align-items:center;justify-content:center;background:var(--red);color:#fff;font-size:9px;font-weight:700;min-width:16px;height:16px;border-radius:8px;padding:0 4px;margin-left:auto;font-family:var(--mono); }
 .fil-warn { display:inline-flex;align-items:center;gap:4px;background:rgba(239,83,80,0.12);border:1px solid rgba(239,83,80,0.3);border-radius:5px;color:var(--red);font-size:10px;font-weight:600;padding:3px 7px;margin-top:5px; }
+.toggle-on { background:var(--accent) !important; }
+.toggle-on #toggle-knob, .toggle-on + span span { left:21px !important; }
+.cost-preview { border:1px solid rgba(41,182,246,0.3);border-radius:10px;background:rgba(41,182,246,0.05);padding:14px;margin-top:12px; }
+.cost-preview-title { font-size:11px;font-weight:600;color:var(--accent);font-family:var(--mono);margin-bottom:10px;letter-spacing:0.05em; }
+.cost-preview-row { display:flex;justify-content:space-between;font-size:12px;padding:3px 0;color:var(--text2); }
+.cost-preview-row.total { border-top:1px solid var(--border2);margin-top:6px;padding-top:8px;font-weight:700;color:var(--text);font-size:14px; }
 .update-version { font-family:var(--mono);font-size:12px;color:var(--text3);padding:6px 10px;background:var(--surface3);border-radius:6px;display:inline-block; }
 .update-commit { padding:7px 10px;border-bottom:1px solid var(--border);font-size:12px; }
 .update-commit:last-child { border-bottom:none; }
@@ -747,6 +753,22 @@ body.kiosk .kiosk-btn { color: var(--accent); border-color: rgba(41,182,246,0.4)
           <input type="range" min="0" max="30" value="10" id="set-failure-rate" oninput="document.getElementById('set-failure-val').textContent=this.value+'%'" style="width:100%;">
         </div>
         <button class="btn btn-primary" onclick="saveSettings()">Speichern</button>
+      </div>
+
+      <div class="card" style="max-width:440px;margin-top:16px;">
+        <div class="card-title">Dateimanager</div>
+        <label style="display:flex;align-items:center;gap:12px;cursor:pointer;padding:4px 0;">
+          <div style="position:relative;width:40px;height:22px;flex-shrink:0;">
+            <input type="checkbox" id="set-auto-cost" onchange="saveSettings()" style="opacity:0;width:0;height:0;position:absolute;">
+            <span id="toggle-auto-cost" onclick="document.getElementById('set-auto-cost').click()" style="position:absolute;inset:0;border-radius:11px;background:var(--border2);cursor:pointer;transition:0.2s;">
+              <span style="position:absolute;width:16px;height:16px;border-radius:50%;background:#fff;top:3px;left:3px;transition:0.2s;" id="toggle-knob"></span>
+            </span>
+          </div>
+          <div>
+            <div style="font-size:13px;font-weight:500;">Automatische Kostenberechnung beim Upload</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:2px;">Nach dem Hochladen einer .3mf Datei werden Gewicht und Druckzeit automatisch aus der Datei gelesen und ein Kosten-Preview angezeigt</div>
+          </div>
+        </label>
       </div>
 
       <div class="card" style="max-width:440px;margin-top:16px;">
@@ -1708,8 +1730,81 @@ async function uploadFile(file){
       toast('✅ Hochgeladen!');
       const pid=document.getElementById('file-printer-select').value;
       q.innerHTML=`<div class="file-row"><div><div class="file-name">${file.name}</div><div class="file-meta">${fmtSize(file.size)}</div></div><div class="file-actions">${pid?`<button class="btn btn-primary btn-sm" onclick="printFromPiDirect('${data.filename}',${pid})">▶️ Jetzt drucken</button>`:''}</div></div>`;
+      // Auto-Kostenberechnung wenn aktiviert
+      try{
+        const s=await api('/api/settings');
+        if(s.auto_cost_calc==='1'&&data.metadata){
+          showUploadCostPreview(data.metadata, data.filename, file.name);
+        }
+      }catch(e){}
     }
   }catch(e){toast('Upload Fehler!','error');q.innerHTML='';}
+}
+
+async function showUploadCostPreview(meta, filename, originalName){
+  const q=document.getElementById('upload-queue');
+  const filaments=await api('/api/filaments');
+  // Filamentvorschlag: Typ aus Datei mit DB vergleichen
+  const suggested=filaments.find(f=>meta.filament_type&&f.material.toLowerCase()===meta.filament_type.toLowerCase());
+  const filSelect=filaments.length?`<select id="ucp-filament" onchange="updateUploadCostCalc()" style="width:100%;background:var(--surface3);border:1px solid var(--border);border-radius:6px;padding:6px 8px;color:var(--text);font-size:12px;margin-top:6px;">
+    <option value="">-- Filament wählen (optional) --</option>
+    ${filaments.map(f=>`<option value="${f.id}" ${suggested&&f.id===suggested.id?'selected':''}>${f.brand} ${f.color} ${f.material} (${f.price_per_kg>0?f.price_per_kg+'€/kg':'kein Preis'})</option>`).join('')}
+  </select>`:'';
+
+  const previewHtml=`<div class="cost-preview" id="upload-cost-preview">
+    <div class="cost-preview-title">📊 DATEI-ANALYSE</div>
+    <div class="cost-preview-row"><span>📄 Datei</span><span style="font-family:var(--mono);font-size:11px;">${originalName}</span></div>
+    ${meta.weight_g?`<div class="cost-preview-row"><span>🧵 Filament</span><span style="font-family:var(--mono);">${meta.weight_g.toFixed(1)}g${meta.multi_color?' ('+meta.filament_count+' Farben)':''}</span></div>`:''}
+    ${meta.time_formatted?`<div class="cost-preview-row"><span>⏱️ Druckzeit</span><span style="font-family:var(--mono);">${meta.time_formatted}</span></div>`:''}
+    ${meta.filament_type?`<div class="cost-preview-row"><span>🔍 Erkannt</span><span style="font-family:var(--mono);">${meta.filament_type}${meta.filament_color?` <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${meta.filament_color};margin-left:4px;vertical-align:middle;"></span>`:''}</span></div>`:''}
+    ${filaments.length?`<div style="margin-top:8px;font-size:11px;color:var(--text3);">Filament für Kostenberechnung:</div>${filSelect}`:''}
+    <div id="ucp-result" style="margin-top:10px;"></div>
+    <div style="display:flex;gap:8px;margin-top:12px;">
+      <button class="btn btn-primary btn-sm" onclick="openCalcFromUpload(${JSON.stringify(meta).replace(/"/g,'&quot;')})" style="font-size:11px;">📱 Im Rechner öffnen</button>
+      <button class="btn btn-secondary btn-sm" onclick="document.getElementById('upload-cost-preview').remove()" style="font-size:11px;">✕ Schließen</button>
+    </div>
+  </div>`;
+  q.insertAdjacentHTML('beforeend', previewHtml);
+  if(suggested) updateUploadCostCalc();
+}
+
+async function updateUploadCostCalc(){
+  const sel=document.getElementById('ucp-filament');
+  const result=document.getElementById('ucp-result');
+  if(!sel||!result)return;
+  const filament_id=sel.value;
+  const preview=document.getElementById('upload-cost-preview');
+  if(!preview)return;
+  const weight_g=parseFloat(preview.querySelector('[data-weight]')?.dataset.weight)||0;
+  // Werte aus den angezeigten Zeilen holen
+  try{
+    const rows=preview.querySelectorAll('.cost-preview-row');
+    let wg=0,ts=0;
+    rows.forEach(r=>{if(r.textContent.includes('Filament'))wg=parseFloat(r.querySelector('span:last-child').textContent)||0;});
+    // Druckzeit in Minuten aus formatierter Zeit lesen
+    const timeEl=preview.querySelector('.cost-preview-row span[style*="mono"]:last-child');
+    if(!filament_id){result.innerHTML='';return;}
+    const r=await api('/api/calculate','POST',{grams:wg,duration_min:0,filament_id,failure_rate:10});
+    result.innerHTML=`<div class="cost-preview-row"><span>🧵 Filamentkosten</span><span style="font-family:var(--mono);color:var(--accent);">${r.filament_cost.toFixed(3)} €</span></div>
+    <div class="cost-preview-row total"><span>💰 Geschätzt</span><span style="color:var(--accent);">${r.filament_cost.toFixed(2)} €</span></div>`;
+  }catch(e){}
+}
+
+function openCalcFromUpload(meta){
+  showPage('calculator');
+  setTimeout(async()=>{
+    if(meta.weight_g) document.getElementById('calc-grams').value=meta.weight_g.toFixed(1);
+    if(meta.time_s)   document.getElementById('calc-duration').value=Math.round(meta.time_s/60);
+    if(meta.multi_color) document.getElementById('calc-purge').value=30;
+    // Filament-Typ vorschlagen
+    if(meta.filament_type){
+      const fils=await api('/api/filaments');
+      const match=fils.find(f=>f.material.toLowerCase()===meta.filament_type.toLowerCase());
+      if(match) document.getElementById('calc-filament').value=match.id;
+    }
+    calculate();
+    toast('📊 Werte aus .3mf geladen!');
+  },300);
 }
 async function printFromPiDirect(filename,pid){
   if(!confirm('Hochladen und starten?'))return;toast('⬆️ Wird hochgeladen...');
@@ -1845,17 +1940,27 @@ async function loadSettings(){
   const fr=parseInt(s.failure_rate)||10;
   document.getElementById('set-failure-rate').value=fr;
   document.getElementById('set-failure-val').textContent=fr+'%';
+  const autoCost=s.auto_cost_calc==='1';
+  const cb=document.getElementById('set-auto-cost');
+  const knob=document.getElementById('toggle-knob');
+  const track=document.getElementById('toggle-auto-cost');
+  if(cb){cb.checked=autoCost;track.classList.toggle('toggle-on',autoCost);knob.style.left=autoCost?'21px':'3px';}
   updateMachineCostPreview();
   loadCurrentVersion();
   checkForUpdateSilent();
 }
 async function saveSettings(){
+  const autoCost=document.getElementById('set-auto-cost')?.checked?'1':'0';
+  const track=document.getElementById('toggle-auto-cost');
+  const knob=document.getElementById('toggle-knob');
+  if(track){track.classList.toggle('toggle-on',autoCost==='1');if(knob)knob.style.left=autoCost==='1'?'21px':'3px';}
   await api('/api/settings','POST',{
     electricity_cost:document.getElementById('set-electricity').value,
     printer_watt:document.getElementById('set-watt').value,
     machine_price:document.getElementById('set-machine-price').value,
     machine_hours:document.getElementById('set-machine-hours').value,
-    failure_rate:document.getElementById('set-failure-rate').value
+    failure_rate:document.getElementById('set-failure-rate').value,
+    auto_cost_calc:autoCost
   });
   toast('Gespeichert ✅');
 }
