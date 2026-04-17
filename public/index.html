@@ -677,23 +677,50 @@ body.kiosk .kiosk-btn { color: var(--accent); border-color: rgba(41,182,246,0.4)
       <div class="page-header"><div class="page-title">Kostenrechner</div></div>
       <div class="grid2">
         <div class="card">
-          <div class="card-title">Parameter</div>
-          <div class="form-group"><label>Filament</label><select id="calc-filament"></select></div>
+          <div class="card-title">Material & Zeit</div>
+          <div class="form-group"><label>Filament</label><select id="calc-filament" onchange="calculate()"></select></div>
           <div class="form-row">
             <div class="form-group"><label>Gramm verbraucht</label><input type="number" id="calc-grams" placeholder="45" oninput="calculate()"></div>
-            <div class="form-group"><label>Druckzeit (Min)</label><input type="number" id="calc-duration" placeholder="180" oninput="calculate()"></div>
+            <div class="form-group"><label>Purge / Abfall (g)</label><input type="number" id="calc-purge" placeholder="0" oninput="calculate()"></div>
           </div>
+          <div class="form-group"><label>Druckzeit (Minuten)</label><input type="number" id="calc-duration" placeholder="180" oninput="calculate()"></div>
+
+          <div class="card-title" style="margin-top:14px;">Fehldruck-Puffer</div>
+          <div class="form-group" style="margin-bottom:4px;">
+            <label>Reserve für Fehldrucke: <span id="calc-failure-val" style="color:var(--accent);font-family:var(--mono);">10%</span></label>
+            <input type="range" min="0" max="30" value="10" id="calc-failure" oninput="document.getElementById('calc-failure-val').textContent=this.value+'%';calculate()" style="width:100%;">
+          </div>
+          <div style="font-size:10px;color:var(--text3);margin-bottom:12px;">Bei 10%: Materialkosten werden auf mögliche Fehldrucke verteilt</div>
+
+          <div class="card-title">Nachbearbeitung (optional)</div>
           <div class="form-row">
-            <div class="form-group"><label>Nachbearbeitung (Min)</label><input type="number" id="calc-post" placeholder="30" oninput="calculate()"></div>
-            <div class="form-group"><label>Stundensatz €</label><input type="number" id="calc-rate" placeholder="15" oninput="calculate()"></div>
+            <div class="form-group"><label>Zeit (Minuten)</label><input type="number" id="calc-post" placeholder="0" oninput="calculate()"></div>
+            <div class="form-group"><label>Stundensatz (€)</label><input type="number" id="calc-rate" placeholder="15" oninput="calculate()"></div>
+          </div>
+
+          <div class="card-title">Verkaufspreis (optional)</div>
+          <div class="form-group" style="margin-bottom:4px;">
+            <label>Gewinnmarge: <span id="calc-margin-val" style="color:var(--accent);font-family:var(--mono);">0%</span></label>
+            <input type="range" min="0" max="200" value="0" id="calc-margin" oninput="document.getElementById('calc-margin-val').textContent=this.value+'%';calculate()" style="width:100%;">
           </div>
         </div>
+
         <div>
           <div class="cost-result" id="calc-result" style="display:none;">
             <div class="cost-row"><span class="lbl">🧵 Filament</span><span id="r-filament">-</span></div>
             <div class="cost-row"><span class="lbl">⚡ Strom</span><span id="r-electricity">-</span></div>
-            <div class="cost-row"><span class="lbl">🔧 Nachbearb.</span><span id="r-post">-</span></div>
-            <div class="cost-row"><span class="lbl">💰 Gesamt</span><span id="r-total">-</span></div>
+            <div class="cost-row"><span class="lbl">🖨️ Maschine</span><span id="r-machine">-</span></div>
+            <div class="cost-row" id="r-failure-row"><span class="lbl">⚠️ Fehldruck-Puffer</span><span id="r-failure">-</span></div>
+            <div class="cost-row" id="r-post-row"><span class="lbl">🔧 Nachbearb.</span><span id="r-post">-</span></div>
+            <div style="border-top:1px solid var(--border2);margin:8px 0;"></div>
+            <div class="cost-row" style="font-size:16px;font-weight:700;"><span class="lbl">💰 Gesamt</span><span id="r-total" style="color:var(--accent);">-</span></div>
+            <div class="cost-row" id="r-sell-row" style="display:none;margin-top:4px;"><span class="lbl" style="color:var(--green);">🏷️ Verkaufspreis</span><span id="r-sell" style="color:var(--green);font-weight:700;">-</span></div>
+          </div>
+
+          <div id="calc-breakdown" style="display:none;margin-top:12px;">
+            <div style="font-size:10px;color:var(--text3);margin-bottom:5px;font-family:var(--mono);">KOSTENVERTEILUNG</div>
+            <div style="height:12px;border-radius:6px;overflow:hidden;display:flex;gap:1px;" id="calc-bar"></div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:7px;font-size:10px;" id="calc-legend"></div>
           </div>
         </div>
       </div>
@@ -704,8 +731,21 @@ body.kiosk .kiosk-btn { color: var(--accent); border-color: rgba(41,182,246,0.4)
       <div class="page-header"><div class="page-title">Einstellungen</div></div>
       <div class="card" style="max-width:440px;">
         <div class="card-title">Strom & Drucker</div>
-        <div class="form-group"><label>Strompreis (€/kWh)</label><input type="number" id="set-electricity" step="0.01" placeholder="0.35"></div>
-        <div class="form-group"><label>Drucker Verbrauch (Watt)</label><input type="number" id="set-watt" placeholder="350"></div>
+        <div class="form-row">
+          <div class="form-group"><label>Strompreis (€/kWh)</label><input type="number" id="set-electricity" step="0.01" placeholder="0.35"></div>
+          <div class="form-group"><label>Verbrauch (Watt)</label><input type="number" id="set-watt" placeholder="350"></div>
+        </div>
+        <div class="card-title" style="margin-top:12px;">Maschinenkosten (Abschreibung)</div>
+        <div class="form-row">
+          <div class="form-group"><label>Kaufpreis (€)</label><input type="number" id="set-machine-price" placeholder="700" oninput="updateMachineCostPreview()"></div>
+          <div class="form-group"><label>Lebensdauer (h)</label><input type="number" id="set-machine-hours" placeholder="5000" oninput="updateMachineCostPreview()"></div>
+        </div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:10px;">= <span id="set-machine-preview" style="color:var(--accent);font-family:var(--mono);">0,14 ct/h</span> Maschinenkosten pro Druckstunde</div>
+        <div class="card-title" style="margin-top:4px;">Fehldruck-Standard</div>
+        <div class="form-group" style="margin-bottom:10px;">
+          <label>Fehldruck-Reserve (%) <span id="set-failure-val" style="color:var(--accent);font-family:var(--mono);">10%</span></label>
+          <input type="range" min="0" max="30" value="10" id="set-failure-rate" oninput="document.getElementById('set-failure-val').textContent=this.value+'%'" style="width:100%;">
+        </div>
         <button class="btn btn-primary" onclick="saveSettings()">Speichern</button>
       </div>
 
@@ -1748,20 +1788,51 @@ async function exportCSV(){
 }
 
 // ── KOSTENRECHNER ─────────────────────────────
-async function loadCalcFilaments(){const list=await api('/api/filaments');document.getElementById('calc-filament').innerHTML='<option value="">-- Filament wählen --</option>'+list.map(f=>`<option value="${f.id}">${f.brand} ${f.color} ${f.material}</option>`).join('');}
+async function loadCalcFilaments(){
+  const list=await api('/api/filaments');
+  document.getElementById('calc-filament').innerHTML='<option value="">-- Filament wählen --</option>'+list.map(f=>`<option value="${f.id}">${f.brand} ${f.color} ${f.material}</option>`).join('');
+  // Fehldruck-Standard aus Settings laden
+  try{const s=await api('/api/settings');const fr=parseInt(s.failure_rate)||10;document.getElementById('calc-failure').value=fr;document.getElementById('calc-failure-val').textContent=fr+'%';}catch(e){}
+}
 async function calculate(){
   const grams=parseFloat(document.getElementById('calc-grams').value)||0;
+  const purge=parseFloat(document.getElementById('calc-purge').value)||0;
   const duration=parseFloat(document.getElementById('calc-duration').value)||0;
+  const failure=parseFloat(document.getElementById('calc-failure').value)||0;
   const post=parseFloat(document.getElementById('calc-post').value)||0;
   const rate=parseFloat(document.getElementById('calc-rate').value)||0;
+  const margin=parseFloat(document.getElementById('calc-margin').value)||0;
   const filament_id=document.getElementById('calc-filament').value;
   if(!grams&&!duration)return;
-  const result=await api('/api/calculate','POST',{grams,duration_min:duration,filament_id,post_processing_min:post,hourly_rate:rate});
+  const result=await api('/api/calculate','POST',{grams,purge_g:purge,duration_min:duration,filament_id,failure_rate:failure,post_processing_min:post,hourly_rate:rate,margin});
   document.getElementById('calc-result').style.display='block';
-  document.getElementById('r-filament').textContent=result.filament_cost.toFixed(2)+' €';
-  document.getElementById('r-electricity').textContent=result.electricity_cost.toFixed(2)+' €';
-  document.getElementById('r-post').textContent=result.post_cost.toFixed(2)+' €';
+  document.getElementById('r-filament').textContent=result.filament_cost.toFixed(4)+' €';
+  document.getElementById('r-electricity').textContent=result.electricity_cost.toFixed(4)+' €';
+  document.getElementById('r-machine').textContent=result.machine_cost.toFixed(4)+' €';
+  const failRow=document.getElementById('r-failure-row');
+  failRow.style.display=failure>0?'flex':'none';
+  document.getElementById('r-failure').textContent=result.failure_cost.toFixed(4)+' €';
+  const postRow=document.getElementById('r-post-row');
+  postRow.style.display=post>0&&rate>0?'flex':'none';
+  document.getElementById('r-post').textContent=result.post_cost.toFixed(4)+' €';
   document.getElementById('r-total').textContent=result.total_cost.toFixed(2)+' €';
+  const sellRow=document.getElementById('r-sell-row');
+  if(result.selling_price){sellRow.style.display='flex';document.getElementById('r-sell').textContent=result.selling_price.toFixed(2)+' €';}
+  else sellRow.style.display='none';
+  // Kostenverteilungs-Balken
+  const total=result.total_cost||1;
+  const parts=[
+    {label:'Filament',val:result.filament_cost,color:'var(--accent)'},
+    {label:'Strom',val:result.electricity_cost,color:'var(--purple)'},
+    {label:'Maschine',val:result.machine_cost,color:'var(--orange)'},
+    {label:'Fehldruck',val:result.failure_cost,color:'var(--red)'},
+    {label:'Arbeit',val:result.post_cost,color:'var(--green)'},
+  ].filter(p=>p.val>0);
+  const bar=document.getElementById('calc-bar');
+  const legend=document.getElementById('calc-legend');
+  bar.innerHTML=parts.map(p=>`<div style="flex:${p.val/total};background:${p.color};"></div>`).join('');
+  legend.innerHTML=parts.map(p=>`<span style="display:flex;align-items:center;gap:3px;"><span style="width:8px;height:8px;border-radius:50%;background:${p.color};display:inline-block;"></span>${p.label} ${Math.round(p.val/total*100)}%</span>`).join('');
+  document.getElementById('calc-breakdown').style.display='block';
 }
 
 // ── EINSTELLUNGEN ─────────────────────────────
@@ -1769,10 +1840,31 @@ async function loadSettings(){
   const s=await api('/api/settings');
   document.getElementById('set-electricity').value=s.electricity_cost||0.35;
   document.getElementById('set-watt').value=s.printer_watt||350;
+  document.getElementById('set-machine-price').value=s.machine_price||700;
+  document.getElementById('set-machine-hours').value=s.machine_hours||5000;
+  const fr=parseInt(s.failure_rate)||10;
+  document.getElementById('set-failure-rate').value=fr;
+  document.getElementById('set-failure-val').textContent=fr+'%';
+  updateMachineCostPreview();
   loadCurrentVersion();
   checkForUpdateSilent();
 }
-async function saveSettings(){await api('/api/settings','POST',{electricity_cost:document.getElementById('set-electricity').value,printer_watt:document.getElementById('set-watt').value});toast('Gespeichert ✅');}
+async function saveSettings(){
+  await api('/api/settings','POST',{
+    electricity_cost:document.getElementById('set-electricity').value,
+    printer_watt:document.getElementById('set-watt').value,
+    machine_price:document.getElementById('set-machine-price').value,
+    machine_hours:document.getElementById('set-machine-hours').value,
+    failure_rate:document.getElementById('set-failure-rate').value
+  });
+  toast('Gespeichert ✅');
+}
+function updateMachineCostPreview(){
+  const price=parseFloat(document.getElementById('set-machine-price').value)||700;
+  const hours=parseFloat(document.getElementById('set-machine-hours').value)||5000;
+  const cph=(price/hours);
+  document.getElementById('set-machine-preview').textContent=(cph*100).toFixed(2)+' ct/h';
+}
 
 // ── SYSTEM ────────────────────────────────────
 function reloadUI(){

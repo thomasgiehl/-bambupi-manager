@@ -107,7 +107,10 @@ newCols.forEach(([col, type]) => {
 const defaultSettings = {
   electricity_cost: process.env.ELECTRICITY_COST || '0.35',
   printer_watt: process.env.PRINTER_WATT || '350',
-  currency: 'EUR'
+  currency: 'EUR',
+  machine_price: '700',
+  machine_hours: '5000',
+  failure_rate: '10'
 };
 for (const [key, value] of Object.entries(defaultSettings)) {
   const exists = db.prepare('SELECT key FROM settings WHERE key = ?').get(key);
@@ -785,22 +788,53 @@ app.get('/api/history', (req, res) => {
 
 // ── KOSTENRECHNER ─────────────────────────────
 app.post('/api/calculate', (req, res) => {
-  const { grams, duration_min, filament_id, post_processing_min, hourly_rate } = req.body;
+  const { grams, purge_g, duration_min, filament_id, failure_rate, post_processing_min, hourly_rate, margin } = req.body;
   const settings = db.prepare('SELECT * FROM settings').all();
   const s = Object.fromEntries(settings.map(r => [r.key, parseFloat(r.value)]));
-  let filament_cost = 0;
+
+  // Filamentkosten (Druck + Purge)
+  let price_per_kg = 0;
   if (filament_id) {
     const f = db.prepare('SELECT * FROM filaments WHERE id = ?').get(filament_id);
-    if (f) filament_cost = (grams / 1000) * f.price_per_kg;
+    if (f) price_per_kg = f.price_per_kg || 0;
   }
-  const electricity_cost = (duration_min / 60) * (s.printer_watt / 1000) * s.electricity_cost;
-  const post_cost = post_processing_min ? (post_processing_min / 60) * (hourly_rate || 0) : 0;
-  const total_cost = filament_cost + electricity_cost + post_cost;
+  const total_g = (parseFloat(grams) || 0) + (parseFloat(purge_g) || 0);
+  const filament_cost = (total_g / 1000) * price_per_kg;
+
+  // Stromkosten
+  const hours = (parseFloat(duration_min) || 0) / 60;
+  const electricity_cost = hours * (s.printer_watt / 1000) * s.electricity_cost;
+
+  // Maschinenkosten (Abschreibung)
+  const machine_cost_per_h = (s.machine_price || 700) / (s.machine_hours || 5000);
+  const machine_cost = hours * machine_cost_per_h;
+
+  // Basis ohne Arbeitszeit
+  const base_cost = filament_cost + electricity_cost + machine_cost;
+
+  // Fehldruck-Zuschlag
+  const fr = parseFloat(failure_rate) >= 0 ? parseFloat(failure_rate) : (s.failure_rate || 10);
+  const failure_cost = base_cost * (fr / 100);
+
+  // Nachbearbeitung / Arbeitszeit
+  const post_cost = post_processing_min ? (parseFloat(post_processing_min) / 60) * (parseFloat(hourly_rate) || 0) : 0;
+
+  const total_cost = base_cost + failure_cost + post_cost;
+
+  // Verkaufspreis (optional)
+  const margin_pct = parseFloat(margin) || 0;
+  const selling_price = margin_pct > 0 ? total_cost * (1 + margin_pct / 100) : null;
+
+  const round = v => Math.round(v * 10000) / 10000;
   res.json({
-    filament_cost: Math.round(filament_cost * 100) / 100,
-    electricity_cost: Math.round(electricity_cost * 100) / 100,
-    post_cost: Math.round(post_cost * 100) / 100,
-    total_cost: Math.round(total_cost * 100) / 100
+    filament_cost: round(filament_cost),
+    electricity_cost: round(electricity_cost),
+    machine_cost: round(machine_cost),
+    failure_cost: round(failure_cost),
+    post_cost: round(post_cost),
+    total_cost: round(total_cost),
+    selling_price: selling_price ? round(selling_price) : null,
+    machine_cost_per_h: round(machine_cost_per_h)
   });
 });
 
