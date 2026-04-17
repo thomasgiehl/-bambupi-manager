@@ -457,6 +457,8 @@ tr:hover td { background: rgba(255,255,255,0.01); }
 .notif-btn.active { color: var(--green); border-color: rgba(102,187,106,0.4); }
 .kiosk-btn { background: none; border: 1px solid var(--border); border-radius: 7px; color: var(--text3); padding: 5px 9px; cursor: pointer; font-size: 13px; line-height: 1; transition: all 0.15s; }
 .kiosk-btn:hover { border-color: var(--accent); color: var(--accent); }
+.nav-badge { display:inline-flex;align-items:center;justify-content:center;background:var(--red);color:#fff;font-size:9px;font-weight:700;min-width:16px;height:16px;border-radius:8px;padding:0 4px;margin-left:auto;font-family:var(--mono); }
+.fil-warn { display:inline-flex;align-items:center;gap:4px;background:rgba(239,83,80,0.12);border:1px solid rgba(239,83,80,0.3);border-radius:5px;color:var(--red);font-size:10px;font-weight:600;padding:3px 7px;margin-top:5px; }
 body.kiosk .sidebar { display: none; }
 body.kiosk .bottom-nav { display: none; }
 body.kiosk .main { margin-left: 0; }
@@ -539,6 +541,7 @@ body.kiosk .kiosk-btn { color: var(--accent); border-color: rgba(41,182,246,0.4)
     <a onclick="showPage('filaments')" data-page="filaments">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
       Filamente
+      <span id="filament-badge" style="display:none;" class="nav-badge"></span>
     </a>
     <a onclick="showPage('history')" data-page="history">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
@@ -1549,6 +1552,14 @@ async function loadStats(){
   document.getElementById('stat-grams').textContent=s.total_grams+'g';
   document.getElementById('stat-hours').textContent=s.total_hours+'h';
   document.getElementById('stat-cost').textContent=s.total_cost.toFixed(2)+'€';
+  // Filament-Warnung im Hintergrund prüfen
+  try{
+    const fils=await api('/api/filaments');
+    const low=fils.filter(f=>Math.max(0,(f.weight_total-f.weight_used)/f.weight_total)<0.2);
+    updateFilamentBadge(low.length);
+    if(low.length===1) toast('⚠️ '+low[0].brand+' '+low[0].color+' fast leer!','error');
+    else if(low.length>1) toast('⚠️ '+low.length+' Filamente fast leer!','error');
+  }catch(e){}
 }
 
 // ── DATEIMANAGER ──────────────────────────────
@@ -1633,12 +1644,21 @@ async function deletePrinter(id){if(!confirm('Drucker wirklich löschen?'))retur
 // ── FILAMENTE ─────────────────────────────────
 async function loadFilaments(){
   const list=await api('/api/filaments');const grid=document.getElementById('filament-grid');
-  if(!list.length){grid.innerHTML='<div class="card" style="color:var(--text3);">Noch kein Filament hinzugefügt.</div>';return;}
+  if(!list.length){grid.innerHTML='<div class="card" style="color:var(--text3);">Noch kein Filament hinzugefügt.</div>';updateFilamentBadge(0);return;}
+  const lowCount=list.filter(f=>Math.max(0,(f.weight_total-f.weight_used)/f.weight_total)<0.2).length;
+  updateFilamentBadge(lowCount);
   grid.innerHTML=list.map(f=>{
     const rem=f.weight_total-f.weight_used;const pct=Math.max(0,Math.round((rem/f.weight_total)*100));
     const bc=pct>50?'var(--green)':pct>20?'var(--orange)':'var(--red)';
-    return `<div class="fil-card"><div class="fil-top"><div class="fil-dot" style="background:${f.color_hex};"></div><div><div class="fil-name">${f.brand} ${f.color}</div><div class="fil-sub">${f.material}${f.temp_nozzle?' · '+f.temp_nozzle+'°C':''}</div></div></div><div class="fil-bar"><div class="fil-bar-fill" style="width:${pct}%;background:${bc};"></div></div><div class="fil-info"><span>${Math.round(rem)}g übrig</span><span>${pct}%</span></div>${f.price_per_kg>0?`<div style="font-size:11px;color:var(--text3);margin-top:5px;">💰 ${f.price_per_kg}€/kg</div>`:''} ${f.location?`<div style="font-size:11px;color:var(--text3);">📍 ${f.location}</div>`:''}<div class="fil-actions"><button class="btn btn-danger btn-sm" onclick="deleteFilament(${f.id})">Löschen</button></div></div>`;
+    const warnTag=pct<=20?`<div class="fil-warn">⚠️ Fast leer! Nur noch ${Math.round(rem)}g</div>`:'';
+    return `<div class="fil-card"><div class="fil-top"><div class="fil-dot" style="background:${f.color_hex};"></div><div><div class="fil-name">${f.brand} ${f.color}</div><div class="fil-sub">${f.material}${f.temp_nozzle?' · '+f.temp_nozzle+'°C':''}</div></div></div><div class="fil-bar"><div class="fil-bar-fill" style="width:${pct}%;background:${bc};"></div></div><div class="fil-info"><span>${Math.round(rem)}g übrig</span><span>${pct}%</span></div>${warnTag}${f.price_per_kg>0?`<div style="font-size:11px;color:var(--text3);margin-top:5px;">💰 ${f.price_per_kg}€/kg</div>`:''} ${f.location?`<div style="font-size:11px;color:var(--text3);">📍 ${f.location}</div>`:''}<div class="fil-actions"><button class="btn btn-danger btn-sm" onclick="deleteFilament(${f.id})">Löschen</button></div></div>`;
   }).join('');
+}
+function updateFilamentBadge(count){
+  const b=document.getElementById('filament-badge');
+  const bm=document.getElementById('filament-badge-mobile');
+  if(b){b.textContent=count;b.style.display=count>0?'inline-flex':'none';}
+  if(bm){bm.textContent=count;bm.style.display=count>0?'inline-flex':'none';}
 }
 async function addFilament(){
   const data={brand:document.getElementById('f-brand').value,material:document.getElementById('f-material').value,color:document.getElementById('f-color').value,color_hex:document.getElementById('f-color-hex').value,weight_total:parseInt(document.getElementById('f-weight').value)||1000,price_per_kg:parseFloat(document.getElementById('f-price').value)||0,temp_nozzle:parseInt(document.getElementById('f-nozzle').value)||null,temp_bed:parseInt(document.getElementById('f-bed').value)||null,location:document.getElementById('f-location').value};
@@ -1746,7 +1766,8 @@ setInterval(()=>{
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
       Dateien
     </button>
-    <button class="bnav-item" data-page="filaments" onclick="showPage('filaments')">
+    <button class="bnav-item" data-page="filaments" onclick="showPage('filaments')" style="position:relative;">
+      <span id="filament-badge-mobile" style="display:none;position:absolute;top:4px;right:4px;background:var(--red);color:#fff;font-size:8px;font-weight:700;min-width:14px;height:14px;border-radius:7px;padding:0 3px;display:none;align-items:center;justify-content:center;font-family:var(--mono);"></span>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
       Filamente
     </button>
