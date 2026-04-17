@@ -7,6 +7,7 @@ const path = require('path');
 const fs = require('fs');
 const ftp = require('basic-ftp');
 const os = require('os');
+const { execSync } = require('child_process');
 let AdmZip; try { AdmZip = require('adm-zip'); } catch(e) { AdmZip = null; }
 require('dotenv').config();
 
@@ -811,6 +812,47 @@ app.post('/api/settings', (req, res) => {
   for (const [key, value] of Object.entries(req.body))
     db.prepare('INSERT OR REPLACE INTO settings (key,value) VALUES (?,?)').run(key, String(value));
   res.json({ ok: true });
+});
+
+// ── UPDATE SYSTEM ──────────────────────────────
+app.get('/api/version', (req, res) => {
+  try {
+    const hash = execSync('git rev-parse --short HEAD', { timeout: 5000 }).toString().trim();
+    const date = execSync('git log -1 --format=%ci HEAD', { timeout: 5000 }).toString().trim().slice(0, 10);
+    const branch = execSync('git rev-parse --abbrev-ref HEAD', { timeout: 5000 }).toString().trim();
+    res.json({ hash, date, branch });
+  } catch(e) {
+    res.json({ hash: 'unbekannt', date: '-', branch: 'main' });
+  }
+});
+
+app.get('/api/update/check', (req, res) => {
+  try {
+    execSync('git fetch origin', { timeout: 15000 });
+    const raw = execSync('git log HEAD..origin/main --oneline --format=%h|||%s|||%ci', { timeout: 5000 }).toString().trim();
+    const commits = raw ? raw.split('\n').filter(Boolean).map(line => {
+      const [hash, subject, date] = line.split('|||');
+      return { hash, subject, date: date ? date.slice(0, 10) : '' };
+    }) : [];
+    const currentHash = execSync('git rev-parse --short HEAD', { timeout: 5000 }).toString().trim();
+    res.json({ hasUpdate: commits.length > 0, commits, currentHash, count: commits.length });
+  } catch(e) {
+    res.status(500).json({ error: 'Verbindung zu GitHub fehlgeschlagen: ' + e.message });
+  }
+});
+
+app.post('/api/update/apply', (req, res) => {
+  try {
+    execSync('git pull origin main', { timeout: 30000 });
+    execSync('npm install --production', { timeout: 120000 });
+    res.json({ ok: true });
+    setTimeout(() => {
+      console.log('🔄 Update angewendet — Neustart...');
+      process.exit(0); // systemd Restart=always startet automatisch neu
+    }, 1500);
+  } catch(e) {
+    res.status(500).json({ error: 'Update fehlgeschlagen: ' + e.message });
+  }
 });
 
 // ── UPLOAD ────────────────────────────────────

@@ -459,6 +459,14 @@ tr:hover td { background: rgba(255,255,255,0.01); }
 .kiosk-btn:hover { border-color: var(--accent); color: var(--accent); }
 .nav-badge { display:inline-flex;align-items:center;justify-content:center;background:var(--red);color:#fff;font-size:9px;font-weight:700;min-width:16px;height:16px;border-radius:8px;padding:0 4px;margin-left:auto;font-family:var(--mono); }
 .fil-warn { display:inline-flex;align-items:center;gap:4px;background:rgba(239,83,80,0.12);border:1px solid rgba(239,83,80,0.3);border-radius:5px;color:var(--red);font-size:10px;font-weight:600;padding:3px 7px;margin-top:5px; }
+.update-version { font-family:var(--mono);font-size:12px;color:var(--text3);padding:6px 10px;background:var(--surface3);border-radius:6px;display:inline-block; }
+.update-commit { padding:7px 10px;border-bottom:1px solid var(--border);font-size:12px; }
+.update-commit:last-child { border-bottom:none; }
+.update-commit-hash { font-family:var(--mono);color:var(--accent);font-size:10px;margin-right:6px; }
+.update-commit-date { font-family:var(--mono);color:var(--text3);font-size:10px;float:right; }
+.update-box { border:1px solid var(--border2);border-radius:8px;overflow:hidden;margin:10px 0; }
+.update-box.has-update { border-color:rgba(102,187,106,0.4); }
+.update-status { display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--surface3);font-size:12px;font-weight:600; }
 body.kiosk .sidebar { display: none; }
 body.kiosk .bottom-nav { display: none; }
 body.kiosk .main { margin-left: 0; }
@@ -555,6 +563,7 @@ body.kiosk .kiosk-btn { color: var(--accent); border-color: rgba(41,182,246,0.4)
     <a onclick="showPage('settings')" data-page="settings">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
       Einstellungen
+      <span id="update-badge" style="display:none;" class="nav-badge">1</span>
     </a>
   </nav>
   <div class="sidebar-footer">BambuPi © 2025</div>
@@ -697,6 +706,36 @@ body.kiosk .kiosk-btn { color: var(--accent); border-color: rgba(41,182,246,0.4)
         <div class="form-group"><label>Strompreis (€/kWh)</label><input type="number" id="set-electricity" step="0.01" placeholder="0.35"></div>
         <div class="form-group"><label>Drucker Verbrauch (Watt)</label><input type="number" id="set-watt" placeholder="350"></div>
         <button class="btn btn-primary" onclick="saveSettings()">Speichern</button>
+      </div>
+
+      <div class="card" style="max-width:440px;margin-top:16px;">
+        <div class="card-title">Software-Update</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:3px;">Aktuelle Version</div>
+            <span class="update-version" id="update-current-version">wird geladen…</span>
+          </div>
+          <button class="btn btn-secondary" id="update-check-btn" onclick="checkForUpdate()" style="font-size:12px;">
+            🔍 Prüfen
+          </button>
+        </div>
+        <div id="update-result" style="display:none;">
+          <div class="update-box" id="update-box">
+            <div class="update-status" id="update-status-line">
+              <span id="update-status-icon">✅</span>
+              <span id="update-status-text">Aktuell</span>
+            </div>
+            <div id="update-commits-list"></div>
+          </div>
+          <button class="btn btn-primary" id="update-apply-btn" onclick="applyUpdate()" style="display:none;width:100%;margin-top:10px;font-size:13px;">
+            ⬇️ Update jetzt installieren
+          </button>
+        </div>
+        <div id="update-progress" style="display:none;text-align:center;padding:16px 0;">
+          <div style="font-size:22px;margin-bottom:8px;">⏳</div>
+          <div style="font-size:13px;color:var(--text2);" id="update-progress-text">Update wird geladen…</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:4px;">Server startet danach automatisch neu</div>
+        </div>
       </div>
     </div>
 
@@ -1716,8 +1755,109 @@ async function calculate(){
 }
 
 // ── EINSTELLUNGEN ─────────────────────────────
-async function loadSettings(){const s=await api('/api/settings');document.getElementById('set-electricity').value=s.electricity_cost||0.35;document.getElementById('set-watt').value=s.printer_watt||350;}
+async function loadSettings(){
+  const s=await api('/api/settings');
+  document.getElementById('set-electricity').value=s.electricity_cost||0.35;
+  document.getElementById('set-watt').value=s.printer_watt||350;
+  loadCurrentVersion();
+  checkForUpdateSilent();
+}
 async function saveSettings(){await api('/api/settings','POST',{electricity_cost:document.getElementById('set-electricity').value,printer_watt:document.getElementById('set-watt').value});toast('Gespeichert ✅');}
+
+// ── UPDATE SYSTEM ─────────────────────────────
+async function loadCurrentVersion(){
+  try{
+    const v=await api('/api/version');
+    const el=document.getElementById('update-current-version');
+    if(el)el.textContent=v.hash+' · '+v.date;
+  }catch(e){}
+}
+
+async function checkForUpdateSilent(){
+  try{
+    const r=await api('/api/update/check');
+    const badge=document.getElementById('update-badge');
+    if(r.hasUpdate){
+      if(badge){badge.textContent=r.count;badge.style.display='inline-flex';}
+    } else {
+      if(badge)badge.style.display='none';
+    }
+  }catch(e){}
+}
+
+async function checkForUpdate(){
+  const btn=document.getElementById('update-check-btn');
+  const result=document.getElementById('update-result');
+  const progress=document.getElementById('update-progress');
+  btn.disabled=true;btn.textContent='⏳ Prüfe…';
+  try{
+    const r=await api('/api/update/check');
+    const box=document.getElementById('update-box');
+    const statusIcon=document.getElementById('update-status-icon');
+    const statusText=document.getElementById('update-status-text');
+    const commitsList=document.getElementById('update-commits-list');
+    const applyBtn=document.getElementById('update-apply-btn');
+    const badge=document.getElementById('update-badge');
+
+    if(r.hasUpdate){
+      box.className='update-box has-update';
+      statusIcon.textContent='🔔';
+      statusText.textContent=r.count+' Update'+(r.count>1?'s verfügbar':' verfügbar');
+      statusText.style.color='var(--green)';
+      commitsList.innerHTML=r.commits.map(c=>
+        `<div class="update-commit">
+          <span class="update-commit-hash">${c.hash}</span>${c.subject}
+          <span class="update-commit-date">${c.date}</span>
+        </div>`
+      ).join('');
+      applyBtn.style.display='block';
+      if(badge){badge.textContent=r.count;badge.style.display='inline-flex';}
+    } else {
+      box.className='update-box';
+      statusIcon.textContent='✅';
+      statusText.textContent='Alles aktuell!';
+      statusText.style.color='var(--green)';
+      commitsList.innerHTML='';
+      applyBtn.style.display='none';
+      if(badge)badge.style.display='none';
+      toast('✅ Du hast die neueste Version!');
+    }
+    result.style.display='block';
+    progress.style.display='none';
+  }catch(e){
+    toast('Fehler beim Prüfen: '+e.message,'error');
+  }finally{
+    btn.disabled=false;btn.textContent='🔍 Prüfen';
+  }
+}
+
+async function applyUpdate(){
+  const applyBtn=document.getElementById('update-apply-btn');
+  const result=document.getElementById('update-result');
+  const progress=document.getElementById('update-progress');
+  const progressText=document.getElementById('update-progress-text');
+  applyBtn.disabled=true;
+  result.style.display='none';
+  progress.style.display='block';
+
+  const steps=['📥 Code wird heruntergeladen…','📦 Abhängigkeiten werden aktualisiert…','🔄 Server wird neu gestartet…'];
+  let si=0;
+  const tick=setInterval(()=>{if(si<steps.length){progressText.textContent=steps[si++];}},3000);
+
+  try{
+    await api('/api/update/apply','POST',{});
+    clearInterval(tick);
+    progressText.textContent='✅ Update erfolgreich! Seite lädt in 8 Sekunden neu…';
+    toast('✅ Update installiert! Server startet neu…');
+    setTimeout(()=>location.reload(),8000);
+  }catch(e){
+    clearInterval(tick);
+    progress.style.display='none';
+    result.style.display='block';
+    applyBtn.disabled=false;
+    toast('Update fehlgeschlagen: '+e.message,'error');
+  }
+}
 
 // ── MOBILE SWIPE TO CLOSE SIDEBAR ─────────────
 (function(){
