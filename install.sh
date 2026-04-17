@@ -1,12 +1,12 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════
 #  BambuPi Manager — Ein-Befehl Installer
-#  https://github.com/YOUR_USERNAME/bambupi-manager
+#  https://github.com/thomasgiehl/-bambupi-manager
 # ═══════════════════════════════════════════════
 
 set -e
 
-REPO="https://github.com/YOUR_USERNAME/bambupi-manager.git"
+REPO="https://github.com/thomasgiehl/-bambupi-manager.git"
 INSTALL_DIR="$HOME/bambupi-manager"
 SERVICE_NAME="bambupi"
 
