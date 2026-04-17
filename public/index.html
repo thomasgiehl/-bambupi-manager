@@ -710,6 +710,15 @@ body.kiosk .kiosk-btn { color: var(--accent); border-color: rgba(41,182,246,0.4)
       </div>
 
       <div class="card" style="max-width:440px;margin-top:16px;">
+        <div class="card-title">System</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <button class="btn btn-secondary" onclick="reloadUI()" style="font-size:12px;">🔄 UI neu laden</button>
+          <button class="btn btn-secondary" id="server-restart-btn" onclick="restartServer()" style="font-size:12px;">⚙️ Server neu starten</button>
+        </div>
+        <div style="font-size:10px;color:var(--text3);margin-top:6px;">UI neu laden: nur der Browser. Server neu starten: der Pi-Dienst startet neu (~5s).</div>
+      </div>
+
+      <div class="card" style="max-width:440px;margin-top:16px;">
         <div class="card-title">Software-Update</div>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
           <div>
@@ -1764,6 +1773,40 @@ async function loadSettings(){
   checkForUpdateSilent();
 }
 async function saveSettings(){await api('/api/settings','POST',{electricity_cost:document.getElementById('set-electricity').value,printer_watt:document.getElementById('set-watt').value});toast('Gespeichert ✅');}
+
+// ── SYSTEM ────────────────────────────────────
+function reloadUI(){
+  toast('🔄 Seite wird neu geladen…');
+  setTimeout(()=>location.reload(),800);
+}
+async function restartServer(){
+  const btn=document.getElementById('server-restart-btn');
+  btn.disabled=true;btn.textContent='⏳ Neustart…';
+  try{
+    await api('/api/system/restart','POST',{});
+    toast('⚙️ Server startet neu — kurz warten…');
+    btn.textContent='⏳ Warte auf Server…';
+    setTimeout(async()=>{
+      // Warten bis Server wieder antwortet
+      let tries=0;
+      const check=async()=>{
+        tries++;
+        try{
+          await fetch('/api/version');
+          toast('✅ Server wieder online!');
+          btn.disabled=false;btn.textContent='⚙️ Server neu starten';
+        }catch(e){
+          if(tries<20)setTimeout(check,1000);
+          else{btn.disabled=false;btn.textContent='⚙️ Server neu starten';}
+        }
+      };
+      check();
+    },2000);
+  }catch(e){
+    btn.disabled=false;btn.textContent='⚙️ Server neu starten';
+    toast('Fehler: '+e.message,'error');
+  }
+}
 
 // ── UPDATE SYSTEM ─────────────────────────────
 async function loadCurrentVersion(){

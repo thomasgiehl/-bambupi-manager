@@ -845,6 +845,14 @@ app.get('/api/update/check', (req, res) => {
   }
 });
 
+app.post('/api/system/restart', (req, res) => {
+  res.json({ ok: true });
+  setTimeout(() => {
+    console.log('🔄 Server-Neustart angefordert...');
+    process.exit(0);
+  }, 800);
+});
+
 app.post('/api/update/apply', (req, res) => {
   try {
     execSync('git pull origin main', { timeout: 30000 });
