@@ -829,11 +829,15 @@ app.get('/api/version', (req, res) => {
 app.get('/api/update/check', (req, res) => {
   try {
     execSync('git fetch origin', { timeout: 15000 });
-    const raw = execSync('git log HEAD..origin/main --oneline --format=%h|||%s|||%ci', { timeout: 5000 }).toString().trim();
-    const commits = raw ? raw.split('\n').filter(Boolean).map(line => {
-      const [hash, subject, date] = line.split('|||');
-      return { hash, subject, date: date ? date.slice(0, 10) : '' };
-    }) : [];
+    const hashes  = execSync('git log HEAD..origin/main --format=%h',  { timeout: 5000 }).toString().trim();
+    const subjects = execSync('git log HEAD..origin/main --format=%s',  { timeout: 5000 }).toString().trim();
+    const dates    = execSync('git log HEAD..origin/main --format=%as', { timeout: 5000 }).toString().trim();
+    const hArr = hashes   ? hashes.split('\n')   : [];
+    const sArr = subjects ? subjects.split('\n') : [];
+    const dArr = dates    ? dates.split('\n')    : [];
+    const commits = hArr.filter(Boolean).map((hash, i) => ({
+      hash, subject: sArr[i] || '', date: dArr[i] || ''
+    }));
     const currentHash = execSync('git rev-parse --short HEAD', { timeout: 5000 }).toString().trim();
     res.json({ hasUpdate: commits.length > 0, commits, currentHash, count: commits.length });
   } catch(e) {
