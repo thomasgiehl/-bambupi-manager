@@ -70,6 +70,7 @@ function serverError(res, err, clientMsg = 'Interner Serverfehler') {
 })();
 
 const app = express();
+app.set('trust proxy', 1); // Notwendig für express-rate-limit hinter Nginx/Apache
 
 // ── BASIC AUTH MIDDLEWARE ─────────────────────
 // Schützt alle Routes. SSE-Verbindungen und statische Assets eingeschlossen.
@@ -136,7 +137,7 @@ const go2rtcFrameSrc = [...allowedHosts]
 
 app.use((req, res, next) => {
   res.setHeader('Content-Security-Policy',
-    `default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://go2rtc.org; img-src 'self' data: blob: https://go2rtc.org; connect-src 'self' wss: ws:; style-src 'self' 'unsafe-inline' https://go2rtc.org; font-src 'self'; frame-src 'self' ${go2rtcFrameSrc}`);
+    `default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://go2rtc.org https://unpkg.com; img-src 'self' data: blob: https://go2rtc.org; connect-src 'self' wss: ws:; style-src 'self' 'unsafe-inline' https://go2rtc.org; font-src 'self'; frame-src 'self' ${go2rtcFrameSrc}`);
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   res.setHeader('Referrer-Policy', 'same-origin');
@@ -177,6 +178,7 @@ fs.mkdirSync('./uploads', { recursive: true });
 fs.mkdirSync('./streams', { recursive: true });
 fs.mkdirSync('./cache', { recursive: true });
 fs.mkdirSync('./thumbnails', { recursive: true });
+fs.mkdirSync('./public/timelapses', { recursive: true });
 
 // ── TLS / BAMBU CA ────────────────────────────
 // BBL CA-Zertifikat aus ./certs/bambu-ca.crt laden.
@@ -321,12 +323,30 @@ db.exec(`
     status TEXT DEFAULT 'pending', -- 'pending', 'printing', 'completed', 'failed'
     added_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+  CREATE TABLE IF NOT EXISTS macros (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    icon TEXT DEFAULT '⚡',
+    gcode TEXT NOT NULL,
+    printer_id INTEGER REFERENCES printers(id) -- NULL = alle Drucker
+  );
+  CREATE TABLE IF NOT EXISTS timelapses (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    printer_id INTEGER REFERENCES printers(id),
+    filename TEXT NOT NULL,
+    frame_count INTEGER DEFAULT 0,
+    status TEXT DEFAULT 'recording', -- 'recording', 'rendering', 'done'
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
 `);
 
 // ── MIGRATION: neue Spalten falls DB schon existiert ──
 const printCols = db.prepare("PRAGMA table_info(printers)").all().map(c => c.name);
 if (!printCols.includes('total_print_minutes')) {
   db.prepare('ALTER TABLE printers ADD COLUMN total_print_minutes REAL DEFAULT 0').run();
+}
+if (!printCols.includes('timelapse_enabled')) {
+  db.prepare('ALTER TABLE printers ADD COLUMN timelapse_enabled INTEGER DEFAULT 0').run();
 }
 
 const filCols = db.prepare("PRAGMA table_info(filaments)").all().map(c => c.name);
@@ -449,9 +469,39 @@ setInterval(() => {
   }
 }, 25000);
 
+// ── MACROS ────────────────────────────────────
+app.get('/api/macros', (req, res) => {
+  res.json(db.prepare('SELECT * FROM macros ORDER BY name ASC').all());
+});
+
+app.post('/api/macros', (req, res) => {
+  const { name, icon, gcode, printer_id } = req.body;
+  if (!name || !gcode) return res.status(400).json({ error: 'Name und G-Code erforderlich' });
+  const result = db.prepare('INSERT INTO macros (name, icon, gcode, printer_id) VALUES (?, ?, ?, ?)')
+    .run(name, icon || '⚡', gcode, printer_id || null);
+  res.json({ id: result.lastInsertRowid });
+});
+
+app.delete('/api/macros/:id', (req, res) => {
+  db.prepare('DELETE FROM macros WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+app.post('/api/macros/:id/run', (req, res) => {
+  const macro = db.prepare('SELECT * FROM macros WHERE id = ?').get(req.params.id);
+  if (!macro) return res.status(404).json({ error: 'Makro nicht gefunden' });
+  
+  const targetPrinterId = req.body.printer_id || macro.printer_id;
+  if (!targetPrinterId) return res.status(400).json({ error: 'Kein Drucker ausgewählt' });
+  
+  const ok = sendGcode(targetPrinterId, macro.gcode);
+  res.json({ ok });
+});
+
 // ── MQTT ──────────────────────────────────────
 let printerStatus = {};
 const printStartTimes = {};
+const printerLastLayer = {};
 let tempBuffers = {};          // { printerId: { n:[], b:[], t:[] } }
 const TEMP_BUFFER_MAX = 600;     // ~10 Min bei 1 Update/Sek
 const TEMP_CACHE_FILE = './cache/temp_history.json';
@@ -544,6 +594,12 @@ function sendNotif(title, message, forceExternal = false) {
   }
 }
 
+// ── SETTINGS HELPERS ──────────────────────────
+function getSetting(key, def = '') {
+  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key);
+  return row ? row.value : def;
+}
+
 function addEvent(type, message, printerId = null, hmsCode = null) {
   // In-Memory Liste für schnellen Abruf (optional, wir nutzen jetzt DB)
   eventLog.unshift({
@@ -633,6 +689,34 @@ function handlePrintFinished(printerId, printData) {
   }
 }
 
+// ── TIMELAPSE ─────────────────────────────────
+async function captureTimelapseFrame(printerId, subtask) {
+  const dir = `./timelapses/${printerId}/${subtask}`;
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    const frames = fs.readdirSync(dir).filter(f => f.endsWith('.jpg')).length;
+    const response = await fetch('http://localhost:1984/api/frame.jpeg?src=bambu');
+    if (!response.ok) return;
+    const buffer = await response.arrayBuffer();
+    fs.writeFileSync(`${dir}/frame_${String(frames).padStart(5, '0')}.jpg`, Buffer.from(buffer));
+  } catch (e) { log.warn('Timelapse frame failed', e.message); }
+}
+
+function renderTimelapse(printerId, subtask) {
+  const dir = `./timelapses/${printerId}/${subtask}`;
+  const outFile = `./public/timelapses/${printerId}_${subtask}_${Date.now()}.mp4`;
+  fs.mkdirSync('./public/timelapses', { recursive: true });
+  
+  const cmd = `ffmpeg -y -framerate 15 -i ${dir}/frame_%05d.jpg -c:v libx264 -pix_fmt yuv420p ${outFile}`;
+  spawn('sh', ['-c', cmd]).on('exit', () => {
+    db.prepare('INSERT INTO timelapses (printer_id, filename, status) VALUES (?, ?, ?)')
+      .run(printerId, path.basename(outFile), 'done');
+    log.info(`Timelapse rendered: ${outFile}`);
+    // Optional: aufräumen
+    // fs.rmSync(dir, { recursive: true, force: true });
+  });
+}
+
 function connectMQTT(ip, accessCode, serial, printerId) {
   const client = mqtt.connect(`mqtts://${ip}:8883`, {
     username: 'bblp', password: accessCode,
@@ -649,27 +733,58 @@ function connectMQTT(ip, accessCode, serial, printerId) {
       if (data.print) {
         const prevState = printerStatus[printerId]?.gcode_state;
         const newState = data.print.gcode_state;
+        
+        // Normalisierung: Kammer-Temperatur sicherstellen
+        if (data.print.info?.temp !== undefined && data.print.chamber_temper === undefined) {
+          data.print.chamber_temper = data.print.info.temp;
+        }
+
         printerStatus[printerId] = { ...(printerStatus[printerId] || {}), ...data.print, last_update: new Date().toISOString() };
         // Temperatur-Ringbuffer befüllen
-        const nozzle = data.print.nozzle_temper || 0;
-        const bed    = data.print.bed_temper    || 0;
-        if (nozzle > 0 || bed > 0) {
-          if (!tempBuffers[printerId]) tempBuffers[printerId] = { n: [], b: [], t: [] };
+        const nozzle  = data.print.nozzle_temper || 0;
+        const bed     = data.print.bed_temper    || 0;
+        // Kammer-Temperatur: chamber_temper (X1) oder info.temp (P1/A1)
+        const chamber = data.print.chamber_temper ?? data.print.info?.temp ?? 0;
+        
+        if (nozzle > 0 || bed > 0 || chamber > 0) {
+          if (!tempBuffers[printerId]) tempBuffers[printerId] = { n: [], b: [], t: [], c: [] };
           const buf = tempBuffers[printerId];
           buf.t.push(new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
           buf.n.push(Math.round(nozzle * 10) / 10);
           buf.b.push(Math.round(bed    * 10) / 10);
-          if (buf.t.length > TEMP_BUFFER_MAX) { buf.t.shift(); buf.n.shift(); buf.b.shift(); }
+          buf.c.push(Math.round(chamber * 10) / 10);
+          if (buf.t.length > TEMP_BUFFER_MAX) {
+            buf.t.shift(); buf.n.shift(); buf.b.shift(); buf.c.shift();
+          }
         }
         broadcastSSE(printerId);
         // Event-Log befüllen bei Zustandswechsel
         const printerName = db.prepare('SELECT name FROM printers WHERE id=?').get(printerId)?.name || 'Drucker';
         const jobName = data.print.subtask_name ? ' · ' + data.print.subtask_name : '';
+        const currentLayer = data.print.layer_num || 0;
+
+        // Timelapse Frame Capture
+        const printer = db.prepare('SELECT timelapse_enabled FROM printers WHERE id = ?').get(printerId);
+        if (printer?.timelapse_enabled && newState === 'RUNNING' && currentLayer !== printerLastLayer[printerId]) {
+          printerLastLayer[printerId] = currentLayer;
+          captureTimelapseFrame(printerId, data.print.subtask_name || 'print');
+        }
+
         if (prevState !== newState) {
           if (newState === 'RUNNING')  addEvent('start',  printerName + jobName + ' — Druck gestartet', printerId);
-          if (newState === 'FINISH')   addEvent('finish', printerName + jobName + ' — Fertig ✅', printerId);
-          if (newState === 'FAILED')   addEvent('fail',   printerName + jobName + ' — Fehlgeschlagen ❌', printerId);
-          if (newState === 'PAUSE')    addEvent('pause',  printerName + ' — Pausiert', printerId);
+          if (newState === 'FINISH') {
+            addEvent('finish', printerName + jobName + ' — Fertig ✅', printerId);
+            if (getSetting('notify_on_finish') === '1') sendNotif('✅ Druck abgeschlossen', `${printerName}${jobName}`, false);
+            if (printer?.timelapse_enabled) renderTimelapse(printerId, data.print.subtask_name || 'print');
+          }
+          if (newState === 'FAILED') {
+            addEvent('fail',   printerName + jobName + ' — Fehlgeschlagen ❌', printerId);
+            if (getSetting('notify_on_fail') === '1') sendNotif('❌ Druck fehlgeschlagen', `${printerName}${jobName}`, false);
+          }
+          if (newState === 'PAUSE') {
+            addEvent('pause',  printerName + ' — Pausiert', printerId);
+            if (getSetting('notify_on_pause') === '1') sendNotif('⏸ Druck pausiert', `${printerName}`, false);
+          }
           if (newState === 'offline')  addEvent('offline',printerName + ' — Verbindung verloren', printerId);
         }
         if (prevState !== 'RUNNING' && newState === 'RUNNING') {
@@ -768,7 +883,7 @@ const printerBedCleared = {}; // { printerId: boolean }
 
 // ── QUEUE WORKER ──────────────────────────────
 setInterval(() => {
-  const pendingJobs = db.prepare('SELECT * FROM print_queue WHERE status = "pending" ORDER BY added_at ASC').all();
+  const pendingJobs = db.prepare("SELECT * FROM print_queue WHERE status = 'pending' ORDER BY added_at ASC").all();
   if (pendingJobs.length === 0) return;
 
   pendingJobs.forEach(job => {
@@ -779,13 +894,13 @@ setInterval(() => {
         const options = JSON.parse(job.options || '{}');
         const ok = startPrintOnBambu(job.printer_id, job.filename, options);
         if (ok) {
-          db.prepare('UPDATE print_queue SET status = "printing" WHERE id = ?').run(job.id);
+          db.prepare("UPDATE print_queue SET status = 'printing' WHERE id = ?").run(job.id);
           printerBedCleared[job.printer_id] = false; // Zurücksetzen nach Start
           addEvent('info', `Queue: Job "${job.filename}" auf Drucker gestartet`, job.printer_id);
         }
       } catch (e) {
         log.error({ err: e, job }, 'Queue Worker failed to start job');
-        db.prepare('UPDATE print_queue SET status = "failed" WHERE id = ?').run(job.id);
+        db.prepare("UPDATE print_queue SET status = 'failed' WHERE id = ?").run(job.id);
       }
     }
   });
@@ -1103,18 +1218,46 @@ app.get('/api/system', (req, res) => {
 
 // ── DRUCKER ───────────────────────────────────
 app.get('/api/printers', (req, res) => {
-  const list = db.prepare('SELECT id, name, model, ip, added_at FROM printers').all();
+  const list = db.prepare('SELECT id, name, model, ip, added_at, timelapse_enabled, total_print_minutes FROM printers').all();
   res.json(list.map(p => ({ ...p, status: printerStatus[p.id] || { state: 'offline' } })));
 });
 
 app.post('/api/printers', (req, res) => {
-  const { name, model, ip, access_code, serial } = req.body;
-  const result = db.prepare('INSERT INTO printers (name,model,ip,access_code,serial) VALUES (?,?,?,?,?)')
-    .run(name, model || 'X1C', ip, encryptAccessCode(access_code), serial);
+  const { name, model, ip, access_code, serial, timelapse_enabled } = req.body;
+  const result = db.prepare('INSERT INTO printers (name,model,ip,access_code,serial,timelapse_enabled) VALUES (?,?,?,?,?,?)')
+    .run(name, model || 'X1C', ip, encryptAccessCode(access_code), serial, timelapse_enabled ? 1 : 0);
   const pid = result.lastInsertRowid;
   mqttClients[pid] = connectMQTT(ip, access_code, serial, pid);
   initMaintenanceTasks(pid);
   res.json({ id: pid });
+});
+
+app.patch('/api/printers/:id', (req, res) => {
+  const { name, model, ip, access_code, serial, timelapse_enabled } = req.body;
+  const printer = db.prepare('SELECT * FROM printers WHERE id = ?').get(req.params.id);
+  if (!printer) return res.status(404).json({ error: 'Drucker nicht gefunden' });
+
+  const sets = [];
+  const params = [];
+  if (name !== undefined) { sets.push('name=?'); params.push(name); }
+  if (model !== undefined) { sets.push('model=?'); params.push(model); }
+  if (ip !== undefined) { sets.push('ip=?'); params.push(ip); }
+  if (serial !== undefined) { sets.push('serial=?'); params.push(serial); }
+  if (timelapse_enabled !== undefined) { sets.push('timelapse_enabled=?'); params.push(timelapse_enabled ? 1 : 0); }
+  if (access_code) { sets.push('access_code=?'); params.push(encryptAccessCode(access_code)); }
+
+  if (sets.length > 0) {
+    params.push(req.params.id);
+    db.prepare(`UPDATE printers SET ${sets.join(',')} WHERE id = ?`).run(...params);
+    
+    // MQTT neu verbinden falls IP/Code/Serial geändert
+    if (ip || access_code || serial) {
+      if (mqttClients[req.params.id]) mqttClients[req.params.id].end();
+      const updated = db.prepare('SELECT * FROM printers WHERE id = ?').get(req.params.id);
+      mqttClients[req.params.id] = connectMQTT(updated.ip, decryptAccessCode(updated.access_code), updated.serial, req.params.id);
+    }
+  }
+  res.json({ ok: true });
 });
 
 app.delete('/api/printers/:id', (req, res) => {
@@ -1332,6 +1475,22 @@ app.post('/api/printers/:id/startfile', (req, res) => {
   });
 });
 
+app.post('/api/printers/:id/repeat', (req, res) => {
+  const lastJob = db.prepare('SELECT * FROM print_jobs WHERE printer_id = ? ORDER BY started_at DESC LIMIT 1').get(req.params.id);
+  if (!lastJob) return res.status(404).json({ error: 'Kein vorheriger Druckjob gefunden' });
+  
+  // Wir nehmen an, die Datei ist noch auf der SD-Karte
+  const ok = startPrintOnBambu(req.params.id, lastJob.filename, {
+    timelapse: true,
+    bed_levelling: true,
+    flow_cali: true,
+    vibration_cali: true,
+    use_ams: true
+  });
+  
+  res.json({ ok, filename: lastJob.filename });
+});
+
 app.delete('/api/printers/:id/files/:filename', async (req, res) => {
   const safeFilename = validateFilename(req.params.filename, true);
   if (!safeFilename) return res.status(400).json({ error: 'Ungültiger Dateiname' });
@@ -1369,6 +1528,51 @@ app.delete('/api/queue/:id', (req, res) => {
 app.post('/api/printers/:id/clear-bed', (req, res) => {
   printerBedCleared[req.params.id] = true;
   res.json({ ok: true });
+});
+
+app.get('/api/printers/:id/snapshot', async (req, res) => {
+  // Snapshot von go2rtc holen
+  try {
+    const response = await fetch('http://localhost:1984/api/frame.jpeg?src=bambu');
+    if (!response.ok) throw new Error('go2rtc frame failed');
+    const buffer = await response.arrayBuffer();
+    res.setHeader('Content-Type', 'image/jpeg');
+    res.setHeader('Content-Disposition', `attachment; filename="snapshot_${req.params.id}_${Date.now()}.jpg"`);
+    res.send(Buffer.from(buffer));
+  } catch (e) {
+    res.status(500).json({ error: 'Kamera-Snapshot fehlgeschlagen' });
+  }
+});
+
+// ── TIMELAPSES ────────────────────────────────
+app.get('/api/timelapses', (req, res) => {
+  const dir = './public/timelapses';
+  if (!fs.existsSync(dir)) return res.json([]);
+  const files = fs.readdirSync(dir)
+    .filter(f => f.endsWith('.mp4'))
+    .map(f => {
+      const stats = fs.statSync(path.join(dir, f));
+      return { name: f, size: stats.size, mtime: stats.mtime };
+    })
+    .sort((a, b) => b.mtime - a.mtime);
+  res.json(files);
+});
+
+app.delete('/api/timelapses/:name', (req, res) => {
+  const name = req.params.name;
+  if (!name || name.includes('..') || name.includes('/')) return res.status(400).json({ error: 'Ungültiger Dateiname' });
+  const filePath = path.join('./public/timelapses', name);
+  try {
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+      db.prepare('DELETE FROM timelapses WHERE filename = ?').run(name);
+      res.json({ success: true });
+    } else {
+      res.status(404).json({ error: 'Datei nicht gefunden' });
+    }
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ── FILAMENTE ─────────────────────────────────
@@ -1479,6 +1683,36 @@ app.get('/api/history/stats', (req, res) => {
     };
     res.json(stats);
   } catch (e) { log.error(e); res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/analytics', (req, res) => {
+  try {
+    const dailyVolume = db.prepare(`
+      SELECT date(started_at) as date, SUM(grams_used) as grams, COUNT(*) as count
+      FROM print_jobs
+      WHERE started_at > date('now', '-30 days')
+      GROUP BY date(started_at)
+      ORDER BY date ASC
+    `).all();
+
+    const materialStats = db.prepare(`
+      SELECT f.material, SUM(p.grams_used) as grams
+      FROM print_jobs p
+      JOIN filaments f ON p.filament_id = f.id
+      WHERE p.status = 'finished'
+      GROUP BY f.material
+    `).all();
+
+    const printerStats = db.prepare(`
+      SELECT pr.name, SUM(p.duration_min) as minutes
+      FROM print_jobs p
+      JOIN printers pr ON p.printer_id = pr.id
+      WHERE p.status = 'finished'
+      GROUP BY pr.id
+    `).all();
+
+    res.json({ dailyVolume, materialStats, printerStats });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── KOSTENRECHNER ─────────────────────────────

@@ -1,6 +1,7 @@
 <?php
 $stats    = api('/api/stats') ?? [];
 $printers = api('/api/printers') ?? [];
+$macros   = api('/api/macros') ?? [];
 
 // AMS-Daten für jeden Drucker vorladen
 $amsData = [];
@@ -114,6 +115,7 @@ function renderAms(array $amsData, int $pid): string {
   $state  = $s['gcode_state'] ?? 'offline';
   $nozzle = (float)($s['nozzle_temper'] ?? 0);
   $bed    = (float)($s['bed_temper'] ?? 0);
+  $chamber = (float)($s['chamber_temper'] ?? 0);
   $nTarget = (float)($s['nozzle_temper_target'] ?? 0);
   $bTarget = (float)($s['bed_target_temper'] ?? 0);
   $progress  = (int)($s['mc_percent'] ?? 0);
@@ -139,6 +141,7 @@ function renderAms(array $amsData, int $pid): string {
     <div class="pcard-col">
       <div class="camera-wrap">
         <div class="cam-badge"><div class="cam-dot"></div>LIVE</div>
+        <button class="cam-snap" onclick="window.open('/api/printers/<?= $id ?>/snapshot')" title="Snapshot speichern">📸</button>
         <iframe src="<?= htmlspecialchars($camUrl) ?>" allowfullscreen></iframe>
       </div>
       <div class="progress-panel" id="pa-<?= $id ?>" style="<?= $state !== 'RUNNING' ? 'display:none' : '' ?>">
@@ -184,6 +187,17 @@ function renderAms(array $amsData, int $pid): string {
           </div>
           <div class="temp-bar">
             <div class="temp-bar-fill bed" id="bb-<?= $id ?>" style="width:<?= min(100, $bed/1.2) ?>%"></div>
+          </div>
+        </div>
+
+        <div class="temp-card" style="cursor:default;">
+          <div class="temp-card-label">🏠 Bauraum</div>
+          <div class="temp-row">
+            <div class="temp-actual <?= tempClass($chamber) ?>" id="cv-<?= $id ?>"><?= number_format($chamber, 1) ?>°</div>
+            <div class="temp-target" style="opacity:0;">→ 0°C</div>
+          </div>
+          <div class="temp-bar">
+            <div class="temp-bar-fill chamber" id="cb-<?= $id ?>" style="width:<?= min(100, $chamber) ?>%;"></div>
           </div>
         </div>
 
@@ -234,6 +248,9 @@ function renderAms(array $amsData, int $pid): string {
             </button>
             <button class="pbtn pbtn-light" onclick="setLight(<?= $id ?>,false)">
               <span class="pbtn-icon">🌑</span><span class="pbtn-label">Licht aus</span>
+            </button>
+            <button class="pbtn pbtn-repeat" onclick="repeatPrint(<?= $id ?>)" <?= $state === 'RUNNING' ? 'style="display:none"' : '' ?> id="btn-repeat-<?= $id ?>">
+              <span class="pbtn-icon">🔄</span><span class="pbtn-label">Wiederholen</span>
             </button>
           </div>
         </div>
@@ -293,6 +310,24 @@ function renderAms(array $amsData, int $pid): string {
           </button>
         </div>
 
+        <div class="ctrl-section">
+          <div class="ctrl-section-title">Makros</div>
+          <div class="macro-btns">
+            <?php 
+            $pMacros = array_filter($macros, function($m) use ($id) { return $m['printer_id'] == $id || $m['printer_id'] === null; });
+            foreach ($pMacros as $m): ?>
+              <button class="mbtn" onclick="runMacro(<?= $m['id'] ?>, <?= $id ?>)" title="<?= htmlspecialchars($m['gcode']) ?>">
+                <span class="mbtn-icon"><?= htmlspecialchars($m['icon'] ?: '⚡') ?></span>
+                <span class="mbtn-label"><?= htmlspecialchars($m['name']) ?></span>
+              </button>
+            <?php endforeach; ?>
+            <button class="mbtn add-macro" onclick="location.href='/?page=settings'">
+              <span class="mbtn-icon">+</span>
+              <span class="mbtn-label">Neu</span>
+            </button>
+          </div>
+        </div>
+
       </div>
     </div>
   </div><!-- /.pcard-body -->
@@ -326,21 +361,7 @@ window.CAMERA_URL  = '<?= addslashes($camUrl ?? '') ?>';
 // Charts nach Seitenlade initialisieren
 document.addEventListener('DOMContentLoaded', () => {
   window.PRINTER_IDS.forEach(pid => {
-    // Temp-History vom Server laden
-    fetch('/api/printers/' + pid + '/temp-history')
-      .then(r => r.json())
-      .then(hist => {
-        if (hist && hist.t && hist.t.length > 0) {
-          window.tempHistory[pid] = hist;
-        } else {
-          window.tempHistory[pid] = { n: [], b: [], t: [] };
-        }
-        initTempChart(pid);
-      })
-      .catch(() => {
-        window.tempHistory[pid] = { n: [], b: [], t: [] };
-        initTempChart(pid);
-      });
+    initTempChart(pid);
   });
   // Event-Log laden
   loadEventLog();

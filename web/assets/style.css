@@ -2,6 +2,27 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
+  --bg:      #f4f7fa;
+  --bg2:     #ffffff;
+  --bg3:     #f8fafc;
+  --bg4:     #e2e8f0;
+  --border:  #e2e8f0;
+  --border2: #cbd5e1;
+  --accent:  #0ea5e9;
+  --green:   #10b981;
+  --orange:  #f59e0b;
+  --red:     #ef4444;
+  --purple:  #8b5cf6;
+  --text1:   #0f172a;
+  --text2:   #475569;
+  --text3:   #94a3b8;
+  --mono:    'JetBrains Mono', 'Fira Code', monospace;
+  --sans:    system-ui, -apple-system, sans-serif;
+  --sidebar: 220px;
+  --radius:  10px;
+}
+
+body.dark-mode {
   --bg:      #0d0f14;
   --bg2:     #13161e;
   --bg3:     #1a1e28;
@@ -16,10 +37,6 @@
   --text1:   #e2e8f4;
   --text2:   #9aa5be;
   --text3:   #5a6785;
-  --mono:    'JetBrains Mono', 'Fira Code', monospace;
-  --sans:    system-ui, -apple-system, sans-serif;
-  --sidebar: 220px;
-  --radius:  10px;
 }
 
 body {
@@ -224,6 +241,15 @@ body.kiosk-mode .content {
 .cam-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--green); animation: blink 2s infinite; }
 @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
 
+.cam-snap {
+  position: absolute; top: 8px; right: 8px; z-index: 5;
+  background: rgba(0,0,0,.5); border: none; color: #fff; font-size: 14px;
+  width: 28px; height: 28px; border-radius: 50%; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .2s;
+}
+.cam-snap:hover { background: rgba(0,0,0,.8); transform: scale(1.1); }
+
 /* ── Progress ──────────────────────────────── */
 .progress-panel { padding: 14px 16px; border-top: 1px solid var(--border); }
 .progress-top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
@@ -268,6 +294,7 @@ body.kiosk-mode .content {
 .temp-bar-fill { height: 100%; border-radius: 2px; transition: width .5s; }
 .temp-bar-fill.nozzle { background: linear-gradient(90deg, var(--orange), var(--red)); }
 .temp-bar-fill.bed    { background: linear-gradient(90deg, var(--accent), var(--orange)); }
+.temp-bar-fill.chamber { background: linear-gradient(90deg, #9c27b0, #ab47bc); }
 
 /* ── Preheat buttons ───────────────────────── */
 .preheat-btn {
@@ -354,6 +381,31 @@ body.kiosk-mode .content {
   border-radius: 50%; background: var(--accent);
   cursor: pointer; border: 2px solid var(--bg2);
 }
+
+/* ── Macros ────────────────────────────────── */
+.macro-btns {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+  margin-top: 8px;
+}
+.mbtn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  padding: 8px 10px;
+  border-radius: 6px;
+  color: var(--text1);
+  cursor: pointer;
+  transition: all .15s;
+  text-align: left;
+}
+.mbtn:hover { border-color: var(--accent); background: var(--bg4); }
+.mbtn-icon { font-size: 14px; flex-shrink: 0; }
+.mbtn-label { font-size: 11px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mbtn.add-macro { border-style: dashed; color: var(--text3); justify-content: center; }
 
 /* ── AMS ───────────────────────────────────── */
 .ams-panel {

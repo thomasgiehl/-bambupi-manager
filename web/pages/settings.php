@@ -2,6 +2,11 @@
 $msg = '';
 $msgType = 'success';
 
+$settings = api('/api/settings') ?? [];
+$version  = api('/api/version')  ?? [];
+$printers = api('/api/printers') ?? [];
+$macros   = api('/api/macros') ?? [];
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
     if ($_POST['action'] === 'save_settings') {
@@ -20,6 +25,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             'spaghetti_detect' => isset($_POST['spaghetti_detect']) ? '1' : '0',
         ]);
         $msg = '✅ Einstellungen gespeichert.';
+        $settings = api('/api/settings') ?? []; // Refresh
+    }
+
+    if ($_POST['action'] === 'add_macro') {
+        api('/api/macros', 'POST', [
+            'name'       => $_POST['m_name']   ?? '',
+            'icon'       => $_POST['m_icon']   ?? '⚡',
+            'gcode'      => $_POST['m_gcode']  ?? '',
+            'printer_id' => $_POST['m_printer'] ? (int)$_POST['m_printer'] : null
+        ]);
+        $msg = '✅ Makro hinzugefügt.';
+        $macros = api('/api/macros') ?? []; // Refresh
+    }
+
+    if ($_POST['action'] === 'delete_macro') {
+        api('/api/macros/' . (int)$_POST['macro_id'], 'DELETE');
+        $msg = '✅ Makro gelöscht.';
+        $macros = api('/api/macros') ?? []; // Refresh
     }
 
     if ($_POST['action'] === 'change_password') {
@@ -172,6 +195,75 @@ $version  = api('/api/version')  ?? [];
   <div style="margin-top:12px;font-size:11px;color:var(--text3);">
     Updates per SSH installieren:<br>
     <code style="font-family:var(--mono);color:var(--text2);">cd ~/bambupi && git pull && npm install --production && sudo systemctl restart bambupi</code>
+  </div>
+</div>
+
+<!-- Makros -->
+<div class="card" id="macros" style="max-width:500px;">
+  <div class="card-title">Schnell-Aktions-Buttons (Makros)</div>
+  <table style="width:100%; margin-bottom:15px;">
+    <thead>
+      <tr>
+        <th>Icon</th>
+        <th>Name</th>
+        <th>Drucker</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      <?php foreach ($macros as $m): 
+        $pName = 'Alle';
+        if ($m['printer_id']) {
+          foreach ($printers as $p) { if ($p['id'] == $m['printer_id']) $pName = $p['name']; }
+        }
+      ?>
+      <tr>
+        <td style="text-align:center;"><?= htmlspecialchars($m['icon']) ?></td>
+        <td><?= htmlspecialchars($m['name']) ?></td>
+        <td style="color:var(--text3); font-size:11px;"><?= htmlspecialchars($pName) ?></td>
+        <td style="text-align:right;">
+          <form method="post" style="display:inline;" onsubmit="return confirm('Wirklich löschen?')">
+            <input type="hidden" name="action" value="delete_macro">
+            <input type="hidden" name="macro_id" value="<?= $m['id'] ?>">
+            <button type="submit" class="btn btn-danger btn-sm" style="padding:4px 8px;">✕</button>
+          </form>
+        </td>
+      </tr>
+      <?php endforeach; if (empty($macros)): ?>
+      <tr><td colspan="4" style="text-align:center; color:var(--text3); padding:10px;">Keine Makros definiert.</td></tr>
+      <?php endif; ?>
+    </tbody>
+  </table>
+
+  <div style="border-top:1px solid var(--border); padding-top:15px;">
+    <div style="font-size:12px; font-weight:600; margin-bottom:10px;">Neues Makro</div>
+    <form method="post">
+      <input type="hidden" name="action" value="add_macro">
+      <div class="form-row">
+        <div class="form-group" style="flex:0 0 60px;">
+          <label>Icon</label>
+          <input type="text" name="m_icon" value="⚡" placeholder="⚡">
+        </div>
+        <div class="form-group">
+          <label>Name</label>
+          <input type="text" name="m_name" placeholder="Bett reinigen" required>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>G-Code (eine oder mehrere Zeilen)</label>
+        <textarea name="m_gcode" rows="2" placeholder="G28 Z&#10;G1 Z50 F3000" required style="resize:vertical;"></textarea>
+      </div>
+      <div class="form-group">
+        <label>Gültig für</label>
+        <select name="m_printer">
+          <option value="">Alle Drucker</option>
+          <?php foreach ($printers as $p): ?>
+          <option value="<?= $p['id'] ?>"><?= htmlspecialchars($p['name']) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <button class="btn btn-primary" type="submit">Hinzufügen</button>
+    </form>
   </div>
 </div>
 

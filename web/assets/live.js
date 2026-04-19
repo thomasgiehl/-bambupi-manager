@@ -7,6 +7,7 @@ const tempHistory    = {};
 const chartInstances = {};
 const prevStates     = {};
 const tempAlarmTimers = {};
+const tempTrends      = {}; // { printerId: { nozzle: [lastVal, trend], bed: [...] } }
 let sseSource        = null;
 let sseFallbackTimer = null;
 let assignCtx        = { printerId: null, unitIdx: null, slotIdx: null, selectedFilamentId: null };
@@ -73,10 +74,25 @@ document.addEventListener('click', e => {
 });
 
 // ── Temperature helpers ───────────────────────
-function tempArrow(actual, target) {
-  if (target > 0 && actual < target - 2) return '<span style="color:var(--orange);font-size:12px;margin-left:2px;">↑</span>';
-  if ((target === 0 || target < actual - 2) && actual > 30) return '<span style="color:var(--accent);font-size:12px;margin-left:2px;">↓</span>';
-  if (target > 0 && Math.abs(actual - target) <= 2) return '<span style="color:var(--green);font-size:11px;margin-left:2px;">✓</span>';
+function tempArrow(pid, type, actual, target) {
+  if (!tempTrends[pid]) tempTrends[pid] = {};
+  const prev = tempTrends[pid][type] || actual;
+  tempTrends[pid][type] = actual;
+
+  // Trend bestimmen: 1 = steigend, -1 = fallend, 0 = stabil
+  let trend = 0;
+  if (actual > prev) trend = 1;
+  if (actual < prev) trend = -1;
+
+  // Icons basierend auf Trend UND Ziel
+  if (trend === 1) return '<span style="color:var(--orange);font-size:12px;margin-left:2px;font-weight:bold;">↑</span>';
+  if (trend === -1) return '<span style="color:var(--accent);font-size:12px;margin-left:2px;font-weight:bold;">↓</span>';
+  
+  // Wenn stabil, prüfen ob Ziel erreicht
+  if (target > 0 && Math.abs(actual - target) <= 2) {
+    return '<span style="color:var(--green);font-size:11px;margin-left:2px;">✓</span>';
+  }
+  
   return '';
 }
 
@@ -128,42 +144,68 @@ function playAlertSound() {
 }
 
 // ── Chart ─────────────────────────────────────
-function initTempChart(pid) {
+const lastChartUpdate = {};
+
+async function initTempChart(pid) {
   if (typeof Chart === 'undefined') return;
   const canvas = document.getElementById('temp-chart-' + pid);
   if (!canvas || chartInstances[pid]) return;
-  if (!tempHistory[pid]) tempHistory[pid] = { n: [], b: [], t: [] };
+
+  // Wenn noch keine Historie da ist oder sie unvollständig ist, vom Server laden
+  if (!tempHistory[pid] || !tempHistory[pid].t || tempHistory[pid].t.length === 0) {
+    try {
+      const res = await fetch(`/api/printers/${pid}/temp-history`);
+      tempHistory[pid] = await res.json();
+    } catch (e) {
+      tempHistory[pid] = { n: [], b: [], t: [], c: [] };
+    }
+  }
+  
+  const h = tempHistory[pid];
+  if (!h.c) h.c = (h.n || []).map(() => 0); // Fallback für alte Cache-Daten
+  if (!h.n) h.n = [];
+  if (!h.b) h.b = [];
+  if (!h.t) h.t = [];
 
   chartInstances[pid] = new Chart(canvas.getContext('2d'), {
     type: 'line',
     data: {
-      labels: tempHistory[pid].t,
+      labels: h.t,
       datasets: [
-        { label: 'Nozzle', data: tempHistory[pid].n, borderColor: '#ef5350', backgroundColor: 'rgba(239,83,80,.07)', borderWidth: 1.5, pointRadius: 0, tension: 0.4, fill: true },
-        { label: 'Bett',   data: tempHistory[pid].b, borderColor: '#29b6f6', backgroundColor: 'rgba(41,182,246,.07)',  borderWidth: 1.5, pointRadius: 0, tension: 0.4, fill: true }
+        { label: 'Nozzle', data: h.n, borderColor: '#ef5350', backgroundColor: 'rgba(239,83,80,.07)', borderWidth: 1.5, pointRadius: 0, tension: 0.4, fill: true },
+        { label: 'Bett',   data: h.b, borderColor: '#29b6f6', backgroundColor: 'rgba(41,182,246,.07)',  borderWidth: 1.5, pointRadius: 0, tension: 0.4, fill: true },
+        { label: 'Raum',   data: h.c, borderColor: '#ab47bc', backgroundColor: 'rgba(171,71,188,.07)',  borderWidth: 1.2, pointRadius: 0, tension: 0.4, fill: false }
       ]
     },
     options: {
       responsive: true, maintainAspectRatio: false, animation: false,
       interaction: { intersect: false, mode: 'index' },
       plugins: {
-        legend: { labels: { color: '#9aa5be', font: { size: 10 }, boxWidth: 10, padding: 10 } },
+        legend: { position: 'top', align: 'end', labels: { color: '#9aa5be', font: { size: 9 }, boxWidth: 8, padding: 4 } },
         tooltip: { backgroundColor: 'rgba(13,15,20,.95)', titleColor: '#e2e8f4', bodyColor: '#9aa5be', borderColor: '#252c3f', borderWidth: 1 }
       },
       scales: {
         x: { display: false },
-        y: { min: 0, max: 280, grid: { color: 'rgba(255,255,255,.03)' }, ticks: { color: '#5a6785', font: { size: 9 }, maxTicksLimit: 4, callback: v => v + '°' } }
+        y: { min: 0, suggestedMax: 220, grid: { color: 'rgba(255,255,255,.03)' }, ticks: { color: '#5a6785', font: { size: 9 }, maxTicksLimit: 4, callback: v => v + '°' } }
       }
     }
   });
 }
 
-function updateTempChart(pid, nozzle, bed) {
+function updateTempChart(pid, nozzle, bed, chamber) {
   if (!chartInstances[pid]) return;
+  
+  // Throttle: Max jede Sekunde updaten für Real-Time Gefühl
+  const now = Date.now();
+  if (lastChartUpdate[pid] && now - lastChartUpdate[pid] < 1000) return;
+  lastChartUpdate[pid] = now;
+
   const h = tempHistory[pid];
   const t = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  h.t.push(t); h.n.push(nozzle); h.b.push(bed);
-  if (h.t.length > 120) { h.t.shift(); h.n.shift(); h.b.shift(); }
+  
+  h.t.push(t); h.n.push(nozzle); h.b.push(bed); h.c.push(chamber || 0);
+  if (h.t.length > 120) { h.t.shift(); h.n.shift(); h.b.shift(); h.c.shift(); }
+  
   chartInstances[pid].update('none');
 }
 
@@ -172,6 +214,7 @@ function applyPrinterStatus(p) {
   const s       = p.status || {};
   const nozzle  = s.nozzle_temper || 0;
   const bed     = s.bed_temper || 0;
+  const chamber = s.chamber_temper || 0;
   const nTarget = s.nozzle_temper_target || 0;
   const bTarget = s.bed_target_temper || 0;
   const progress  = s.mc_percent || 0;
@@ -182,14 +225,17 @@ function applyPrinterStatus(p) {
   // Temperatures
   const nEl = document.getElementById('nv-' + pid);
   const bEl = document.getElementById('bv-' + pid);
-  if (nEl) { nEl.innerHTML = nozzle.toFixed(1) + '°' + tempArrow(nozzle, nTarget); nEl.className = 'temp-actual ' + tempClass(nozzle); }
-  if (bEl) { bEl.innerHTML = bed.toFixed(1) + '°' + tempArrow(bed, bTarget);       bEl.className = 'temp-actual ' + tempClass(bed); }
+  const cEl = document.getElementById('cv-' + pid);
+  if (nEl) { nEl.innerHTML = nozzle.toFixed(1) + '°' + tempArrow(pid, 'nozzle', nozzle, nTarget); nEl.className = 'temp-actual ' + tempClass(nozzle); }
+  if (bEl) { bEl.innerHTML = bed.toFixed(1) + '°' + tempArrow(pid, 'bed', bed, bTarget);       bEl.className = 'temp-actual ' + tempClass(bed); }
+  if (cEl) { cEl.innerHTML = chamber.toFixed(1) + '°' + tempArrow(pid, 'chamber', chamber, 0);   cEl.className = 'temp-actual ' + tempClass(chamber); }
 
   const ntEl = document.getElementById('nt-' + pid); if (ntEl) ntEl.textContent = '→ ' + nTarget + '°C';
   const btEl = document.getElementById('bt-' + pid); if (btEl) btEl.textContent = '→ ' + bTarget + '°C';
 
   const nbEl = document.getElementById('nb-' + pid); if (nbEl) nbEl.style.width = Math.min(100, nozzle / 3) + '%';
   const bbEl = document.getElementById('bb-' + pid); if (bbEl) bbEl.style.width = Math.min(100, bed / 1.2) + '%';
+  const cbEl = document.getElementById('cb-' + pid); if (cbEl) cbEl.style.width = Math.min(100, chamber) + '%';
 
   // Progress
   const paEl = document.getElementById('pa-' + pid);
@@ -235,8 +281,10 @@ function applyPrinterStatus(p) {
   // Pause/resume button swap
   const pbPause  = document.getElementById('btn-pause-'  + pid);
   const pbResume = document.getElementById('btn-resume-' + pid);
+  const pbRepeat = document.getElementById('btn-repeat-' + pid);
   if (pbPause)  pbPause.style.display  = state === 'RUNNING' ? '' : 'none';
   if (pbResume) pbResume.style.display = state === 'RUNNING' ? 'none' : '';
+  if (pbRepeat) pbRepeat.style.display = state === 'RUNNING' ? 'none' : '';
 
   // Speed buttons
   const spdLvl = s.spd_lvl || 2;
@@ -252,7 +300,7 @@ function applyPrinterStatus(p) {
   prevStates[pid] = state;
 
   checkTempAlarm(pid, nozzle, state);
-  updateTempChart(pid, nozzle, bed);
+  updateTempChart(pid, nozzle, bed, chamber);
   window.dispatchEvent(new CustomEvent('sseMessage', { detail: p }));
   updateSSEChip('live');
 }
@@ -355,6 +403,16 @@ async function printerCmd(pid, action) {
   toast(action === 'pause' ? '⏸ Pausiert' : action === 'resume' ? '▶️ Fortgesetzt' : '⏹ Abgebrochen');
 }
 
+async function repeatPrint(pid) {
+  if (!confirm('Letzten Druck wirklich wiederholen?')) return;
+  const r = await api('/api/printers/' + pid + '/repeat', 'POST');
+  if (r.ok) {
+    toast('🚀 Wiederholung gestartet: ' + r.filename);
+  } else {
+    toast('❌ Fehler: ' + (r.error || 'Druck konnte nicht gestartet werden'), 'error');
+  }
+}
+
 async function setLight(pid, on) {
   await api('/api/printers/' + pid + '/light', 'POST', { on });
   toast(on ? '💡 Licht an' : '💡 Licht aus');
@@ -378,6 +436,12 @@ async function homeAxes(pid, axes) {
 async function motorsOff(pid) {
   await api('/api/printers/' + pid + '/motors_off', 'POST');
   toast('⚡ Motoren aus');
+}
+
+async function runMacro(mid, pid) {
+  const r = await api('/api/macros/' + mid + '/run', 'POST', { printer_id: pid });
+  if (r.ok) toast('⚡ Makro ausgeführt');
+  else toast('❌ Fehler beim Ausführen des Makros', 'error');
 }
 
 async function cooldown(pid, target = 'all') {
@@ -664,16 +728,54 @@ async function deleteFilament(id) {
 
 // ── Printer CRUD ──────────────────────────────
 async function addPrinter() {
-  const name   = document.getElementById('p-name').value.trim();
-  const model  = document.getElementById('p-model').value;
-  const ip     = document.getElementById('p-ip').value.trim();
-  const code   = document.getElementById('p-code').value.trim();
-  const serial = document.getElementById('p-serial').value.trim();
-  if (!name || !ip || !code || !serial) { toast('Alle Felder ausfüllen!', 'error'); return; }
-  await api('/api/printers', 'POST', { name, model, ip, access_code: code, serial });
-  toast('✅ Drucker hinzugefügt — Seite wird neu geladen...');
+  const id        = document.getElementById('p-id').value;
+  const name      = document.getElementById('p-name').value.trim();
+  const model     = document.getElementById('p-model').value;
+  const ip        = document.getElementById('p-ip').value.trim();
+  const code      = document.getElementById('p-code').value.trim();
+  const serial    = document.getElementById('p-serial').value.trim();
+  const timelapse = document.getElementById('p-timelapse').checked;
+  
+  if (!name || !ip || (id==='' && !code) || !serial) { toast('Alle Felder ausfüllen!', 'error'); return; }
+  
+  const data = { name, model, ip, serial, timelapse_enabled: timelapse };
+  if (code) data.access_code = code;
+
+  if (id) {
+    await api('/api/printers/' + id, 'PATCH', data);
+    toast('✅ Drucker aktualisiert');
+  } else {
+    await api('/api/printers', 'POST', data);
+    toast('✅ Drucker hinzugefügt');
+  }
+  
   closeModal('modal-add-printer');
   setTimeout(() => location.reload(), 1200);
+}
+
+function editPrinter(p) {
+  document.getElementById('p-modal-title').textContent = 'Drucker bearbeiten';
+  document.getElementById('p-id').value = p.id;
+  document.getElementById('p-name').value = p.name;
+  document.getElementById('p-model').value = p.model;
+  document.getElementById('p-ip').value = p.ip;
+  document.getElementById('p-code').value = ''; // Bleibt leer wenn keine Änderung
+  document.getElementById('p-code').placeholder = '(Unverändert lassen)';
+  document.getElementById('p-serial').value = p.serial || '';
+  document.getElementById('p-timelapse').checked = p.timelapse_enabled == 1;
+  openModal('modal-add-printer');
+}
+
+function resetPrinterModal() {
+  document.getElementById('p-modal-title').textContent = 'Drucker hinzufügen';
+  document.getElementById('p-id').value = '';
+  document.getElementById('p-name').value = '';
+  document.getElementById('p-model').selectedIndex = 0;
+  document.getElementById('p-ip').value = '';
+  document.getElementById('p-code').value = '';
+  document.getElementById('p-code').placeholder = '12345678';
+  document.getElementById('p-serial').value = '';
+  document.getElementById('p-timelapse').checked = true;
 }
 
 async function deletePrinter(id) {

@@ -7,6 +7,13 @@
   <link rel="stylesheet" href="/assets/style.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
   <script src="https://unpkg.com/gcode-preview@0.3.0/dist/gcode-preview.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(() => {});
+      });
+    }
+  </script>
 </head>
 <body class="<?= ($page==='kiosk') ? 'kiosk-mode' : '' ?>">
 
@@ -16,26 +23,57 @@
   <div class="nav-section">Übersicht</div>
   <a href="/?page=dashboard"   class="<?= ($page==='dashboard')   ? 'active':'' ?>">📊 Dashboard</a>
   <a href="/?page=printers"    class="<?= ($page==='printers')    ? 'active':'' ?>">🖨️ Drucker</a>
+  <a href="/?page=analytics"   class="<?= ($page==='analytics')   ? 'active':'' ?>">📈 Statistiken</a>
   <div class="nav-section">Materialien</div>
   <a href="/?page=filaments"   class="<?= ($page==='filaments')   ? 'active':'' ?>">🧵 Filamente</a>
   <div class="nav-section">Dateien & Daten</div>
   <a href="/?page=files"       class="<?= ($page==='files')       ? 'active':'' ?>">📂 Dateien</a>
   <a href="/?page=queue"       class="<?= ($page==='queue')       ? 'active':'' ?>">⏳ Warteschlange</a>
   <a href="/?page=history"     class="<?= ($page==='history')     ? 'active':'' ?>">📋 Historie</a>
+  <a href="/?page=timelapse"   class="<?= ($page==='timelapse')   ? 'active':'' ?>">🎬 Timelapses</a>
   <a href="/?page=calculator"  class="<?= ($page==='calculator')  ? 'active':'' ?>">💰 Kostenrechner</a>
   <div class="nav-section">System</div>
   <a href="/?page=maintenance" class="<?= ($page==='maintenance') ? 'active':'' ?>">🛠️ Wartung</a>
   <a href="/?page=settings"    class="<?= ($page==='settings')    ? 'active':'' ?>">⚙️ Einstellungen</a>
+  <a href="/?page=kiosk"       class="<?= ($page==='kiosk')       ? 'active':'' ?>">📺 Kiosk Modus</a>
+  <div style="margin-top:auto; padding:15px; border-top:1px solid var(--border);">
+    <button onclick="toggleDarkMode()" class="btn btn-secondary btn-sm" style="width:100%; justify-content:center; gap:8px;">
+      <span id="dark-mode-icon">🌙</span> <span id="dark-mode-text">Dark Mode</span>
+    </button>
+  </div>
 </nav>
 <?php endif; ?>
+
+<script>
+  function updateDarkModeUI() {
+    const isDark = document.body.classList.contains('dark-mode');
+    const icon = document.getElementById('dark-mode-icon');
+    const text = document.getElementById('dark-mode-text');
+    if (icon) icon.textContent = isDark ? '☀️' : '🌙';
+    if (text) text.textContent = isDark ? 'Light Mode' : 'Dark Mode';
+  }
+  function toggleDarkMode() {
+    const isDark = document.body.classList.toggle('dark-mode');
+    localStorage.setItem('darkMode', isDark ? '1' : '0');
+    updateDarkModeUI();
+  }
+  if (localStorage.getItem('darkMode') === '1') {
+    document.body.classList.add('dark-mode');
+  } else if (localStorage.getItem('darkMode') === null && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+    document.body.classList.add('dark-mode');
+  }
+  document.addEventListener('DOMContentLoaded', updateDarkModeUI);
+</script>
 
 <main class="content">
 
 <!-- ── Global Header ── -->
+<?php if ($page !== 'kiosk'): ?>
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
   <h1 style="font-size:20px;font-weight:700;"><?= htmlspecialchars($pageTitle ?? 'BambuPi') ?></h1>
   <div class="sse-chip">● Live</div>
 </div>
+<?php endif; ?>
 
 <!-- ── Toast ── -->
 <div id="toast" class="toast"></div>
@@ -91,7 +129,8 @@
 <!-- ── Modal: Drucker hinzufügen ── -->
 <div id="modal-add-printer" class="modal-backdrop">
   <div class="modal-box">
-    <div class="modal-title">Drucker hinzufügen</div>
+    <div class="modal-title" id="p-modal-title">Drucker hinzufügen</div>
+    <input type="hidden" id="p-id">
     <div class="form-group"><label>Name</label><input type="text" id="p-name" placeholder="Mein X1C"></div>
     <div class="form-row">
       <div class="form-group"><label>Modell</label>
@@ -105,6 +144,11 @@
     <div class="form-row">
       <div class="form-group"><label>Access Code</label><input type="text" id="p-code" placeholder="12345678"></div>
       <div class="form-group"><label>Seriennummer</label><input type="text" id="p-serial" placeholder="XXXXXXXXX"></div>
+    </div>
+    <div class="form-group">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+        <input type="checkbox" id="p-timelapse" checked> Zeitraffer (Timelapse) aktivieren
+      </label>
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('modal-add-printer')">Abbrechen</button>

@@ -1,14 +1,14 @@
 <?php $printers = api('/api/printers') ?? []; ?>
 
 <div style="display:flex;justify-content:flex-end;margin-bottom:20px;">
-  <button class="btn btn-primary" onclick="openModal('modal-add-printer')">+ Hinzufügen</button>
+  <button class="btn btn-primary" onclick="resetPrinterModal(); openModal('modal-add-printer')">+ Hinzufügen</button>
 </div>
 
 <?php if (empty($printers)): ?>
 <div class="card" style="text-align:center;padding:40px;color:var(--text3);">
   <div style="font-size:40px;margin-bottom:12px;">🖨️</div>
   <p>Noch kein Drucker konfiguriert.</p>
-  <button class="btn btn-primary" onclick="openModal('modal-add-printer')" style="margin-top:14px;">+ Drucker hinzufügen</button>
+  <button class="btn btn-primary" onclick="resetPrinterModal(); openModal('modal-add-printer')" style="margin-top:14px;">+ Drucker hinzufügen</button>
 </div>
 <?php else: ?>
 <?php foreach ($printers as $p):
@@ -35,7 +35,10 @@
         </div>
       </div>
     </div>
-    <button class="btn btn-danger btn-sm" onclick="deletePrinter(<?= (int)$p['id'] ?>)">🗑 Löschen</button>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-secondary btn-sm" onclick="editPrinter(<?= htmlspecialchars(json_encode($p)) ?>)">⚙️ Bearbeiten</button>
+      <button class="btn btn-danger btn-sm" onclick="deletePrinter(<?= (int)$p['id'] ?>)">🗑 Löschen</button>
+    </div>
   </div>
 
   <?php if ($state === 'RUNNING'): ?>
