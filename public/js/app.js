@@ -900,19 +900,39 @@ async function loadCalcFilaments(){
   const list=await api('/api/filaments');
   document.getElementById('calc-filament').innerHTML='<option value="">-- Filament wählen --</option>'+list.map(f=>`<option value="${f.id}">${f.brand} ${f.color} ${f.material}</option>`).join('');
   try{const s=await api('/api/settings');const fr=parseInt(s.failure_rate)||10;const el=document.getElementById('calc-failure');if(el){el.value=fr;document.getElementById('calc-failure-val').textContent=fr+'%';}}catch(e){}
-  try{const files=await api('/api/uploads');const sel=document.getElementById('calc-file-select');if(sel&&files.length){sel.innerHTML='<option value="">— Datei wählen —</option>'+files.map(f=>`<option value="${f.filename}">${f.filename.replace(/^\d+-/,'')}</option>`).join('');}}catch(e){}
+  try{
+    const files=await api('/api/uploads');
+    const sel=document.getElementById('calc-file-select');
+    if(sel){
+      sel.innerHTML='<option value="">— .3mf oder .gcode Datei wählen —</option>'+
+        files.filter(f=>f.filename.endsWith('.3mf')||f.filename.endsWith('.gcode'))
+          .map(f=>`<option value="${f.filename}">${f.filename.replace(/^\d+-/,'')}</option>`).join('');
+    }
+  }catch(e){}
 }
-async function loadMetaIntoCalc(){
+async function onCalcFileSelect(){
   const sel=document.getElementById('calc-file-select');
-  if(!sel||!sel.value){toast('Bitte zuerst eine Datei wählen','error');return;}
+  const preview=document.getElementById('calc-file-preview');
+  if(!sel||!sel.value){if(preview)preview.style.display='none';return;}
+  if(preview)preview.style.display='flex';
+  const nameEl=document.getElementById('calc-file-name');
+  if(nameEl)nameEl.textContent=sel.value.replace(/^\d+-/,'');
+  const wEl=document.getElementById('calc-file-weight');const tEl=document.getElementById('calc-file-time');const mEl=document.getElementById('calc-file-msg');
+  if(wEl)wEl.textContent='…';if(tEl)tEl.textContent='…';if(mEl)mEl.textContent='Analysiere…';
+  const thumb=document.getElementById('calc-file-thumb');
+  if(thumb){thumb.src='/api/uploads/'+encodeURIComponent(sel.value)+'/thumbnail';thumb.style.display='block';thumb.onerror=()=>thumb.style.display='none';}
   try{
     const meta=await api('/api/uploads/'+encodeURIComponent(sel.value)+'/metadata');
-    if(meta.error){toast('Keine Metadaten in dieser Datei','error');return;}
+    if(meta.error){if(wEl)wEl.textContent='—';if(tEl)tEl.textContent='—';if(mEl)mEl.textContent='⚠ Keine Metadaten gefunden';return;}
+    if(wEl)wEl.textContent=(meta.weight_g||0)+'g';
+    if(tEl)tEl.textContent=meta.time_formatted||'—';
+    if(mEl)mEl.textContent='✓ Werte in Rechner übernommen';
+    if(meta.filament_type){const tw=document.getElementById('calc-file-type-wrap');const te=document.getElementById('calc-file-type');if(tw)tw.style.display='';if(te)te.textContent=meta.filament_type;}
     if(meta.weight_g)document.getElementById('calc-grams').value=meta.weight_g;
     if(meta.time_s)document.getElementById('calc-duration').value=Math.round(meta.time_s/60);
+    if(meta.filament_type){const opts=document.getElementById('calc-filament').options;for(const o of opts){if(o.text.toLowerCase().includes(meta.filament_type.toLowerCase())){o.selected=true;break;}}}
     calculate();
-    toast('Metadaten geladen: '+Math.round(meta.weight_g||0)+'g, '+(meta.time_formatted||'?'));
-  }catch(e){toast('Fehler beim Laden','error');}
+  }catch(e){if(mEl)mEl.textContent='Fehler beim Laden';}
 }
 async function calculate(){const grams=parseFloat(document.getElementById('calc-grams').value)||0;const duration=parseFloat(document.getElementById('calc-duration').value)||0;const post=parseFloat(document.getElementById('calc-post').value)||0;const rate=parseFloat(document.getElementById('calc-rate').value)||0;const filament_id=document.getElementById('calc-filament').value;if(!grams&&!duration)return;const result=await api('/api/calculate','POST',{grams,duration_min:duration,filament_id,post_processing_min:post,hourly_rate:rate});document.getElementById('calc-result').style.display='block';document.getElementById('r-filament').textContent=result.filament_cost.toFixed(2)+' €';document.getElementById('r-electricity').textContent=result.electricity_cost.toFixed(2)+' €';document.getElementById('r-post').textContent=result.post_cost.toFixed(2)+' €';document.getElementById('r-total').textContent=result.total_cost.toFixed(2)+' €';}
 

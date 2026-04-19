@@ -686,18 +686,32 @@ body.kiosk .kiosk-btn { color: var(--accent); border-color: rgba(41,182,246,0.4)
     <!-- KOSTENRECHNER -->
     <div id="page-calculator" class="page">
       <div class="page-header"><div class="page-title">Kostenrechner</div></div>
+
+      <!-- DATEI-ANALYSE KARTE -->
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-title">📁 Datei analysieren</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <select id="calc-file-select" onchange="onCalcFileSelect()" style="flex:1;min-width:180px;background:var(--surface3);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-size:13px;">
+            <option value="">— .3mf oder .gcode Datei wählen —</option>
+          </select>
+        </div>
+        <div id="calc-file-preview" style="display:none;margin-top:12px;display:none;flex-direction:row;gap:14px;align-items:flex-start;background:var(--surface3);border-radius:8px;padding:12px;">
+          <img id="calc-file-thumb" src="" alt="" style="width:72px;height:72px;object-fit:cover;border-radius:6px;flex-shrink:0;display:none;">
+          <div style="flex:1;min-width:0;">
+            <div id="calc-file-name" style="font-size:13px;font-weight:600;margin-bottom:6px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
+            <div style="display:flex;flex-wrap:wrap;gap:10px;">
+              <div style="font-size:12px;color:var(--text3);">Gewicht: <span id="calc-file-weight" style="color:var(--accent);font-family:var(--mono);font-weight:700;">—</span></div>
+              <div style="font-size:12px;color:var(--text3);">Druckzeit: <span id="calc-file-time" style="color:var(--accent);font-family:var(--mono);font-weight:700;">—</span></div>
+              <div id="calc-file-type-wrap" style="font-size:12px;color:var(--text3);display:none;">Material: <span id="calc-file-type" style="color:var(--green);font-weight:600;"></span></div>
+            </div>
+            <div id="calc-file-msg" style="font-size:11px;color:var(--text3);margin-top:4px;"></div>
+          </div>
+        </div>
+      </div>
+
       <div class="grid2">
         <div class="card">
           <div class="card-title">Material & Zeit</div>
-          <div class="form-group" style="margin-bottom:8px;">
-            <label>Aus Datei laden</label>
-            <div style="display:flex;gap:6px;">
-              <select id="calc-file-select" style="flex:1;background:var(--surface3);border:1px solid var(--border);border-radius:6px;padding:6px 8px;color:var(--text);font-size:12px;">
-                <option value="">— Datei wählen —</option>
-              </select>
-              <button class="btn btn-secondary btn-sm" onclick="loadMetaIntoCalc()" style="white-space:nowrap;">📂 Laden</button>
-            </div>
-          </div>
           <div class="form-group"><label>Filament</label><select id="calc-filament" onchange="calculate()"></select></div>
           <div class="form-row">
             <div class="form-group"><label>Gramm verbraucht</label><input type="number" id="calc-grams" placeholder="45" oninput="calculate()"></div>
@@ -1965,20 +1979,53 @@ async function loadCalcFilaments(){
   try{
     const files=await api('/api/uploads');
     const sel=document.getElementById('calc-file-select');
-    if(sel&&files.length){sel.innerHTML='<option value="">— Datei wählen —</option>'+files.map(f=>`<option value="${esc(f.filename)}">${esc(f.filename.replace(/^\d+-/,''))}</option>`).join('');}
+    if(sel){
+      sel.innerHTML='<option value="">— .3mf oder .gcode Datei wählen —</option>'+
+        files.filter(f=>f.filename.endsWith('.3mf')||f.filename.endsWith('.gcode'))
+          .map(f=>`<option value="${esc(f.filename)}">${esc(f.filename.replace(/^\d+-/,''))}</option>`).join('');
+    }
   }catch(e){}
 }
-async function loadMetaIntoCalc(){
+async function onCalcFileSelect(){
   const sel=document.getElementById('calc-file-select');
-  if(!sel||!sel.value){toast('Bitte zuerst eine Datei wählen','error');return;}
+  const preview=document.getElementById('calc-file-preview');
+  if(!sel.value){preview.style.display='none';return;}
+  preview.style.display='flex';
+  document.getElementById('calc-file-name').textContent=sel.value.replace(/^\d+-/,'');
+  document.getElementById('calc-file-weight').textContent='…';
+  document.getElementById('calc-file-time').textContent='…';
+  document.getElementById('calc-file-msg').textContent='Analysiere…';
+  // Thumbnail laden
+  const thumb=document.getElementById('calc-file-thumb');
+  thumb.src='/api/uploads/'+encodeURIComponent(sel.value)+'/thumbnail';
+  thumb.style.display='block';
+  thumb.onerror=()=>thumb.style.display='none';
+  // Metadaten laden
   try{
     const meta=await api('/api/uploads/'+encodeURIComponent(sel.value)+'/metadata');
-    if(meta.error){toast('Keine Metadaten in dieser Datei','error');return;}
-    if(meta.weight_g){document.getElementById('calc-grams').value=meta.weight_g;}
-    if(meta.time_s){document.getElementById('calc-duration').value=Math.round(meta.time_s/60);}
+    if(meta.error){
+      document.getElementById('calc-file-weight').textContent='—';
+      document.getElementById('calc-file-time').textContent='—';
+      document.getElementById('calc-file-msg').textContent='⚠ Keine Metadaten gefunden (z.B. plain GCode ohne Header)';
+      return;
+    }
+    document.getElementById('calc-file-weight').textContent=(meta.weight_g||0)+'g';
+    document.getElementById('calc-file-time').textContent=meta.time_formatted||'—';
+    document.getElementById('calc-file-msg').textContent='✓ Werte wurden in Rechner übernommen';
+    if(meta.filament_type){
+      document.getElementById('calc-file-type').textContent=meta.filament_type;
+      document.getElementById('calc-file-type-wrap').style.display='';
+    }
+    // Felder automatisch befüllen
+    if(meta.weight_g)document.getElementById('calc-grams').value=meta.weight_g;
+    if(meta.time_s)document.getElementById('calc-duration').value=Math.round(meta.time_s/60);
+    // Passendes Filament vorauswählen
+    if(meta.filament_type){
+      const opts=document.getElementById('calc-filament').options;
+      for(const o of opts){if(o.text.toLowerCase().includes(meta.filament_type.toLowerCase())){o.selected=true;break;}}
+    }
     calculate();
-    toast('Metadaten geladen: '+Math.round(meta.weight_g||0)+'g, '+(meta.time_formatted||'?'));
-  }catch(e){toast('Fehler beim Laden','error');}
+  }catch(e){document.getElementById('calc-file-msg').textContent='Fehler beim Laden';}
 }
 async function calculate(){
   const grams=parseFloat(document.getElementById('calc-grams').value)||0;
