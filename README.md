@@ -21,7 +21,7 @@ A local web dashboard for Bambu Lab 3D printers on Raspberry Pi — no cloud, no
 | 📟 Event-Log | Live-Ereignisprotokoll / Live event log (last 50 events) |
 | 🎨 AMS | RFID-Erkennung + manuelle Zuweisung / RFID detection + manual slot assignment |
 | 🧵 Filament-DB | Spulen, Restmenge, Warn-Badge, Bambu Studio Import / Spools, low-warning, BS import |
-| 📁 Dateimanager | Upload, Drag & Drop, FTP, SD-Karte / Upload, drag & drop, FTP, SD card |
+| 📁 Dateimanager | Upload, Drag & Drop, FTP, SD-Karte, Druckoptionen / Upload, drag & drop, FTP, SD card, print options |
 | 📊 Auto-Kostenanalyse | .3mf-Metadaten → Kosten-Preview (Opt-in) / .3mf metadata → cost preview |
 | 💰 Kostenrechner | Filament + Strom + Maschine + Fehldruck + Marge / Full cost breakdown + margin |
 | 📜 Druckhistorie | Log + CSV-Export / Print log + CSV export |
@@ -29,6 +29,18 @@ A local web dashboard for Bambu Lab 3D printers on Raspberry Pi — no cloud, no
 | 📲 PWA | Als App installierbar / Installable as home screen app |
 | 🖥️ Multi-Drucker | Beliebig viele Drucker / Any number of printers |
 | 📱 Mobil | Responsive, Bottom-Nav, Swipe / Responsive, bottom nav, swipe |
+
+---
+
+## 🚀 Neu in dieser Version / New in this version
+
+- **Druck-Optionen**: Wähle Bett-Leveling, Zeitraffer, Flow-Kalibrierung und AMS-Nutzung direkt im Dateimanager aus, bevor du einen Druck startest.
+- **Bambu Studio Import**: Importiere deine eigenen Filament-Presets direkt aus Bambu Studio in den BambuPi Manager.
+- **UI Refactor**: Verbesserte Status-Anzeige und globale Kopfzeile für bessere Übersicht.
+
+- **Print Options**: Select bed leveling, timelapse, flow calibration, and AMS usage directly in the file manager before starting a print.
+- **Bambu Studio Import**: Import your own filament presets directly from Bambu Studio into BambuPi Manager.
+- **UI Refactor**: Improved status display and global header for better overview.
 
 ---
 

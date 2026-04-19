@@ -41,6 +41,16 @@ async function api(url, method = 'GET', body = null) {
   return r.json();
 }
 
+function getPrintOptions() {
+  return {
+    bed_levelling:  document.getElementById('opt-leveling')?.checked ?? true,
+    timelapse:      document.getElementById('opt-timelapse')?.checked ?? false,
+    flow_cali:      document.getElementById('opt-calibration')?.checked ?? false,
+    vibration_cali: document.getElementById('opt-vibration')?.checked ?? true,
+    use_ams:        document.getElementById('opt-ams')?.checked ?? true
+  };
+}
+
 // ── Toast ─────────────────────────────────────
 function toast(msg, type = 'success') {
   const t = document.getElementById('toast');
@@ -446,17 +456,27 @@ function toggleAmsDetail(detailId, trayJson, pid, ui, si) {
 async function openFilamentSearch() {
   const list = document.getElementById('filsearch-list');
   if (!list) return;
-  list.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:12px 0;">⏳ Lade Bambu Studio Profile...</div>';
+  list.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:12px 0;">⏳ Lade Profile...</div>';
   openModal('modal-filament-search');
   document.getElementById('filsearch-input').value = '';
   try {
-    const db = await api('/api/filament-db');
+    const [orca, bambu] = await Promise.all([
+      api('/api/filament-db').catch(() => ({})),
+      api('/api/filament-db/bambu').catch(() => ({}))
+    ]);
+
     filSearchData = [];
-    for (const [vendor, materials] of Object.entries(db)) {
-      for (const [mat, data] of Object.entries(materials)) {
-        filSearchData.push({ vendor, material: mat, ...data });
+    const merge = (db, source) => {
+      for (const [vendor, materials] of Object.entries(db)) {
+        for (const [mat, data] of Object.entries(materials)) {
+          filSearchData.push({ vendor, material: mat, source, ...data });
+        }
       }
-    }
+    };
+
+    merge(orca, 'OrcaSlicer');
+    merge(bambu, 'BambuStudio');
+
     filSearchData.sort((a, b) => a.vendor.localeCompare(b.vendor) || a.material.localeCompare(b.material));
     renderFilamentSearch(filSearchData);
   } catch (e) {
@@ -466,20 +486,21 @@ async function openFilamentSearch() {
 
 function filterFilamentSearch(q) {
   const lq = q.toLowerCase();
-  renderFilamentSearch(filSearchData.filter(f => (f.vendor + ' ' + f.material).toLowerCase().includes(lq)));
+  renderFilamentSearch(filSearchData.filter(f => (f.vendor + ' ' + f.material + ' ' + (f.source||'')).toLowerCase().includes(lq)));
 }
 
 function renderFilamentSearch(items) {
   const list = document.getElementById('filsearch-list');
   if (!items.length) { list.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:8px 0;">Keine Treffer</div>'; return; }
-  window._filItems = items.slice(0, 80);
+  window._filItems = items.slice(0, 100);
   list.innerHTML = window._filItems.map((f, i) => {
     const n = f.nozzle || f.nozzle_min || 0;
+    const srcTag = f.source === 'BambuStudio' ? '<span style="color:var(--accent);font-size:8px;background:rgba(41,182,246,.1);padding:1px 4px;border-radius:4px;margin-left:5px;">LOKAL</span>' : '';
     return `<div onclick="selectFilamentPreset(window._filItems[${i}])"
       style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:7px;cursor:pointer;border:1px solid var(--border);background:var(--bg3);margin-bottom:4px;"
       onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
       <div style="flex:1;">
-        <div style="font-size:12px;font-weight:600;">${esc(f.vendor)} <span style="color:var(--text3)">${esc(f.material)}</span></div>
+        <div style="font-size:12px;font-weight:600;">${esc(f.vendor)}${srcTag} <span style="color:var(--text3)">${esc(f.material)}</span></div>
         <div style="font-size:10px;color:var(--text3);font-family:var(--mono);">🌡️ ${n}°C Nozzle · 🛏️ ${f.bed || 0}°C Bett${f.density ? ' · ' + f.density + 'g/cm³' : ''}</div>
       </div>
       <div style="font-size:10px;color:var(--accent);font-weight:600;">Wählen →</div>
@@ -657,7 +678,8 @@ async function loadPiFiles() {
 
 async function startSdFile(pid, filename) {
   if (!confirm('Datei "' + filename + '" starten?')) return;
-  await api('/api/printers/' + pid + '/startfile', 'POST', { filename });
+  const options = getPrintOptions();
+  await api('/api/printers/' + pid + '/startfile', 'POST', { filename, ...options });
   toast('▶️ Druck gestartet!');
 }
 
@@ -679,8 +701,9 @@ async function printFromPi(filename) {
   const pid = document.getElementById('file-printer-select')?.value;
   if (!pid) { toast('Drucker auswählen!', 'error'); return; }
   if (!confirm('Hochladen und starten?')) return;
+  const options = getPrintOptions();
   toast('⬆️ Wird hochgeladen...');
-  const result = await api('/api/printers/' + pid + '/print', 'POST', { filename, start: true });
+  const result = await api('/api/printers/' + pid + '/print', 'POST', { filename, start: true, ...options });
   if (result.ok) toast('✅ ' + result.message); else toast('❌ ' + (result.error || 'Fehler'), 'error');
 }
 

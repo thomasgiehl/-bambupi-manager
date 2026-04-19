@@ -1,7 +1,6 @@
 <?php $history = api('/api/history') ?? []; ?>
 
-<div class="page-header">
-  <h1>Druckhistorie</h1>
+<div style="display:flex;justify-content:flex-end;margin-bottom:20px;">
   <button class="btn btn-secondary" onclick="exportCSV()">📥 CSV Export</button>
 </div>
 

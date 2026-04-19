@@ -131,7 +131,6 @@ function renderAms(array $amsData, int $pid): string {
       <div class="pcard-name">🖨️ <?= htmlspecialchars($p['name']) ?> <?= $badge ?></div>
       <div class="pcard-meta"><?= htmlspecialchars($p['model']) ?> · <?= htmlspecialchars($p['ip']) ?></div>
     </div>
-    <span id="sse-chip" class="sse-chip">● Live</span>
   </div>
 
   <div class="pcard-body">

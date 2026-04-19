@@ -1,7 +1,6 @@
 <?php $printers = api('/api/printers') ?? []; ?>
 
-<div class="page-header">
-  <h1>Drucker</h1>
+<div style="display:flex;justify-content:flex-end;margin-bottom:20px;">
   <button class="btn btn-primary" onclick="openModal('modal-add-printer')">+ Hinzufügen</button>
 </div>
 

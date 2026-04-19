@@ -4,16 +4,36 @@ $settings = api('/api/settings') ?? [];
 $autoCost = ($settings['auto_cost_calc'] ?? '0') === '1';
 ?>
 
-<div class="page-header"><h1>Dateimanager</h1></div>
+<div style="margin-bottom:20px;"></div>
 
-<div class="form-group" style="max-width:300px;">
-  <label>Drucker auswählen</label>
-  <select id="file-printer-select" onchange="document.getElementById('filetab-sdcard').dataset.loaded='0';if(document.getElementById('tab-sdcard').classList.contains('active'))loadSdFiles()">
-    <option value="">— Drucker wählen —</option>
-    <?php foreach ($printers as $p): ?>
-    <option value="<?= (int)$p['id'] ?>"><?= htmlspecialchars($p['name']) ?> (<?= htmlspecialchars($p['model']) ?>)</option>
-    <?php endforeach; ?>
-  </select>
+<div style="display:flex; gap:20px; align-items: flex-end; margin-bottom:20px; flex-wrap:wrap;">
+  <div class="form-group" style="max-width:300px; margin-bottom:0;">
+    <label>Drucker auswählen</label>
+    <select id="file-printer-select" onchange="document.getElementById('filetab-sdcard').dataset.loaded='0';if(document.getElementById('tab-sdcard').classList.contains('active'))loadSdFiles()">
+      <option value="">— Drucker wählen —</option>
+      <?php foreach ($printers as $p): ?>
+      <option value="<?= (int)$p['id'] ?>"><?= htmlspecialchars($p['name']) ?> (<?= htmlspecialchars($p['model']) ?>)</option>
+      <?php endforeach; ?>
+    </select>
+  </div>
+
+  <div id="print-options" style="display:flex; gap:15px; font-size:13px; color:var(--text2); background:var(--bg2); padding:8px 15px; border-radius:8px;">
+    <label style="display:flex; align-items:center; gap:5px; cursor:pointer;">
+      <input type="checkbox" id="opt-leveling" checked> Bett-Leveling
+    </label>
+    <label style="display:flex; align-items:center; gap:5px; cursor:pointer;">
+      <input type="checkbox" id="opt-timelapse"> Zeitraffer
+    </label>
+    <label style="display:flex; align-items:center; gap:5px; cursor:pointer;">
+      <input type="checkbox" id="opt-calibration"> Flow-Kalibr.
+    </label>
+    <label style="display:flex; align-items:center; gap:5px; cursor:pointer;">
+      <input type="checkbox" id="opt-vibration" checked> Vibration
+    </label>
+    <label style="display:flex; align-items:center; gap:5px; cursor:pointer;">
+      <input type="checkbox" id="opt-ams" checked> AMS nutzen
+    </label>
+  </div>
 </div>
 
 <div class="file-tabs">

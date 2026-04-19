@@ -2,12 +2,9 @@
 $filaments = api('/api/filaments') ?? [];
 ?>
 
-<div class="page-header">
-  <h1>Filamente</h1>
-  <div style="display:flex;gap:8px;">
-    <button class="btn btn-secondary" onclick="openFilamentSearch()">📥 Bambu Studio</button>
-    <button class="btn btn-primary"   onclick="openAddFilament()">+ Manuell</button>
-  </div>
+<div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:20px;">
+  <button class="btn btn-secondary" onclick="openFilamentSearch()">📥 Bambu Studio</button>
+  <button class="btn btn-primary"   onclick="openAddFilament()">+ Manuell</button>
 </div>
 
 <?php if (empty($filaments)): ?>

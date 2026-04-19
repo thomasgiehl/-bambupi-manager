@@ -387,12 +387,18 @@ function decryptAccessCode(stored) {
 
 // ── SSE ───────────────────────────────────────
 const sseClients = new Set();
+const printerNameCache = {};
 
 function broadcastSSE(printerId) {
   if (sseClients.size === 0) return;
+  if (!printerNameCache[printerId]) {
+    const p = db.prepare('SELECT name FROM printers WHERE id = ?').get(printerId);
+    if (p) printerNameCache[printerId] = p.name;
+  }
   const payload = JSON.stringify({
     type: 'status',
     id: printerId,
+    name: printerNameCache[printerId] || '',
     status: printerStatus[printerId] || { gcode_state: 'offline' }
   });
   const chunk = `data: ${payload}\n\n`;
@@ -411,8 +417,26 @@ setInterval(() => {
 // ── MQTT ──────────────────────────────────────
 let printerStatus = {};
 const printStartTimes = {};
-const tempBuffers = {};          // { printerId: { n:[], b:[], t:[] } }
+let tempBuffers = {};          // { printerId: { n:[], b:[], t:[] } }
 const TEMP_BUFFER_MAX = 600;     // ~10 Min bei 1 Update/Sek
+const TEMP_CACHE_FILE = './cache/temp_history.json';
+
+// Lade Temperaturverlauf aus Cache
+try {
+  if (fs.existsSync(TEMP_CACHE_FILE)) {
+    tempBuffers = JSON.parse(fs.readFileSync(TEMP_CACHE_FILE, 'utf8'));
+    console.log('📈 Temperaturverlauf aus Cache geladen');
+  }
+} catch (e) { console.log('⚠️ Fehler beim Laden des Temp-Caches:', e.message); }
+
+// Periodisch speichern (alle 5 Min)
+setInterval(() => {
+  try {
+    fs.mkdirSync('./cache', { recursive: true });
+    fs.writeFileSync(TEMP_CACHE_FILE, JSON.stringify(tempBuffers));
+  } catch (e) {}
+}, 5 * 60 * 1000);
+
 const eventLog = [];             // Letzte 50 Events für Event-Log Panel
 const EVENT_LOG_MAX = 50;
 
@@ -688,6 +712,46 @@ loadOrcaDb().catch(() => {});
 setInterval(() => loadOrcaDb().catch(() => {}), ORCA_CACHE_TTL);
 
 app.get('/api/filament-db', (req, res) => res.json(orcaDb));
+
+// Bambu Studio Filament-Import (lokal)
+app.get('/api/filament-db/bambu', (req, res) => {
+  try {
+    const home = os.homedir();
+    const configPath = path.join(home, '.config', 'BambuStudio', 'user');
+    if (!fs.existsSync(configPath)) return res.json({});
+
+    const results = {};
+    const uids = fs.readdirSync(configPath).filter(f => fs.statSync(path.join(configPath, f)).isDirectory());
+
+    for (const uid of uids) {
+      const filPath = path.join(configPath, uid, 'filament');
+      if (!fs.existsSync(filPath)) continue;
+
+      const files = fs.readdirSync(filPath).filter(f => f.endsWith('.json'));
+      for (const file of files) {
+        try {
+          const content = JSON.parse(fs.readFileSync(path.join(filPath, file), 'utf8'));
+          const vendor = content.filament_vendor || 'Bambu Studio';
+          const mat = content.filament_type || 'Unknown';
+
+          if (!results[vendor]) results[vendor] = {};
+          results[vendor][mat] = {
+            vendor,
+            material: mat,
+            nozzle: parseInt(Array.isArray(content.nozzle_temperature) ? content.nozzle_temperature[0] : content.nozzle_temperature) || null,
+            bed: parseInt(Array.isArray(content.bed_temperature) ? content.bed_temperature[0] : content.bed_temperature) || null,
+            price: parseFloat(content.filament_cost) || null,
+            // Weitere Felder falls nötig
+          };
+        } catch (e) {}
+      }
+    }
+    res.json(results);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.post('/api/filament-db/refresh', async (req, res) => {
   try {
     if (fs.existsSync(ORCA_CACHE_FILE)) fs.unlinkSync(ORCA_CACHE_FILE);
@@ -936,7 +1000,7 @@ app.get('/api/printers/:id/files', async (req, res) => {
 });
 
 app.post('/api/printers/:id/print', async (req, res) => {
-  const { start } = req.body;
+  const { start, timelapse, bed_levelling, flow_cali, vibration_cali, use_ams } = req.body;
   const localPath = validateFilename(req.body.filename);
   if (!localPath) return res.status(400).json({ error: 'Ungültiger Dateiname' });
   const printer = db.prepare('SELECT * FROM printers WHERE id = ?').get(req.params.id);
@@ -948,7 +1012,20 @@ app.post('/api/printers/:id/print', async (req, res) => {
     const remoteName = path.basename(localPath);
     await ftpClient.uploadFrom(localPath, '/' + remoteName);
     if (start) {
-      sendMQTT(req.params.id, { print: { sequence_id: '0', command: 'project_file', param: 'Metadata/plate_1.gcode', url: `ftp:///` + remoteName, timelapse: false, bed_levelling: true, flow_cali: false, vibration_cali: true, layer_inspect: false, use_ams: false } });
+      sendMQTT(req.params.id, {
+        print: {
+          sequence_id: '0',
+          command: 'project_file',
+          param: 'Metadata/plate_1.gcode',
+          url: `ftp:///` + remoteName,
+          timelapse: !!timelapse,
+          bed_levelling: bed_levelling !== false,
+          flow_cali: !!flow_cali,
+          vibration_cali: vibration_cali !== false,
+          layer_inspect: true,
+          use_ams: use_ams !== false
+        }
+      });
     }
     res.json({ ok: true, message: start ? 'Hochgeladen und gestartet' : 'Hochgeladen' });
   } catch (e) {
@@ -958,7 +1035,23 @@ app.post('/api/printers/:id/print', async (req, res) => {
 });
 
 app.post('/api/printers/:id/startfile', (req, res) => {
-  res.json({ ok: sendMQTT(req.params.id, { print: { sequence_id: '0', command: 'project_file', param: 'Metadata/plate_1.gcode', url: `ftp:///` + req.body.filename, timelapse: false, bed_levelling: true, flow_cali: false, vibration_cali: true, layer_inspect: false, use_ams: false } }) });
+  const { filename, timelapse, bed_levelling, flow_cali, vibration_cali, use_ams } = req.body;
+  res.json({
+    ok: sendMQTT(req.params.id, {
+      print: {
+        sequence_id: '0',
+        command: 'project_file',
+        param: 'Metadata/plate_1.gcode',
+        url: `ftp:///` + filename,
+        timelapse: !!timelapse,
+        bed_levelling: bed_levelling !== false,
+        flow_cali: !!flow_cali,
+        vibration_cali: vibration_cali !== false,
+        layer_inspect: true,
+        use_ams: use_ams !== false
+      }
+    })
+  });
 });
 
 app.delete('/api/printers/:id/files/:filename', async (req, res) => {

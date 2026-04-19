@@ -3,7 +3,7 @@ $filaments = api('/api/filaments') ?? [];
 $settings  = api('/api/settings')  ?? [];
 ?>
 
-<div class="page-header"><h1>Kostenrechner</h1></div>
+<div style="margin-bottom:20px;"></div>
 
 <div class="grid2">
   <!-- Eingaben -->

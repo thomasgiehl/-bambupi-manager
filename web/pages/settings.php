@@ -33,7 +33,7 @@ $settings = api('/api/settings') ?? [];
 $version  = api('/api/version')  ?? [];
 ?>
 
-<div class="page-header"><h1>Einstellungen</h1></div>
+<div style="margin-bottom:20px;"></div>
 
 <?php if ($msg): ?>
 <div class="alert <?= $msgType ?>"><?= $msg ?></div>
