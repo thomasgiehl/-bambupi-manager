@@ -13,7 +13,7 @@ A local web dashboard for Bambu Lab 3D printers on Raspberry Pi — no cloud, no
 
 | Feature | Beschreibung / Description |
 |---|---|
-| 📊 Live Dashboard | SSE Echtzeit, Temp-Charts, Kamera / SSE real-time, temp charts, camera |
+| 📊 Live Dashboard | SSE Echtzeit, Temp-Charts, MJPEG-Kamera (~200–500 ms) / SSE real-time, temp charts, MJPEG camera |
 | 🌡️ Temperaturkontrolle | Setzen, Vorheizprofile PLA/PETG/ABS/TPU, Cooldown / Set, preheat, cooldown |
 | 🎛️ Druckersteuerung | Pause, Stop, Speed, Lüfter, Licht, Flow Rate / Pause, stop, speed, fan, light, flow |
 | 📡 SSE + Polling | Push-Updates mit automatischem Fallback / Push updates with auto fallback |
@@ -110,7 +110,7 @@ curl -fsSL https://raw.githubusercontent.com/thomasgiehl/-bambupi-manager/main/i
 Das Skript installiert automatisch:
 - Node.js (falls nicht vorhanden)
 - Alle Abhängigkeiten
-- go2rtc für Kamera-Streaming (mit SHA-256-Verifikation)
+- ffmpeg für Kamera-Streaming (MJPEG, ~200–500 ms Latenz)
 - Bambu CA-Zertifikat für sichere MQTT/FTP-Verbindungen
 - Startet den Dienst automatisch beim Systemstart (systemd)
 
@@ -299,8 +299,9 @@ Oder neues Passwort setzen: `ADMIN_PASS=NeuesPasswort` in `.env`, dann Dienst ne
 - Bis zu 60 Sekunden warten nach dem Einschalten
 
 **Kamera zeigt nichts:**
-- Die Kamera wird über go2rtc eingebunden — wird vom Installer automatisch heruntergeladen
-- Ohne go2rtc: Kamerafeld bleibt leer, alle anderen Funktionen funktionieren
+- Die Kamera läuft über einen persistenten ffmpeg MJPEG-Stream (`/api/stream/mjpeg`)
+- Sicherstellen dass `ffmpeg` installiert ist: `sudo apt install -y ffmpeg`
+- Latenz ca. 200–500 ms — kein go2rtc oder WebRTC nötig
 
 ---
 
@@ -370,7 +371,7 @@ curl -fsSL https://raw.githubusercontent.com/thomasgiehl/-bambupi-manager/main/i
 The script automatically:
 - Installs Node.js (if not present)
 - Installs all dependencies
-- Downloads go2rtc for camera streaming (with SHA-256 integrity check)
+- Installs ffmpeg for low-latency MJPEG camera streaming (~200–500 ms)
 - Installs the Bambu CA certificate for verified MQTT/FTP connections
 - Sets up the service to auto-start on boot (systemd)
 
@@ -559,8 +560,9 @@ Or set a new password: put `ADMIN_PASS=NewPassword` in `.env`, then restart the 
 - Wait up to 60 seconds after turning on
 
 **Camera not showing:**
-- The camera is integrated via go2rtc — downloaded automatically by the installer
-- Without go2rtc: camera area stays empty, all other features work fine
+- The camera uses a persistent ffmpeg MJPEG stream (`/api/stream/mjpeg`)
+- Make sure ffmpeg is installed: `sudo apt install -y ffmpeg`
+- Latency ~200–500 ms — no go2rtc or WebRTC required
 
 ---
 
@@ -751,7 +753,7 @@ bambupi-manager/
 ├── db/                   # SQLite database (auto-created, 0600 permissions)
 ├── uploads/              # Uploaded print files (.3mf, .gcode, .stl)
 ├── scripts/
-│   └── go2rtc.yaml       # go2rtc camera config
+│   └── (leer / empty)
 ├── docs/                 # Feature docs + wireframes
 ├── server.js             # Express + MQTT + security backend
 ├── install.sh            # One-command installer with integrity checks
@@ -759,7 +761,7 @@ bambupi-manager/
 └── .env.example          # Template with all available options
 ```
 
-> **Hinweis / Note:** `go2rtc_linux_arm64` wird vom Installer heruntergeladen und per SHA-256 verifiziert — die Binary ist nicht im Repository enthalten. / The binary is downloaded by the installer with SHA-256 verification — it is not included in the repository.
+> **Hinweis / Note:** Die Kamera nutzt einen eingebauten MJPEG-Stream via ffmpeg — kein externer Streaming-Server nötig. / The camera uses a built-in MJPEG stream via ffmpeg — no external streaming server required.
 
 ---
 

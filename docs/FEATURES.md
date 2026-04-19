@@ -20,7 +20,7 @@ Alle Drucker auf einem Blick — Temperaturen, Fortschritt, Status, Kamera — a
 | **Technologie** | Server-Sent Events (SSE) — Push vom Server, kein Polling |
 | **Fallback** | Automatisches Polling falls SSE abbricht |
 | **Verbindungsanzeige** | Grüner Punkt = Live / Oranger Punkt = Polling |
-| **Drucker-Karte** | Status-Badge, Temperaturen mit Pfeilen, Fortschrittsbalken, Kamera |
+| **Drucker-Karte** | Status-Badge, Temperaturen mit Pfeilen, Fortschrittsbalken, Kamera (MJPEG, ~200–500 ms) |
 
 ![Dashboard](screenshots/dashboard.png)
 
@@ -274,7 +274,7 @@ All printers at a glance — temperatures, progress, status, camera — all in r
 | **Technology** | Server-Sent Events (SSE) — server push, no polling |
 | **Fallback** | Automatic polling if SSE drops |
 | **Connection indicator** | Green dot = Live / Orange dot = Polling |
-| **Printer card** | Status badge, temperatures with arrows, progress bar, camera |
+| **Printer card** | Status badge, temperatures with arrows, progress bar, camera (MJPEG, ~200–500 ms) |
 
 ![Dashboard](screenshots/dashboard.png)
 

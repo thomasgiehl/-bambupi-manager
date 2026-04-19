@@ -1,4 +1,3 @@
-const CAMERA_URL = 'http://192.168.178.30:1984/stream.html?src=bambu&mode=webrtc';
 let assignCtx = {printerId:null,unitIdx:null,slotIdx:null,selectedFilamentId:null};
 let filEditId = null;
 let filamentCache = [];
@@ -452,7 +451,7 @@ function buildPrinterCard(p) {
           <div class="cnc-live-badge"><div class="cnc-live-dot"></div>LIVE</div>
         </div>
         <div class="cnc-viewport">
-          <iframe src="${CAMERA_URL}" allowfullscreen></iframe>
+          <img src="/api/stream/mjpeg" alt="Kamera" onerror="this.style.opacity='0.3'" style="width:100%;height:100%;object-fit:cover;display:block;">
           <div class="cnc-vp-overlay">
             <div></div>
             <div>

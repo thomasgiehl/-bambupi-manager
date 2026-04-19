@@ -8,7 +8,7 @@ const path = require('path');
 const fs = require('fs');
 const ftp = require('basic-ftp');
 const os = require('os');
-const { execSync } = require('child_process');
+const { execSync, spawn } = require('child_process');
 const crypto = require('crypto');
 const basicAuth = require('express-basic-auth');
 let AdmZip; try { AdmZip = require('adm-zip'); } catch(e) { AdmZip = null; }
@@ -1147,30 +1147,75 @@ app.post('/api/auth/change-password', (req, res) => {
   res.json({ ok: true });
 });
 
-// ── KAMERA SNAPSHOT ────────────────────────────
-// ffmpeg greift alle SNAPSHOT_INTERVAL ms auf den RTSPS-Stream zu und speichert
-// ein JPEG. GET /api/snapshot liefert das letzte Bild — kein iframe nötig.
-const SNAPSHOT_PATH = '/tmp/bambupi_snapshot.jpg';
+// ── KAMERA MJPEG-STREAM ────────────────────────────
+// Ein persistenter ffmpeg-Prozess hält die RTSPS-Verbindung offen und
+// liefert kontinuierlich JPEG-Frames — kein erneuter TLS-Handshake pro Frame.
+// Latenz: ~200-500 ms statt 3+ Sekunden beim alten Snapshot-Polling.
 const RTSP_URL = `rtsps://bblp:${(process.env.PRINTER_ACCESS_CODE||'').toLowerCase()}@${process.env.PRINTER_IP}:322/streaming/live/1`;
 
-function grabSnapshot() {
-  const { exec } = require('child_process');
-  exec(
-    `ffmpeg -rtsp_transport tcp -i "${RTSP_URL}" -vframes 1 -update 1 -q:v 3 -y "${SNAPSHOT_PATH}" 2>/dev/null`,
-    { timeout: 8000 },
-    () => {} // Fehler ignorieren, altes Bild bleibt
-  );
+let mjpegClients = new Set();
+let streamProc = null;
+let streamBuf = Buffer.alloc(0);
+
+function startMjpegStream() {
+  if (streamProc) return;
+  streamProc = spawn('ffmpeg', [
+    '-rtsp_transport', 'tcp',
+    '-i', RTSP_URL,
+    '-f', 'image2pipe',
+    '-vcodec', 'mjpeg',
+    '-q:v', '5',
+    '-r', '10',
+    '-vf', 'scale=640:-2',
+    'pipe:1'
+  ], { stdio: ['ignore', 'pipe', 'ignore'] });
+
+  streamProc.stdout.on('data', (chunk) => {
+    streamBuf = Buffer.concat([streamBuf, chunk]);
+    while (true) {
+      const start = streamBuf.indexOf(Buffer.from([0xFF, 0xD8, 0xFF]));
+      if (start === -1) { streamBuf = Buffer.alloc(0); break; }
+      let end = -1;
+      for (let i = start + 2; i < streamBuf.length - 1; i++) {
+        if (streamBuf[i] === 0xFF && streamBuf[i + 1] === 0xD9) { end = i + 2; break; }
+      }
+      if (end === -1) break;
+      const frame = streamBuf.slice(start, end);
+      streamBuf = streamBuf.slice(end);
+      const header = Buffer.from(`--frame\r\nContent-Type: image/jpeg\r\nContent-Length: ${frame.length}\r\n\r\n`);
+      const data = Buffer.concat([header, frame, Buffer.from('\r\n')]);
+      for (const client of mjpegClients) {
+        try { client.write(data); } catch { mjpegClients.delete(client); }
+      }
+    }
+  });
+
+  streamProc.on('close', () => {
+    streamProc = null;
+    streamBuf = Buffer.alloc(0);
+    if (mjpegClients.size > 0) setTimeout(startMjpegStream, 3000);
+  });
+
+  streamProc.on('error', () => { streamProc = null; });
 }
 
-// Beim Start und dann alle 3 Sekunden
-grabSnapshot();
-const _snapTimer = setInterval(grabSnapshot, 3000);
+function stopMjpegStream() {
+  if (streamProc) { streamProc.kill('SIGTERM'); streamProc = null; }
+}
 
-app.get('/api/snapshot', (req, res) => {
-  if (!fs.existsSync(SNAPSHOT_PATH)) return res.status(503).json({ error: 'Kein Bild verfügbar' });
-  res.setHeader('Cache-Control', 'no-cache, no-store');
-  res.setHeader('Content-Type', 'image/jpeg');
-  res.sendFile(SNAPSHOT_PATH);
+app.get('/api/stream/mjpeg', (req, res) => {
+  res.writeHead(200, {
+    'Content-Type': 'multipart/x-mixed-replace; boundary=frame',
+    'Cache-Control': 'no-cache, no-store',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no'
+  });
+  mjpegClients.add(res);
+  startMjpegStream();
+  req.on('close', () => {
+    mjpegClients.delete(res);
+    if (mjpegClients.size === 0) stopMjpegStream();
+  });
 });
 
 // ── UPDATE SYSTEM ──────────────────────────────

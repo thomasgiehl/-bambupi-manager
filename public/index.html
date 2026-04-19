@@ -179,7 +179,7 @@ nav a.active svg { opacity: 1; }
 
 /* COL 1: Camera + Progress */
 .camera-wrap { position: relative; background: #000; height: 240px; }
-.camera-wrap iframe { width: 100%; height: 100%; border: none; display: block; }
+.camera-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .cam-badge {
   position: absolute; top: 8px; left: 8px;
   background: rgba(0,0,0,0.7);
@@ -909,7 +909,6 @@ body.kiosk .kiosk-btn { color: var(--accent); border-color: rgba(41,182,246,0.4)
 // HTML-Escape: alle User/API-Daten in Template-Literals durch esc() schicken
 function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 
-const CAMERA_URL='http://'+window.location.hostname+':1984/stream.html?src=bambu&mode=webrtc';
 let assignCtx={printerId:null,unitIdx:null,slotIdx:null,selectedFilamentId:null};
 let tempCtx={printerId:null,type:null};
 let openAmsDetail=null;
@@ -1292,7 +1291,7 @@ function buildPrinterCard(p){
       <div class="pcard-col">
         <div class="camera-wrap">
           <div class="cam-badge"><div class="cam-dot"></div>LIVE</div>
-          <iframe src="${CAMERA_URL}" allowfullscreen></iframe>
+          <img src="/api/stream/mjpeg" alt="Kamera" onerror="this.style.opacity='0.3'">
         </div>
         <div class="progress-panel" id="pa-${p.id}" style="${state!=='RUNNING'?'display:none':''}">
           <div class="progress-top">
