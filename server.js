@@ -12,6 +12,7 @@ const { execSync, spawn } = require('child_process');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const basicAuth = require('express-basic-auth');
+const cookieParser = require('cookie-parser');
 let AdmZip; try { AdmZip = require('adm-zip'); } catch(e) { AdmZip = null; }
 require('dotenv').config();
 
@@ -137,6 +138,11 @@ db.exec(`
     is_admin INTEGER DEFAULT 1,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+  CREATE TABLE IF NOT EXISTS auth_tokens (
+    token TEXT PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id),
+    expires_at DATETIME NOT NULL
+  );
 `);
 
 // ── MIGRATION: neue Spalten falls DB schon existiert ──
@@ -175,6 +181,7 @@ const defaultSettings = {
   machine_hours: '5000',
   failure_rate: '10',
   auto_cost_calc: '0',
+  stay_logged_in: '1',
   telegram_token: '',
   telegram_chat_id: '',
   discord_webhook: '',
@@ -192,28 +199,60 @@ function hasAdmin() {
   return !!user;
 }
 
+// Bootstrap initial admin if ADMIN_PASS is set but no user exists
+if (!hasAdmin() && process.env.ADMIN_PASS) {
+  const hash = bcrypt.hashSync(process.env.ADMIN_PASS, 10);
+  db.prepare('INSERT INTO users (username, password_hash, is_admin) VALUES (?, ?, 1)').run('admin', hash);
+  log.info('Initialer Admin-Account (admin) aus ADMIN_PASS erstellt.');
+}
+
 const app = express();
 app.set('trust proxy', 1);
+app.use(cookieParser());
 
 // ── AUTH MIDDLEWARE ───────────────────────────
 app.use((req, res, next) => {
   const adminExists = hasAdmin();
   
-  // Setup-Flow: Erlaube Zugriff auf Setup-API und Setup-Seite falls kein Admin existiert
+  // Setup-Flow
   if (!adminExists) {
-    if (req.path === '/api/setup' || req.path === '/setup.html') {
-      return next();
-    }
-    // Alles andere auf setup.html umleiten
+    if (req.path === '/api/setup' || req.path === '/setup.html') return next();
     return res.redirect('/setup.html');
   }
 
-  // Normaler Auth-Flow via Basic Auth
+  // Token-basierte Auth via Cookie (für "Angemeldet bleiben")
+  const authToken = req.cookies.auth_token;
+  if (authToken) {
+    const session = db.prepare('SELECT user_id FROM auth_tokens WHERE token = ? AND expires_at > DATETIME("now")').get(authToken);
+    if (session) {
+      req.user_id = session.user_id;
+      return next();
+    }
+  }
+
+  // Fallback: Basic Auth (für API oder Erstanmeldung)
   return basicAuth({
     authorizer: (username, password) => {
-      const user = db.prepare('SELECT password_hash FROM users WHERE username = ?').get(username);
+      const user = db.prepare('SELECT id, password_hash FROM users WHERE username = ?').get(username);
       if (!user) return false;
-      return bcrypt.compareSync(password, user.password_hash);
+      const match = bcrypt.compareSync(password, user.password_hash);
+      if (match) {
+        // Erfolgreich eingeloggt: Token generieren
+        const stayLoggedIn = db.prepare('SELECT value FROM settings WHERE key = "stay_logged_in"').get()?.value === '1';
+        const token = crypto.randomBytes(32).toString('hex');
+        const expiry = stayLoggedIn ? '30 days' : '1 day';
+        db.prepare('INSERT INTO auth_tokens (token, user_id, expires_at) VALUES (?, ?, DATETIME("now", ?))').run(token, user.id, expiry);
+        
+        // Cookie setzen
+        const maxAge = stayLoggedIn ? 30 * 24 * 60 * 60 * 1000 : undefined; // persistent vs session cookie
+        res.cookie('auth_token', token, { 
+          maxAge, 
+          httpOnly: true, 
+          sameSite: 'strict',
+          path: '/'
+        });
+      }
+      return match;
     },
     challenge: true,
     realm: 'BambuPi Manager'
@@ -1812,20 +1851,33 @@ app.post('/api/settings', (req, res) => {
 app.post('/api/auth/change-password', (req, res) => {
   const { currentPass, newPass } = req.body || {};
   if (!currentPass || !newPass) return res.status(400).json({ error: 'Fehlende Felder' });
-  if (!basicAuth.safeCompare(currentPass, process.env.ADMIN_PASS))
+
+  // Admin-User finden (wir nehmen an, es gibt nur einen Admin in diesem einfachen Setup)
+  const user = db.prepare('SELECT id, password_hash FROM users WHERE is_admin = 1 LIMIT 1').get();
+  if (!user || !bcrypt.compareSync(currentPass, user.password_hash)) {
     return res.status(403).json({ error: 'Aktuelles Passwort falsch' });
+  }
+
   if (newPass.length < 8) return res.status(400).json({ error: 'Passwort muss mindestens 8 Zeichen haben' });
 
-  // In Umgebungsvariable und .env speichern
-  process.env.ADMIN_PASS = newPass;
-  const envPath = path.resolve(__dirname, '.env');
+  const newHash = bcrypt.hashSync(newPass, 10);
+  
   try {
-    let content = fs.readFileSync(envPath, 'utf8');
-    content = content.replace(/^ADMIN_PASS=.*$/m, `ADMIN_PASS="${newPass.replace(/"/g, '\\"')}"`);
-    fs.writeFileSync(envPath, content, 'utf8');
+    // In DB speichern
+    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(newHash, user.id);
+    
+    // Fallback: Auch in .env speichern (optional, für Rückwärtskompatibilität)
+    process.env.ADMIN_PASS = newPass;
+    const envPath = path.resolve(__dirname, '.env');
+    if (fs.existsSync(envPath)) {
+      let content = fs.readFileSync(envPath, 'utf8');
+      content = content.replace(/^ADMIN_PASS=.*$/m, `ADMIN_PASS="${newPass.replace(/"/g, '\\"')}"`);
+      fs.writeFileSync(envPath, content, 'utf8');
+    }
   } catch (e) {
     return serverError(res, e, 'Passwort konnte nicht gespeichert werden');
   }
+  
   log.info('Admin-Passwort geändert');
   res.json({ ok: true });
 });

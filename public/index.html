@@ -809,6 +809,18 @@ body.kiosk .kiosk-btn { color: var(--accent); border-color: rgba(41,182,246,0.4)
 
       <div class="card" style="max-width:440px;margin-top:16px;">
         <div class="card-title">System</div>
+        
+        <div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--border);margin-bottom:12px;">
+          <div style="position:relative;width:40px;height:22px;flex-shrink:0;cursor:pointer;" onclick="toggleStayLoggedIn()">
+            <div id="set-stay-logged-in-track" style="position:absolute;inset:0;border-radius:11px;background:var(--border2);transition:0.2s;"></div>
+            <div id="set-stay-logged-in-knob" style="position:absolute;width:16px;height:16px;border-radius:50%;background:#fff;top:3px;left:3px;transition:0.2s;"></div>
+          </div>
+          <div>
+            <div style="font-size:13px;font-weight:500;">Angemeldet bleiben</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:2px;">Deaktiviert die automatische Abmeldung beim Schließen des Browsers.</div>
+          </div>
+        </div>
+
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
           <button class="btn btn-secondary" onclick="reloadUI()" style="font-size:12px;">🔄 UI neu laden</button>
           <button class="btn btn-secondary" id="server-restart-btn" onclick="restartServer()" style="font-size:12px;">⚙️ Server neu starten</button>
@@ -2069,6 +2081,19 @@ async function calculate(){
 }
 
 // ── EINSTELLUNGEN ─────────────────────────────
+function setStayLoggedInToggle(on){
+  const t=document.getElementById('set-stay-logged-in-track'),k=document.getElementById('set-stay-logged-in-knob');
+  if(t){t.style.background=on?'var(--accent)':'var(--border2)';k.style.left=on?'21px':'3px';t.dataset.on=on?'1':'0';}
+}
+async function toggleStayLoggedIn(){
+  try{
+    const s=await api('/api/settings');
+    const newVal=s.stay_logged_in==='1'?'0':'1';
+    await api('/api/settings','POST',{stay_logged_in:newVal});
+    setStayLoggedInToggle(newVal==='1');
+    toast(newVal==='1'?'🔒 Angemeldet bleiben aktiviert':'🚪 Automatische Abmeldung aktiviert');
+  }catch(e){}
+}
 async function loadSettings(){
   const s=await api('/api/settings');
   document.getElementById('set-electricity').value=s.electricity_cost||0.35;
@@ -2079,6 +2104,7 @@ async function loadSettings(){
   document.getElementById('set-failure-rate').value=fr;
   document.getElementById('set-failure-val').textContent=fr+'%';
   setAutoCostToggle(s.auto_cost_calc==='1');
+  setStayLoggedInToggle(s.stay_logged_in==='1');
   updateMachineCostPreview();
   loadCurrentVersion();
   checkForUpdateSilent();
