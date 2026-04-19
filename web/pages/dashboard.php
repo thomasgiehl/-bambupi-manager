@@ -289,17 +289,46 @@ function renderAms(array $amsData, int $pid): string {
         </div>
 
         <div class="ctrl-section">
-          <div class="ctrl-section-title">Home & Achsen</div>
-          <div class="home-row" style="margin-bottom:6px;">
-            <button class="hbtn" onclick="homeAxes(<?= $id ?>,'all')">🏠 Alle</button>
-            <button class="hbtn" onclick="homeAxes(<?= $id ?>,'x')">X</button>
-            <button class="hbtn" onclick="homeAxes(<?= $id ?>,'y')">Y</button>
-            <button class="hbtn" onclick="homeAxes(<?= $id ?>,'z')">Z</button>
+          <div class="ctrl-section-title">Druckkopf & Achsen</div>
+          
+          <div class="jog-steps">
+            <button class="step-btn" onclick="setJogStep(this, 0.1)">0.1</button>
+            <button class="step-btn" onclick="setJogStep(this, 1)">1</button>
+            <button class="step-btn active" onclick="setJogStep(this, 10)">10</button>
+            <button class="step-btn" onclick="setJogStep(this, 50)">50</button>
           </div>
-          <button class="pbtn pbtn-motor" style="width:100%;flex-direction:row;gap:8px;padding:7px 12px;" onclick="motorsOff(<?= $id ?>)">
-            <span class="pbtn-icon" style="font-size:13px;">⚡</span>
-            <span class="pbtn-label" style="font-size:11px;">Motoren aus</span>
-          </button>
+
+          <div style="display: flex; align-items: center; gap: 15px; justify-content: center; margin-top: 10px;">
+            <div class="jog-grid">
+              <div></div>
+              <button class="jog-btn" onclick="moveAxis(<?= $id ?>, 'Y', currentStep)" title="Y+">▲</button>
+              <div></div>
+              
+              <button class="jog-btn" onclick="moveAxis(<?= $id ?>, 'X', -currentStep)" title="X-">◀</button>
+              <button class="jog-btn" onclick="homeAxes(<?= $id ?>, 'all')" title="Home All">🏠</button>
+              <button class="jog-btn" onclick="moveAxis(<?= $id ?>, 'X', currentStep)" title="X+">▶</button>
+              
+              <div></div>
+              <button class="jog-btn" onclick="moveAxis(<?= $id ?>, 'Y', -currentStep)" title="Y-">▼</button>
+              <div></div>
+            </div>
+
+            <div class="z-controls">
+              <button class="z-btn" onclick="moveAxis(<?= $id ?>, 'Z', -currentStep)" title="Z Up">
+                <span>▲</span>
+                <span class="z-btn-label">Z</span>
+              </button>
+              <button class="z-btn" onclick="moveAxis(<?= $id ?>, 'Z', currentStep)" title="Z Down">
+                <span>▼</span>
+                <span class="z-btn-label">Z</span>
+              </button>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 12px;">
+            <button class="hbtn" onclick="motorsOff(<?= $id ?>)">Motoren aus</button>
+            <button class="hbtn" onclick="homeAxes(<?= $id ?>, 'z')">Z-Home</button>
+          </div>
         </div>
 
         <div class="ctrl-section">

@@ -383,7 +383,7 @@ async function loadEventLog() {
     events.forEach(e => {
       const row = document.createElement('div'); row.className = 'ev-row';
       row.innerHTML = `<span class="ev-icon">${EV_ICONS[e.type] || 'ℹ️'}</span><span class="ev-msg">${esc(e.message)}</span><span class="ev-time">${esc(e.time)}</span>`;
-      list.appendChild(row);
+      list.appendChild(row); // Keep appendChild for initial load if they are already sorted desc
     });
   } catch (_) {}
 }
@@ -993,6 +993,18 @@ async function enqueueFile(pid, filename) {
   const options = getPrintOptions();
   const r = await api('/api/queue', 'POST', { printer_id: pid, filename, options });
   if (r.id) toast('⏳ Zur Warteschlange hinzugefügt');
+}
+
+let currentStep = 10;
+function setJogStep(btn, val) {
+  currentStep = val;
+  document.querySelectorAll('.step-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+async function moveAxis(pid, axis, distance) {
+  const gcode = `G91\nG1 ${axis.toUpperCase()}${distance} F3000\nG90`;
+  return await api(`/api/printers/${pid}/gcode`, 'POST', { gcode });
 }
 
 // ── G-Code Preview (Phase 3) ──────────────────
