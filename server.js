@@ -3,20 +3,173 @@ const Database = require('better-sqlite3');
 const mqtt = require('mqtt');
 const cors = require('cors');
 const multer = require('multer');
+const rateLimit = require('express-rate-limit');
 const path = require('path');
 const fs = require('fs');
 const ftp = require('basic-ftp');
 const os = require('os');
 const { execSync } = require('child_process');
+const crypto = require('crypto');
+const basicAuth = require('express-basic-auth');
 let AdmZip; try { AdmZip = require('adm-zip'); } catch(e) { AdmZip = null; }
 require('dotenv').config();
 
+// ── LOGGER (Pino) ─────────────────────────────
+const pino = require('pino');
+const log = pino({
+  level: process.env.LOG_LEVEL || 'info',
+  transport: process.env.NODE_ENV !== 'production'
+    ? { target: 'pino-pretty', options: { colorize: true, translateTime: 'HH:MM:ss' } }
+    : undefined
+});
+
+// Interne Fehlerdetails loggen, generische Meldung an Client senden.
+function serverError(res, err, clientMsg = 'Interner Serverfehler') {
+  log.error({ err }, clientMsg);
+  res.status(500).json({ error: clientMsg });
+}
+
+// ── BASIC AUTH BOOTSTRAP ──────────────────────
+// Liest ADMIN_USER / ADMIN_PASS aus .env.
+// Falls nicht gesetzt: sichere Zufallswerte generieren, in .env persistieren
+// und beim ersten Start in die Konsole ausgeben.
+(function bootstrapAuth() {
+  const envPath = path.resolve(__dirname, '.env');
+  let changed = false;
+
+  if (!process.env.ADMIN_USER) {
+    process.env.ADMIN_USER = 'admin';
+    changed = true;
+  }
+  if (!process.env.ADMIN_PASS) {
+    process.env.ADMIN_PASS = crypto.randomBytes(16).toString('hex');
+    changed = true;
+  }
+
+  if (changed) {
+    console.log('┌─────────────────────────────────────────────┐');
+    console.log('│  ⚠️  Neue Admin-Zugangsdaten generiert:       │');
+    console.log(`│  User: ${process.env.ADMIN_USER.padEnd(38)}│`);
+    console.log(`│  Pass: ${process.env.ADMIN_PASS.padEnd(38)}│`);
+    console.log('│  → werden in .env gespeichert               │');
+    console.log('└─────────────────────────────────────────────┘');
+
+    // Bestehende .env lesen (falls vorhanden), neue Werte anhängen/ersetzen
+    let envContent = '';
+    try { envContent = fs.readFileSync(envPath, 'utf8'); } catch (_) {}
+    const setVar = (content, key, value) => {
+      const re = new RegExp(`^${key}=.*$`, 'm');
+      // Wert in Anführungszeichen, damit Sonderzeichen (#, Leerzeichen) korrekt erkannt werden
+      const line = `${key}="${value.replace(/"/g, '\\"')}"`;
+      return re.test(content) ? content.replace(re, line) : content + (content.endsWith('\n') ? '' : '\n') + line + '\n';
+    };
+    envContent = setVar(envContent, 'ADMIN_USER', process.env.ADMIN_USER);
+    envContent = setVar(envContent, 'ADMIN_PASS', process.env.ADMIN_PASS);
+    fs.writeFileSync(envPath, envContent, 'utf8');
+  }
+})();
+
 const app = express();
-app.use(cors());
+
+// ── BASIC AUTH MIDDLEWARE ─────────────────────
+// Schützt alle Routes. SSE-Verbindungen und statische Assets eingeschlossen.
+// Härtungs-Hinweis: Für TLS und zusätzlichen Auth-Layer Nginx als Reverse-Proxy
+// vorschalten (z.B. mit ssl_certificate + auth_basic in nginx.conf).
+app.use(basicAuth({
+  authorizer: (user, pass) =>
+    basicAuth.safeCompare(user, process.env.ADMIN_USER) &&
+    basicAuth.safeCompare(pass, process.env.ADMIN_PASS),
+  challenge: true,
+  realm: 'BambuPi Manager'
+}));
+
+// ── CORS ──────────────────────────────────────
+// origin: false → kein Access-Control-Allow-Origin Header → Browser blockt
+// cross-origin Requests. Verhindert CSRF von fremden Tabs/Seiten.
+app.use(cors({ origin: false }));
+
+// ── DNS-REBINDING-SCHUTZ ──────────────────────
+// Erlaubte Hosts: localhost, 127.0.0.1 und die eigene LAN-IP(s).
+// Blockiert Angriffe, bei denen ein fremder DNS-Name auf die Pi-IP zeigt.
+function getAllowedHosts() {
+  const PORT = process.env.PORT || 3000;
+  const hosts = new Set([`localhost:${PORT}`, `127.0.0.1:${PORT}`]);
+
+  // Alle IPv4-Adressen des Pi (LAN + Tailscale etc.)
+  for (const ifaces of Object.values(os.networkInterfaces())) {
+    for (const iface of ifaces) {
+      if (iface.family === 'IPv4') {
+        hosts.add(`${iface.address}:${PORT}`);
+      }
+    }
+  }
+
+  // Hostname-Varianten (z. B. raspberrypi.local)
+  const hn = os.hostname();
+  hosts.add(`${hn}:${PORT}`);
+  hosts.add(`${hn}.local:${PORT}`);
+
+  // Optionaler Extra-Host aus .env (ALLOWED_HOST=meinpi.zuhause.de:3000)
+  if (process.env.ALLOWED_HOST) hosts.add(process.env.ALLOWED_HOST);
+
+  return hosts;
+}
+const allowedHosts = getAllowedHosts();
+console.log('✅ Erlaubte Hosts:', [...allowedHosts].join(', '));
+
+app.use((req, res, next) => {
+  const host = req.headers.host || '';
+  if (!allowedHosts.has(host)) {
+    return res.status(400).send('Bad Request: Host nicht erlaubt');
+  }
+  next();
+});
+
 app.use(express.json());
+
+// ── SECURITY HEADERS ──────────────────────────
+// frame-src dynamisch: alle Pi-IPs auf go2rtc-Port 1984 erlauben
+const GO2RTC_PORT = process.env.GO2RTC_PORT || 1984;
+const go2rtcFrameSrc = [...allowedHosts]
+  .map(h => `http://${h.split(':')[0]}:${GO2RTC_PORT}`)
+  .join(' ');
+
+app.use((req, res, next) => {
+  res.setHeader('Content-Security-Policy',
+    `default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://go2rtc.org; img-src 'self' data: blob: https://go2rtc.org; connect-src 'self' wss: ws:; style-src 'self' 'unsafe-inline' https://go2rtc.org; font-src 'self'; frame-src 'self' ${go2rtcFrameSrc}`);
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Referrer-Policy', 'same-origin');
+  next();
+});
+
+// ── RATE-LIMITING ─────────────────────────────
+// Global: 100 Requests/Minute pro IP
+const globalLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Zu viele Anfragen — bitte warte eine Minute.' }
+});
+app.use('/api', globalLimiter);
+
+// Strikt: 10 Requests/Minute — Upload, gcode-Push, Update-Check
+const strictLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Rate-Limit erreicht — max. 10 Anfragen pro Minute.' }
+});
+app.use('/api/upload', strictLimiter);
+app.use('/api/printers/:id/gcode', strictLimiter);
+app.use('/api/update', strictLimiter);
+
 app.use(express.static('public'));
 app.use('/streams', express.static('streams'));
 app.use('/uploads', express.static('uploads'));
+
 
 // ── VERZEICHNISSE SICHERSTELLEN ───────────────
 fs.mkdirSync('./db', { recursive: true });
@@ -25,15 +178,77 @@ fs.mkdirSync('./streams', { recursive: true });
 fs.mkdirSync('./cache', { recursive: true });
 fs.mkdirSync('./thumbnails', { recursive: true });
 
+// ── TLS / BAMBU CA ────────────────────────────
+// BBL CA-Zertifikat aus ./certs/bambu-ca.crt laden.
+// Ohne CA-Datei: Fallback auf rejectUnauthorized:false mit Warnung.
+const BAMBU_CA_PATH = path.resolve(__dirname, 'certs/bambu-ca.crt');
+let bambuCA = null;
+try {
+  bambuCA = fs.readFileSync(BAMBU_CA_PATH);
+  console.log('🔒 Bambu CA geladen — TLS-Verifikation aktiv');
+} catch (_) {
+  console.warn('⚠️  certs/bambu-ca.crt nicht gefunden — TLS ohne CA-Verifikation (unsicher)');
+}
+
+// Gibt TLS-Optionen für MQTT und FTP zurück.
+// checkServerIdentity: Bambu-Drucker nutzen ihre Seriennummer als CN, nicht die IP.
+function bambuTlsOptions(serial) {
+  if (!bambuCA) return { rejectUnauthorized: false };
+  return {
+    rejectUnauthorized: true,
+    ca: [bambuCA],
+    checkServerIdentity: (host, cert) => {
+      const cn = cert.subject?.CN;
+      if (cn !== serial) return new Error(`TLS CN-Mismatch: erwartet ${serial}, bekommen ${cn}`);
+      // CN stimmt → Zertifikat durch CA bereits verifiziert
+    }
+  };
+}
+
+// ── PATH-TRAVERSAL-SCHUTZ ─────────────────────
+const UPLOAD_DIR = fs.realpathSync('./uploads');
+const FILENAME_RE = /^[A-Za-z0-9._-]+\.(3mf|gcode|stl)$/i;
+
+// Gibt den sicheren absoluten Pfad zurück oder null bei ungültigem Namen.
+// Für FTP-Pfade (remote=true) reicht Basename + Regex; kein realpath nötig.
+function validateFilename(filename, remote = false) {
+  const base = path.basename(filename);
+  if (!FILENAME_RE.test(base)) return null;
+  if (remote) return base;
+  const resolved = path.resolve(UPLOAD_DIR, base);
+  if (!resolved.startsWith(UPLOAD_DIR + path.sep) && resolved !== UPLOAD_DIR) return null;
+  return resolved;
+}
+
 // ── MULTER ────────────────────────────────────
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, './uploads'),
   filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname)
 });
-const upload = multer({ storage });
+const UPLOAD_ALLOWED_EXT = /\.(3mf|gcode|stl)$/i;
+const upload = multer({
+  storage,
+  limits: { fileSize: 500 * 1024 * 1024 }, // 500 MB
+  fileFilter: (req, file, cb) => {
+    if (UPLOAD_ALLOWED_EXT.test(file.originalname)) {
+      cb(null, true);
+    } else {
+      cb(Object.assign(new Error('Nur .3mf, .gcode und .stl erlaubt'), { code: 'INVALID_TYPE' }));
+    }
+  }
+});
 
 // ── DATENBANK ─────────────────────────────────
-const db = new Database('./db/bambupi.db');
+const DB_PATH = './db/bambupi.db';
+const db = new Database(DB_PATH);
+
+// WAL-Mode: bessere Lese-/Schreib-Parallelität, atomare Commits
+db.pragma('journal_mode = WAL');
+db.pragma('foreign_keys = ON');
+
+// 0600: nur der Service-User darf lesen/schreiben
+fs.chmodSync(DB_PATH, 0o600);
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS filaments (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -117,6 +332,58 @@ for (const [key, value] of Object.entries(defaultSettings)) {
   const exists = db.prepare('SELECT key FROM settings WHERE key = ?').get(key);
   if (!exists) db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run(key, value);
 }
+
+// ── AES-256-GCM VERSCHLÜSSELUNG ──────────────
+// access_code wird verschlüsselt in der DB gespeichert.
+// Entschlüsselung nur intern beim MQTT/FTP-Connect.
+const ENC_PREFIX = 'enc:';
+
+function getEncryptionKey() {
+  if (!process.env.ENCRYPTION_KEY) {
+    const key = crypto.randomBytes(32).toString('hex');
+    process.env.ENCRYPTION_KEY = key;
+    const envPath = path.resolve(__dirname, '.env');
+    let envContent = '';
+    try { envContent = fs.readFileSync(envPath, 'utf8'); } catch (_) {}
+    const re = /^ENCRYPTION_KEY=.*$/m;
+    const line = `ENCRYPTION_KEY=${key}`;
+    envContent = re.test(envContent) ? envContent.replace(re, line) : envContent + (envContent.endsWith('\n') ? '' : '\n') + line + '\n';
+    fs.writeFileSync(envPath, envContent, 'utf8');
+    console.log('🔑 ENCRYPTION_KEY generiert und in .env gespeichert.');
+  }
+  return Buffer.from(process.env.ENCRYPTION_KEY, 'hex');
+}
+
+function encryptAccessCode(plaintext) {
+  const key = getEncryptionKey();
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  const ct = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
+  return ENC_PREFIX + iv.toString('hex') + ':' + cipher.getAuthTag().toString('hex') + ':' + ct.toString('hex');
+}
+
+function decryptAccessCode(stored) {
+  if (!stored || !stored.startsWith(ENC_PREFIX)) return stored; // Klartext-Fallback während Migration
+  const parts = stored.slice(ENC_PREFIX.length).split(':');
+  const [ivHex, tagHex, ctHex] = parts;
+  const decipher = crypto.createDecipheriv('aes-256-gcm', getEncryptionKey(), Buffer.from(ivHex, 'hex'));
+  decipher.setAuthTag(Buffer.from(tagHex, 'hex'));
+  return Buffer.concat([decipher.update(Buffer.from(ctHex, 'hex')), decipher.final()]).toString('utf8');
+}
+
+// ── MIGRATION: access_codes verschlüsseln ─────
+(function migrateAccessCodes() {
+  const rows = db.prepare('SELECT id, access_code FROM printers').all();
+  let migrated = 0;
+  for (const row of rows) {
+    if (row.access_code && !row.access_code.startsWith(ENC_PREFIX)) {
+      db.prepare('UPDATE printers SET access_code = ? WHERE id = ?')
+        .run(encryptAccessCode(row.access_code), row.id);
+      migrated++;
+    }
+  }
+  if (migrated > 0) console.log(`🔐 ${migrated} access_code(s) verschlüsselt.`);
+})();
 
 // ── SSE ───────────────────────────────────────
 const sseClients = new Set();
@@ -217,7 +484,8 @@ function handlePrintFinished(printerId, printData) {
 function connectMQTT(ip, accessCode, serial, printerId) {
   const client = mqtt.connect(`mqtts://${ip}:8883`, {
     username: 'bblp', password: accessCode,
-    rejectUnauthorized: false, reconnectPeriod: 5000
+    ...bambuTlsOptions(serial),
+    reconnectPeriod: 5000
   });
   client.on('connect', () => {
     console.log(`✅ MQTT verbunden: ${ip}`);
@@ -262,7 +530,7 @@ function connectMQTT(ip, accessCode, serial, printerId) {
       }
     } catch (e) {}
   });
-  client.on('error', (err) => console.log(`⚠️ MQTT Fehler ${ip}: ${err.message}`));
+  client.on('error', (err) => log.warn({ err, ip }, 'MQTT Fehler'));
   return client;
 }
 
@@ -282,7 +550,7 @@ function sendGcode(printerId, gcode) {
 const mqttClients = {};
 const savedPrinters = db.prepare('SELECT * FROM printers').all();
 savedPrinters.forEach(p => {
-  mqttClients[p.id] = connectMQTT(p.ip, p.access_code, p.serial, p.id);
+  mqttClients[p.id] = connectMQTT(p.ip, decryptAccessCode(p.access_code), p.serial, p.id);
 });
 
 // ── ORCA FILAMENT DATABASE ────────────────────
@@ -426,7 +694,7 @@ app.post('/api/filament-db/refresh', async (req, res) => {
     if (fs.existsSync(ORCA_CACHE_FILE)) fs.unlinkSync(ORCA_CACHE_FILE);
     await loadOrcaDb();
     res.json({ ok: true, brands: Object.keys(orcaDb).length });
-  } catch(e) { res.json({ ok: false, error: e.message }); }
+  } catch(e) { log.error({ err: e }, 'OrcaDB reload'); res.json({ ok: false, error: 'Reload fehlgeschlagen' }); }
 });
 
 // ── API STATUS ────────────────────────────────
@@ -444,7 +712,7 @@ app.get('/api/events', (req, res) => {
   req.on('close', () => sseClients.delete(res));
 
   // Sofort aktuellen Status senden
-  const printers = db.prepare('SELECT * FROM printers').all();
+  const printers = db.prepare('SELECT id, name, model, ip FROM printers').all();
   printers.forEach(p => {
     const payload = JSON.stringify({
       type: 'status',
@@ -488,14 +756,14 @@ app.get('/api/system', (req, res) => {
 
 // ── DRUCKER ───────────────────────────────────
 app.get('/api/printers', (req, res) => {
-  const list = db.prepare('SELECT * FROM printers').all();
+  const list = db.prepare('SELECT id, name, model, ip, added_at FROM printers').all();
   res.json(list.map(p => ({ ...p, status: printerStatus[p.id] || { state: 'offline' } })));
 });
 
 app.post('/api/printers', (req, res) => {
   const { name, model, ip, access_code, serial } = req.body;
   const result = db.prepare('INSERT INTO printers (name,model,ip,access_code,serial) VALUES (?,?,?,?,?)')
-    .run(name, model || 'X1C', ip, access_code, serial);
+    .run(name, model || 'X1C', ip, encryptAccessCode(access_code), serial);
   mqttClients[result.lastInsertRowid] = connectMQTT(ip, access_code, serial, result.lastInsertRowid);
   res.json({ id: result.lastInsertRowid });
 });
@@ -616,7 +884,9 @@ const THUMB_CACHE = './thumbnails';
 if (!fs.existsSync(THUMB_CACHE)) fs.mkdirSync(THUMB_CACHE, { recursive: true });
 
 app.get('/api/printers/:id/files/:filename/thumbnail', async (req, res) => {
-  const { id, filename } = req.params;
+  const { id } = req.params;
+  const filename = validateFilename(req.params.filename, true);
+  if (!filename) return res.status(400).json({ error: 'Ungültiger Dateiname' });
   const cacheKey = `${id}-${filename.replace(/[^a-zA-Z0-9._-]/g,'_')}.png`;
   const cachePath = path.join(THUMB_CACHE, cacheKey);
 
@@ -633,7 +903,7 @@ app.get('/api/printers/:id/files/:filename/thumbnail', async (req, res) => {
   const tmpPath = path.join(THUMB_CACHE, `tmp-${Date.now()}-${cacheKey}`);
   const ftpClient = new ftp.Client(30000);
   try {
-    await ftpClient.access({ host: printer.ip, port: 990, user: 'bblp', password: printer.access_code, secure: 'implicit', secureOptions: { rejectUnauthorized: false } });
+    await ftpClient.access({ host: printer.ip, port: 990, user: 'bblp', password: decryptAccessCode(printer.access_code), secure: 'implicit', secureOptions: bambuTlsOptions(printer.serial) });
     await ftpClient.downloadTo(tmpPath, '/' + filename);
     ftpClient.close();
 
@@ -657,31 +927,34 @@ app.get('/api/printers/:id/files', async (req, res) => {
   if (!printer) return res.status(404).json({ error: 'Drucker nicht gefunden' });
   const ftpClient = new ftp.Client(10000);
   try {
-    await ftpClient.access({ host: printer.ip, port: 990, user: 'bblp', password: printer.access_code, secure: 'implicit', secureOptions: { rejectUnauthorized: false } });
+    await ftpClient.access({ host: printer.ip, port: 990, user: 'bblp', password: decryptAccessCode(printer.access_code), secure: 'implicit', secureOptions: bambuTlsOptions(printer.serial) });
     const list = await ftpClient.list('/');
     res.json(list.filter(f => f.name.endsWith('.3mf') || f.name.endsWith('.gcode')).map(f => ({ name: f.name, size: f.size, date: f.rawModifiedAt || null })));
   } catch (e) {
-    res.json({ error: 'FTP Fehler: ' + e.message, files: [] });
+    log.error({ err: e }, 'FTP Dateiliste');
+    res.json({ error: 'FTP-Verbindung fehlgeschlagen', files: [] });
   } finally { ftpClient.close(); }
 });
 
 app.post('/api/printers/:id/print', async (req, res) => {
-  const { filename, start } = req.body;
+  const { start } = req.body;
+  const localPath = validateFilename(req.body.filename);
+  if (!localPath) return res.status(400).json({ error: 'Ungültiger Dateiname' });
   const printer = db.prepare('SELECT * FROM printers WHERE id = ?').get(req.params.id);
   if (!printer) return res.status(404).json({ error: 'Drucker nicht gefunden' });
-  const localPath = path.join('./uploads', filename);
   if (!fs.existsSync(localPath)) return res.status(404).json({ error: 'Datei nicht gefunden' });
   const ftpClient = new ftp.Client(10000);
   try {
-    await ftpClient.access({ host: printer.ip, port: 990, user: 'bblp', password: printer.access_code, secure: 'implicit', secureOptions: { rejectUnauthorized: false } });
-    const remoteName = path.basename(filename);
+    await ftpClient.access({ host: printer.ip, port: 990, user: 'bblp', password: decryptAccessCode(printer.access_code), secure: 'implicit', secureOptions: bambuTlsOptions(printer.serial) });
+    const remoteName = path.basename(localPath);
     await ftpClient.uploadFrom(localPath, '/' + remoteName);
     if (start) {
       sendMQTT(req.params.id, { print: { sequence_id: '0', command: 'project_file', param: 'Metadata/plate_1.gcode', url: `ftp:///` + remoteName, timelapse: false, bed_levelling: true, flow_cali: false, vibration_cali: true, layer_inspect: false, use_ams: false } });
     }
     res.json({ ok: true, message: start ? 'Hochgeladen und gestartet' : 'Hochgeladen' });
   } catch (e) {
-    res.status(500).json({ error: 'FTP Fehler: ' + e.message });
+    log.error({ err: e }, 'FTP Upload/Print');
+    res.status(500).json({ error: 'FTP-Übertragung fehlgeschlagen' });
   } finally { ftpClient.close(); }
 });
 
@@ -690,15 +963,18 @@ app.post('/api/printers/:id/startfile', (req, res) => {
 });
 
 app.delete('/api/printers/:id/files/:filename', async (req, res) => {
+  const safeFilename = validateFilename(req.params.filename, true);
+  if (!safeFilename) return res.status(400).json({ error: 'Ungültiger Dateiname' });
   const printer = db.prepare('SELECT * FROM printers WHERE id = ?').get(req.params.id);
   if (!printer) return res.status(404).json({ error: 'Drucker nicht gefunden' });
   const ftpClient = new ftp.Client(10000);
   try {
-    await ftpClient.access({ host: printer.ip, port: 990, user: 'bblp', password: printer.access_code, secure: 'implicit', secureOptions: { rejectUnauthorized: false } });
-    await ftpClient.remove('/' + req.params.filename);
+    await ftpClient.access({ host: printer.ip, port: 990, user: 'bblp', password: decryptAccessCode(printer.access_code), secure: 'implicit', secureOptions: bambuTlsOptions(printer.serial) });
+    await ftpClient.remove('/' + safeFilename);
     res.json({ ok: true });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    log.error({ err: e }, 'FTP Delete');
+    res.status(500).json({ error: 'FTP-Löschen fehlgeschlagen' });
   } finally { ftpClient.close(); }
 });
 
@@ -849,6 +1125,54 @@ app.post('/api/settings', (req, res) => {
   res.json({ ok: true });
 });
 
+// ── PASSWORT ÄNDERN ────────────────────────────
+app.post('/api/auth/change-password', (req, res) => {
+  const { currentPass, newPass } = req.body || {};
+  if (!currentPass || !newPass) return res.status(400).json({ error: 'Fehlende Felder' });
+  if (!basicAuth.safeCompare(currentPass, process.env.ADMIN_PASS))
+    return res.status(403).json({ error: 'Aktuelles Passwort falsch' });
+  if (newPass.length < 8) return res.status(400).json({ error: 'Passwort muss mindestens 8 Zeichen haben' });
+
+  // In Umgebungsvariable und .env speichern
+  process.env.ADMIN_PASS = newPass;
+  const envPath = path.resolve(__dirname, '.env');
+  try {
+    let content = fs.readFileSync(envPath, 'utf8');
+    content = content.replace(/^ADMIN_PASS=.*$/m, `ADMIN_PASS="${newPass.replace(/"/g, '\\"')}"`);
+    fs.writeFileSync(envPath, content, 'utf8');
+  } catch (e) {
+    return serverError(res, e, 'Passwort konnte nicht gespeichert werden');
+  }
+  log.info('Admin-Passwort geändert');
+  res.json({ ok: true });
+});
+
+// ── KAMERA SNAPSHOT ────────────────────────────
+// ffmpeg greift alle SNAPSHOT_INTERVAL ms auf den RTSPS-Stream zu und speichert
+// ein JPEG. GET /api/snapshot liefert das letzte Bild — kein iframe nötig.
+const SNAPSHOT_PATH = '/tmp/bambupi_snapshot.jpg';
+const RTSP_URL = `rtsps://bblp:${(process.env.PRINTER_ACCESS_CODE||'').toLowerCase()}@${process.env.PRINTER_IP}:322/streaming/live/1`;
+
+function grabSnapshot() {
+  const { exec } = require('child_process');
+  exec(
+    `ffmpeg -rtsp_transport tcp -i "${RTSP_URL}" -vframes 1 -update 1 -q:v 3 -y "${SNAPSHOT_PATH}" 2>/dev/null`,
+    { timeout: 8000 },
+    () => {} // Fehler ignorieren, altes Bild bleibt
+  );
+}
+
+// Beim Start und dann alle 3 Sekunden
+grabSnapshot();
+const _snapTimer = setInterval(grabSnapshot, 3000);
+
+app.get('/api/snapshot', (req, res) => {
+  if (!fs.existsSync(SNAPSHOT_PATH)) return res.status(503).json({ error: 'Kein Bild verfügbar' });
+  res.setHeader('Cache-Control', 'no-cache, no-store');
+  res.setHeader('Content-Type', 'image/jpeg');
+  res.sendFile(SNAPSHOT_PATH);
+});
+
 // ── UPDATE SYSTEM ──────────────────────────────
 app.get('/api/version', (req, res) => {
   try {
@@ -876,7 +1200,8 @@ app.get('/api/update/check', (req, res) => {
     const currentHash = execSync('git rev-parse --short HEAD', { timeout: 5000 }).toString().trim();
     res.json({ hasUpdate: commits.length > 0, commits, currentHash, count: commits.length });
   } catch(e) {
-    res.status(500).json({ error: 'Verbindung zu GitHub fehlgeschlagen: ' + e.message });
+    log.error({ err: e }, 'GitHub Update-Check');
+    res.status(500).json({ error: 'Update-Check fehlgeschlagen' });
   }
 });
 
@@ -888,19 +1213,8 @@ app.post('/api/system/restart', (req, res) => {
   }, 800);
 });
 
-app.post('/api/update/apply', (req, res) => {
-  try {
-    execSync('git pull origin main', { timeout: 30000 });
-    execSync('npm install --production', { timeout: 120000 });
-    res.json({ ok: true });
-    setTimeout(() => {
-      console.log('🔄 Update angewendet — Neustart...');
-      process.exit(0); // systemd Restart=always startet automatisch neu
-    }, 1500);
-  } catch(e) {
-    res.status(500).json({ error: 'Update fehlgeschlagen: ' + e.message });
-  }
-});
+// /api/update/apply entfernt — Updates nur per SSH:
+// cd ~/bambupi && git pull && npm install --production && sudo systemctl restart bambupi
 
 // ── PRINT-METADATEN EXTRAKTION ────────────────
 function parseTimeString(str) {
@@ -953,27 +1267,32 @@ function extractPrintMetadata(filePath) {
       const n = fs.readSync(fd, buf, 0, 16384, 0); fs.closeSync(fd);
       return parseGcodeHeader(buf.toString('utf8', 0, n));
     }
-  } catch (e) { console.error('extractPrintMetadata:', e.message); }
+  } catch (e) { log.warn({ err: e }, 'extractPrintMetadata'); }
   return null;
 }
 
 // ── UPLOAD ────────────────────────────────────
-app.post('/api/upload', upload.single('file'), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'Keine Datei' });
-  const meta = extractPrintMetadata(req.file.path);
-  res.json({
-    filename: req.file.filename,
-    originalname: req.file.originalname,
-    metadata: meta ? {
-      weight_g: meta.weight_g,
-      time_s: meta.time_s,
-      time_formatted: meta.time_s ? formatSeconds(meta.time_s) : null,
-      filament_type: meta.filament_type || (meta.filaments[0] ? meta.filaments[0].type : null),
-      filament_color: meta.filaments[0] ? meta.filaments[0].color : null,
-      multi_color: meta.filaments.length > 1,
-      filament_count: meta.filaments.length,
-      printer_model: meta.printer_model || null
-    } : null
+app.post('/api/upload', (req, res) => {
+  upload.single('file')(req, res, (err) => {
+    if (err?.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: 'Datei zu groß (max. 500 MB)' });
+    if (err?.code === 'INVALID_TYPE')    return res.status(415).json({ error: 'Nur .3mf, .gcode und .stl erlaubt' });
+    if (err) return res.status(400).json({ error: 'Upload fehlgeschlagen' });
+    if (!req.file) return res.status(400).json({ error: 'Keine Datei' });
+    const meta = extractPrintMetadata(req.file.path);
+    res.json({
+      filename: req.file.filename,
+      originalname: req.file.originalname,
+      metadata: meta ? {
+        weight_g: meta.weight_g,
+        time_s: meta.time_s,
+        time_formatted: meta.time_s ? formatSeconds(meta.time_s) : null,
+        filament_type: meta.filament_type || (meta.filaments[0] ? meta.filaments[0].type : null),
+        filament_color: meta.filaments[0] ? meta.filaments[0].color : null,
+        multi_color: meta.filaments.length > 1,
+        filament_count: meta.filaments.length,
+        printer_model: meta.printer_model || null
+      } : null
+    });
   });
 });
 app.get('/api/uploads', (req, res) => {
@@ -986,7 +1305,8 @@ app.get('/api/uploads', (req, res) => {
   res.json(files);
 });
 app.delete('/api/uploads/:filename', (req, res) => {
-  const filePath = path.join('./uploads', req.params.filename);
+  const filePath = validateFilename(req.params.filename);
+  if (!filePath) return res.status(400).json({ error: 'Ungültiger Dateiname' });
   if (fs.existsSync(filePath)) { fs.unlinkSync(filePath); res.json({ ok: true }); }
   else res.status(404).json({ error: 'Datei nicht gefunden' });
 });
@@ -1036,7 +1356,8 @@ function extractThumbnail(filePath) {
 }
 
 app.get('/api/uploads/:filename/debug', (req, res) => {
-  const filePath = path.join('./uploads', path.basename(req.params.filename));
+  const filePath = validateFilename(req.params.filename);
+  if (!filePath) return res.status(400).json({ error: 'Ungültiger Dateiname' });
   if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Datei nicht gefunden' });
   const ext = path.extname(filePath).toLowerCase();
   if (ext !== '.3mf' || !AdmZip) return res.json({ ext, admzip: !!AdmZip, entries: [] });
@@ -1044,11 +1365,12 @@ app.get('/api/uploads/:filename/debug', (req, res) => {
     const zip = new AdmZip(filePath);
     const entries = zip.getEntries().map(e => ({ name: e.entryName, size: e.header.size }));
     res.json({ entries });
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  } catch(e) { return serverError(res, e, 'Debug-Extraktion fehlgeschlagen'); }
 });
 
 app.get('/api/uploads/:filename/thumbnail', (req, res) => {
-  const filePath = path.join('./uploads', path.basename(req.params.filename));
+  const filePath = validateFilename(req.params.filename);
+  if (!filePath) return res.status(400).end();
   if (!fs.existsSync(filePath)) return res.status(404).end();
   const thumb = extractThumbnail(filePath);
   if (!thumb) return res.status(404).end();
@@ -1121,6 +1443,15 @@ app.delete('/api/ams/:id/assign/:unit/:slot', (req, res) => {
   res.json({ ok: true });
 });
 
+// ── GLOBALER FEHLER-HANDLER ───────────────────
+// Fängt alle unbehandelten Express-Fehler — Details nur ins Log, nie an Client.
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, next) => {
+  log.error({ err, method: req.method, url: req.url }, 'Unbehandelter Fehler');
+  if (res.headersSent) return;
+  res.status(500).json({ error: 'Interner Serverfehler' });
+});
+
 // ── SERVER STARTEN ────────────────────────────
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 BambuPi läuft auf Port ${PORT}`));
+app.listen(PORT, () => log.info(`BambuPi läuft auf Port ${PORT}`));

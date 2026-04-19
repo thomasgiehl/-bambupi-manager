@@ -27,3 +27,5 @@ Thumbs.db
 uploads/*
 !uploads/.gitkeep
 .vscode/settings.json
+scripts/go2rtc_linux_arm64
+scripts/go2rtc_linux_amd64

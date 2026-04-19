@@ -300,6 +300,8 @@ tr:hover td{background:rgba(255,255,255,0.01);}
 .csb-val{font-size:14px;font-weight:700;font-family:var(--mono);color:var(--cnc);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .csb-val.csb-running{color:var(--green);}
 .csb-val.csb-idle{color:var(--blue);}
+.csb-val.csb-pause{color:var(--orange);}
+.csb-val.csb-error{color:var(--red);}
 .csb-val.csb-file{font-size:11px;}
 
 /* 3-COLUMN MAIN LAYOUT */
@@ -352,6 +354,14 @@ tr:hover td{background:rgba(255,255,255,0.01);}
 .psb-printing{background:var(--green-dim);color:var(--green);border-color:rgba(76,175,80,0.3);}
 .psb-ready{background:var(--blue-dim);color:var(--blue);border-color:rgba(33,150,243,0.3);}
 .psb-offline{background:var(--surface3);color:var(--text3);border-color:var(--border);}
+.psb-paused{background:rgba(255,167,38,0.1);color:var(--orange);border-color:rgba(255,167,38,0.3);}
+.psb-failed{background:rgba(239,83,80,0.1);color:var(--red);border-color:rgba(239,83,80,0.3);}
+.psb-finish{background:rgba(38,166,154,0.1);color:#26a69a;border-color:rgba(38,166,154,0.3);}
+.sdot-orange{background:var(--orange);box-shadow:0 0 6px var(--orange);}
+.sdot-red{background:var(--red);box-shadow:0 0 6px var(--red);}
+.sdot-teal{background:#26a69a;box-shadow:0 0 6px #26a69a;}
+.hms-warn{display:flex;align-items:center;gap:5px;padding:4px 8px;background:rgba(239,83,80,0.08);border:1px solid rgba(239,83,80,0.25);border-radius:3px;font-size:10px;color:var(--red);font-family:var(--mono);margin-top:4px;}
+.stage-label{font-size:10px;color:var(--text3);font-family:var(--mono);padding:2px 0;}
 
 .print-pbar-wrap{margin:10px 0;}
 .print-pbar-bg{height:6px;background:var(--surface3);border:1px solid var(--border);border-radius:2px;overflow:hidden;}
@@ -374,6 +384,7 @@ tr:hover td{background:rgba(255,255,255,0.01);}
 .cnc-btn-load{background:var(--green-dim);color:var(--green);border-color:rgba(76,175,80,0.2);}
 .cnc-btn-unload{background:var(--orange-dim);color:var(--orange);border-color:rgba(255,152,0,0.2);}
 .cnc-btn-motor{background:var(--surface2);color:var(--text3);border-color:var(--border);}
+.cnc-btn-cooldown{background:rgba(33,150,243,0.08);color:var(--accent);border-color:rgba(33,150,243,0.3);}
 
 .cnc-spd-row{display:flex;gap:3px;margin-bottom:6px;}
 .cnc-spd-btn{flex:1;padding:5px 2px;border-radius:2px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);font-size:9px;font-weight:700;cursor:pointer;text-align:center;transition:all 0.1s;font-family:var(--mono);letter-spacing:0.03em;}

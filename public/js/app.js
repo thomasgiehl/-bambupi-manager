@@ -11,8 +11,29 @@ let dashboardBuilt = false;
 const printerHomeFlags = {};
 const printerPrevState = {};
 const tempHistory = {};
+const tempPrev = {};
 const chartInstances = {};
 const PAGE_TITLES = {dashboard:'DASHBOARD',files:'DATEIMANAGER',printers:'DRUCKER',filaments:'FILAMENTE',history:'HISTORIE',calculator:'RECHNER',settings:'EINSTELLUNGEN'};
+
+// ── STATUS HELPERS ────────────────────────────
+const STAGE_NAMES = {0:'Bereit',1:'Bett-Leveling',2:'Bett heizt auf',4:'Filament wechseln',7:'Nozzle heizt auf',8:'Extrusion kalibr.',9:'Bett scannen',14:'Homing',15:'Nozzle reinigen',17:'Druckt',255:'Bereit'};
+function stageName(stage){return STAGE_NAMES[stage]||('Phase '+stage);}
+function stateBadgeHtml(state){
+  if(state==='RUNNING') return '<div class="sdot sdot-green"></div>DRUCKT';
+  if(state==='PAUSE')   return '<div class="sdot sdot-orange"></div>PAUSIERT';
+  if(state==='FAILED')  return '<div class="sdot sdot-red"></div>FEHLER';
+  if(state==='FINISH')  return '<div class="sdot sdot-teal"></div>FERTIG';
+  if(state==='offline') return '<div class="sdot sdot-gray"></div>OFFLINE';
+  return '<div class="sdot sdot-blue"></div>BEREIT';
+}
+function stateBadgeClass(state){
+  if(state==='RUNNING') return 'print-state-badge psb-printing';
+  if(state==='PAUSE')   return 'print-state-badge psb-paused';
+  if(state==='FAILED')  return 'print-state-badge psb-failed';
+  if(state==='FINISH')  return 'print-state-badge psb-finish';
+  if(state==='offline') return 'print-state-badge psb-offline';
+  return 'print-state-badge psb-ready';
+}
 
 // ── FILAMENT DATENBANK ────────────────────────
 // Format: brand -> material -> { nozzle_min, nozzle_max, temp_bed, temp_dry, time_dry, price_per_kg }
@@ -240,10 +261,14 @@ async function realtimeUpdate() {
     const speedLevel= s.spd_lvl || 2;
 
     // ── Temperaturen ──
+    const prev=tempPrev[p.id]||{};
+    const nTrend=nozzle>prev.nozzle+0.4?'↑':nozzle<prev.nozzle-0.4?'↓':'';
+    const bTrend=bed>prev.bed+0.2?'↑':bed<prev.bed-0.2?'↓':'';
+    tempPrev[p.id]={nozzle,bed};
     const nEl=document.getElementById('tro-val-n-'+p.id);
     const bEl=document.getElementById('tro-val-b-'+p.id);
-    if(nEl){nEl.textContent=nozzle.toFixed(1)+'°';nEl.className='tro-val '+(nozzle>150?'tv-hot':nozzle>50?'tv-warm':nozzle>0?'tv-cool':'tv-off');}
-    if(bEl){bEl.textContent=bed.toFixed(1)+'°';bEl.className='tro-val '+(bed>50?'tv-warm':bed>0?'tv-cool':'tv-off');}
+    if(nEl){nEl.innerHTML=nozzle.toFixed(1)+'°'+(nTrend?`<span style="font-size:11px;opacity:0.7;margin-left:2px">${nTrend}</span>`:'');nEl.className='tro-val '+(nozzle>150?'tv-hot':nozzle>50?'tv-warm':nozzle>0?'tv-cool':'tv-off');}
+    if(bEl){bEl.innerHTML=bed.toFixed(1)+'°'+(bTrend?`<span style="font-size:11px;opacity:0.7;margin-left:2px">${bTrend}</span>`:'');bEl.className='tro-val '+(bed>50?'tv-warm':bed>0?'tv-cool':'tv-off');}
     const ntEl=document.getElementById('tro-tgt-n-'+p.id); if(ntEl)ntEl.textContent='→ '+nTarget+'°C';
     const btEl=document.getElementById('tro-tgt-b-'+p.id); if(btEl)btEl.textContent='→ '+bTarget+'°C';
     const nbEl=document.getElementById('tro-bar-n-'+p.id); if(nbEl)nbEl.style.width=Math.min(100,nozzle/3)+'%';
@@ -265,10 +290,33 @@ async function realtimeUpdate() {
 
     // ── Status Badge ──
     const bdEl=document.getElementById('cnc-badge-'+p.id);
-    if(bdEl){
-      if(state==='RUNNING'){bdEl.className='print-state-badge psb-printing';bdEl.innerHTML='<div class="sdot sdot-green"></div>DRUCKT';}
-      else if(state==='offline'){bdEl.className='print-state-badge psb-offline';bdEl.innerHTML='<div class="sdot sdot-gray"></div>OFFLINE';}
-      else{bdEl.className='print-state-badge psb-ready';bdEl.innerHTML='<div class="sdot sdot-blue"></div>BEREIT';}
+    if(bdEl){bdEl.className=stateBadgeClass(state);bdEl.innerHTML=stateBadgeHtml(state);}
+
+    // ── Idle Panel Inhalt (Stage / HMS / Finish) ──
+    const idlEl2=document.getElementById('cnc-idle-'+p.id);
+    if(idlEl2){
+      const stage=s.stage;
+      const hms=Array.isArray(s.hms)&&s.hms.length?s.hms:null;
+      let html='';
+      if(state==='offline'){html='🔌 OFFLINE';}
+      else if(state==='FINISH'){html='<span style="color:#26a69a">✅ Druck abgeschlossen</span>';}
+      else if(state==='FAILED'){
+        html='<span style="color:var(--red)">❌ Druckfehler';
+        if(s.print_error&&s.print_error!==0)html+=' ('+s.print_error+')';
+        html+='</span>';
+      }
+      else if(state==='PAUSE'){
+        html='<span style="color:var(--orange)">⏸ PAUSIERT';
+        if(stage!=null&&stage!==0&&stage!==255)html+=' · '+stageName(stage);
+        html+='</span>';
+      }
+      else if(stage!=null&&stage!==0&&stage!==255&&stage!==-1){
+        html='<span class="stage-label">⚙ '+stageName(stage)+'…</span>';
+      }
+      if(hms){
+        hms.forEach(h=>{html+='<div class="hms-warn">⚠ '+( h.msg||h.code||JSON.stringify(h))+'</div>';});
+      }
+      idlEl2.innerHTML=html||'';
     }
 
     // ── Speed Buttons ──
@@ -277,8 +325,9 @@ async function realtimeUpdate() {
     // ── CNC Status Bar ──
     const stateEl=document.getElementById('csb-state');
     if(stateEl){
-      stateEl.textContent=state;
-      stateEl.className='csb-val '+(state==='RUNNING'?'csb-running':'csb-idle');
+      const stateLabels={RUNNING:'DRUCKT',PAUSE:'PAUSIERT',FAILED:'FEHLER',FINISH:'FERTIG',IDLE:'BEREIT',offline:'OFFLINE'};
+      stateEl.textContent=stateLabels[state]||state;
+      stateEl.className='csb-val '+(state==='RUNNING'?'csb-running':state==='PAUSE'?'csb-pause':state==='FAILED'?'csb-error':'csb-idle');
     }
     const csbFile=document.getElementById('csb-file'); if(csbFile)csbFile.textContent=s.subtask_name||'—';
     const csbPct=document.getElementById('csb-pct'); if(csbPct)csbPct.textContent=progress+'%';
@@ -326,11 +375,7 @@ function buildPrinterCard(p) {
   const nc=nozzle>150?'tv-hot':nozzle>50?'tv-warm':nozzle>0?'tv-cool':'tv-off';
   const bc=bed>50?'tv-warm':bed>0?'tv-cool':'tv-off';
   const speeds=[{l:1,n:'STILLE'},{l:2,n:'NORMAL'},{l:3,n:'SPORT'},{l:4,n:'TURBO'}];
-  const badgeHtml=state==='RUNNING'
-    ?`<span class="print-state-badge psb-printing"><div class="sdot sdot-green"></div>DRUCKT</span>`
-    :state==='offline'
-    ?`<span class="print-state-badge psb-offline"><div class="sdot sdot-gray"></div>OFFLINE</span>`
-    :`<span class="print-state-badge psb-ready"><div class="sdot sdot-blue"></div>BEREIT</span>`;
+  const badgeHtml=`<span class="${stateBadgeClass(state)}">${stateBadgeHtml(state)}</span>`;
 
   return `
   <!-- PRINTER HEADER -->
@@ -426,8 +471,8 @@ function buildPrinterCard(p) {
                   </div>
                 </div>
               </div>
-              <div id="cnc-idle-${p.id}" style="display:${state!=='RUNNING'?'flex':'none'};align-items:center;justify-content:center;padding:10px;gap:8px;font-size:11px;color:var(--text3);font-family:var(--mono);">
-                ${state==='offline'?'🔌 OFFLINE':''}
+              <div id="cnc-idle-${p.id}" style="display:${state!=='RUNNING'?'flex':'none'};flex-direction:column;align-items:center;justify-content:center;padding:10px;gap:4px;font-size:11px;color:var(--text3);font-family:var(--mono);">
+                ${state==='offline'?'🔌 OFFLINE':state==='FINISH'?'<span style="color:#26a69a">✅ Druck abgeschlossen</span>':state==='FAILED'?'<span style="color:var(--red)">❌ Druckfehler</span>':state==='PAUSE'?'<span style="color:var(--orange)">⏸ PAUSIERT</span>':''}
               </div>
             </div>
           </div>
@@ -447,6 +492,7 @@ function buildPrinterCard(p) {
             <button class="cnc-btn cnc-btn-light" onclick="setLight(${p.id},false)"><span class="cnc-btn-icon">🌑</span><span class="cnc-btn-lbl">LICHT AUS</span></button>
             <button class="cnc-btn cnc-btn-load" onclick="filamentLoad(${p.id})"><span class="cnc-btn-icon">⬇</span><span class="cnc-btn-lbl">EINZIEHEN</span></button>
             <button class="cnc-btn cnc-btn-unload" onclick="filamentUnload(${p.id})"><span class="cnc-btn-icon">⬆</span><span class="cnc-btn-lbl">AUSWERFEN</span></button>
+            <button class="cnc-btn cnc-btn-cooldown" onclick="cooldown(${p.id})" style="grid-column:span 2;"><span class="cnc-btn-icon">❄️</span><span class="cnc-btn-lbl">COOLDOWN</span></button>
           </div>
           <div class="cnc-sep">Geschwindigkeit</div>
           <div class="cnc-spd-row">
@@ -603,7 +649,7 @@ function updateHeatStatus(pid,type,actual,target){
     block.classList.add('heating');label.style.color='var(--orange)';label.textContent='🔥 HEIZT';
     const progress=Math.max(0,Math.min(100,((actual-20)/(target-20))*100));
     if(bar){bar.style.width=progress+'%';bar.style.background='var(--orange)';}
-  } else if(isCooling){label.style.color='var(--blue)';label.textContent='❄️ KÜHLT';if(bar)bar.style.width='0%';
+  } else if(isCooling){label.style.color='var(--blue)';label.textContent='❄️ KÜHLT';if(bar){const coolPct=type==='nozzle'?Math.min(100,actual/3):Math.min(100,actual/1.2);bar.style.width=coolPct+'%';bar.style.background='var(--accent)';};
   } else if(isAtTarget){
     block.classList.add('temp-ok');label.style.color='var(--green)';label.textContent='✅ BEREIT';
     if(bar){bar.style.width='100%';bar.style.background='var(--green)';}
@@ -612,6 +658,12 @@ function updateHeatStatus(pid,type,actual,target){
 async function motorsOff(pid){await api('/api/printers/'+pid+'/motors_off','POST');toast('⚡ Motoren aus');}
 async function filamentLoad(pid){await api('/api/printers/'+pid+'/filament_load','POST');toast('⬇ Filament wird eingezogen...');}
 async function filamentUnload(pid){await api('/api/printers/'+pid+'/filament_unload','POST');toast('⬆ Filament wird ausgeworfen...');}
+async function cooldown(pid){
+  if(!confirm('Nozzle und Bett auf 0°C setzen?'))return;
+  await api('/api/printers/'+pid+'/temperature','POST',{type:'nozzle',temp:0});
+  await api('/api/printers/'+pid+'/temperature','POST',{type:'bed',temp:0});
+  toast('❄️ Cooldown gestartet — Nozzle & Bett kühlen ab');
+}
 async function setFan(pid,percent,type='part'){await api('/api/printers/'+pid+'/fan','POST',{percent,type});toast('💨 Lüfter: '+percent+'%');}
 function openTempModal(pid,type,currentVal){
   tempCtx={printerId:pid,type};
@@ -929,6 +981,6 @@ if('Notification' in window&&Notification.permission==='granted'){const b=docume
 loadStats();
 loadSystemStats();
 buildDashboard();
-setInterval(()=>{if(document.getElementById('page-dashboard').classList.contains('active'))realtimeUpdate();},2000);
+setInterval(()=>{if(document.getElementById('page-dashboard').classList.contains('active'))realtimeUpdate();},1000);
 setInterval(()=>{if(document.getElementById('page-dashboard').classList.contains('active'))loadStats();},30000);
 setInterval(loadSystemStats,30000);

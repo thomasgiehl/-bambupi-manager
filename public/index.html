@@ -775,6 +775,16 @@ body.kiosk .kiosk-btn { color: var(--accent); border-color: rgba(41,182,246,0.4)
       </div>
 
       <div class="card" style="max-width:440px;margin-top:16px;">
+        <div class="card-title">Passwort ändern</div>
+        <div class="form-group"><label>Aktuelles Passwort</label><input type="password" id="pw-current" placeholder="••••••••"></div>
+        <div class="form-group"><label>Neues Passwort</label><input type="password" id="pw-new" placeholder="mind. 8 Zeichen"></div>
+        <div class="form-group"><label>Neues Passwort bestätigen</label><input type="password" id="pw-confirm" placeholder="••••••••"></div>
+        <div id="pw-msg" style="font-size:12px;margin-bottom:8px;display:none;"></div>
+        <button class="btn btn-primary" onclick="changePassword()">Passwort ändern</button>
+        <div style="font-size:10px;color:var(--text3);margin-top:6px;">Nach der Änderung musst du dich neu anmelden.</div>
+      </div>
+
+      <div class="card" style="max-width:440px;margin-top:16px;">
         <div class="card-title">System</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
           <button class="btn btn-secondary" onclick="reloadUI()" style="font-size:12px;">🔄 UI neu laden</button>
@@ -802,14 +812,10 @@ body.kiosk .kiosk-btn { color: var(--accent); border-color: rgba(41,182,246,0.4)
             </div>
             <div id="update-commits-list"></div>
           </div>
-          <button class="btn btn-primary" id="update-apply-btn" onclick="applyUpdate()" style="display:none;width:100%;margin-top:10px;font-size:13px;">
-            ⬇️ Update jetzt installieren
-          </button>
-        </div>
-        <div id="update-progress" style="display:none;text-align:center;padding:16px 0;">
-          <div style="font-size:22px;margin-bottom:8px;">⏳</div>
-          <div style="font-size:13px;color:var(--text2);" id="update-progress-text">Update wird geladen…</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:4px;">Server startet danach automatisch neu</div>
+          <div id="update-ssh-hint" style="display:none;margin-top:10px;padding:10px;background:var(--bg2);border-radius:6px;font-size:12px;color:var(--text2);">
+            Update per SSH installieren:<br>
+            <code style="display:block;margin-top:6px;color:var(--text1);font-size:11px;">cd ~/bambupi &amp;&amp; git pull &amp;&amp; npm install --production &amp;&amp; sudo systemctl restart bambupi</code>
+          </div>
         </div>
       </div>
     </div>
@@ -900,7 +906,10 @@ body.kiosk .kiosk-btn { color: var(--accent); border-color: rgba(41,182,246,0.4)
 </div>
 
 <script>
-const CAMERA_URL='http://192.168.178.30:1984/stream.html?src=bambu&mode=webrtc';
+// HTML-Escape: alle User/API-Daten in Template-Literals durch esc() schicken
+function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+
+const CAMERA_URL='http://'+window.location.hostname+':1984/stream.html?src=bambu&mode=webrtc';
 let assignCtx={printerId:null,unitIdx:null,slotIdx:null,selectedFilamentId:null};
 let tempCtx={printerId:null,type:null};
 let openAmsDetail=null;
@@ -1018,12 +1027,14 @@ async function loadEventLog(){
     if(!card||!list)return;
     if(!events.length){card.style.display='none';return;}
     card.style.display='block';
-    list.innerHTML=events.map(e=>`
-      <div class="ev-row">
-        <span class="ev-icon">${EV_ICONS[e.type]||'ℹ️'}</span>
-        <span class="ev-msg">${e.message}</span>
-        <span class="ev-time">${e.time}</span>
-      </div>`).join('');
+    list.innerHTML='';
+    events.forEach(e=>{
+      const row=document.createElement('div'); row.className='ev-row';
+      const icon=document.createElement('span'); icon.className='ev-icon'; icon.textContent=EV_ICONS[e.type]||'ℹ️';
+      const msg=document.createElement('span'); msg.className='ev-msg'; msg.textContent=e.message;
+      const time=document.createElement('span'); time.className='ev-time'; time.textContent=e.time;
+      row.append(icon,msg,time); list.appendChild(row);
+    });
   }catch(e){}
 }
 async function clearEventLog(){
@@ -1534,14 +1545,15 @@ function filterFilamentSearch(q){
 function renderFilamentSearch(items){
   const list=document.getElementById('filsearch-list');
   if(!items.length){list.innerHTML='<div style="color:var(--text3);font-size:13px;padding:8px 0;">Keine Treffer</div>';return;}
-  list.innerHTML=items.slice(0,80).map(f=>{
+  window._filSearchItems=items.slice(0,80);
+  list.innerHTML=window._filSearchItems.map((f,i)=>{
     const n=f.nozzle||f.nozzle_min||0;
     const b=f.bed||0;
-    return `<div onclick="selectFilamentPreset(${JSON.stringify(f).replace(/"/g,'&quot;')})"
+    return `<div onclick="selectFilamentPreset(window._filSearchItems[${i}])"
       style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:7px;cursor:pointer;border:1px solid var(--border);background:var(--surface2);"
       onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
       <div style="flex:1;">
-        <div style="font-size:12px;font-weight:600;">${f.vendor} <span style="color:var(--text3)">${f.material}</span></div>
+        <div style="font-size:12px;font-weight:600;">${esc(f.vendor)} <span style="color:var(--text3)">${esc(f.material)}</span></div>
         <div style="font-size:10px;color:var(--text3);font-family:var(--mono);">🌡️ ${n}°C Nozzle · 🛏️ ${b}°C Bett${f.density?' · '+f.density+'g/cm³':''}</div>
       </div>
       <div style="font-size:10px;color:var(--accent);font-weight:600;white-space:nowrap;">Wählen →</div>
@@ -1576,8 +1588,8 @@ async function openAmsAssign(pid,ui,si,isEmpty){
     list.innerHTML=filaments.map(f=>{
       const rem=f.weight_total-f.weight_used;const pct=Math.max(0,Math.round((rem/f.weight_total)*100));
       return `<div class="fil-option" id="fo-${f.id}" onclick="selectFilamentForSlot(${f.id})">
-        <div class="fil-option-dot" style="background:${f.color_hex};"></div>
-        <div><div class="fil-option-name">${f.brand} ${f.color}</div><div class="fil-option-sub">${f.material}${f.temp_nozzle?' · '+f.temp_nozzle+'°C':''}</div></div>
+        <div class="fil-option-dot" style="background:${esc(f.color_hex)};"></div>
+        <div><div class="fil-option-name">${esc(f.brand)} ${esc(f.color)}</div><div class="fil-option-sub">${esc(f.material)}${f.temp_nozzle?' · '+f.temp_nozzle+'°C':''}</div></div>
         <div class="fil-option-pct">${pct}% · ${Math.round(rem)}g</div></div>`;
     }).join('');
   }
@@ -1606,8 +1618,8 @@ function toggleAmsDetail(detailId,trayJson,pid,ui,si){
   const src=tray.source==='rfid'?'<span style="color:var(--green);">● RFID</span>':'<span style="color:var(--accent);">● Manuell</span>';
   panel.innerHTML=
     `<div class="ams-drow"><span class="ams-dk">Quelle</span><span class="ams-dv">${src}</span></div>`+
-    `<div class="ams-drow"><span class="ams-dk">Material</span><span class="ams-dv">${tray.type||'—'}</span></div>`+
-    `<div class="ams-drow"><span class="ams-dk">Hersteller</span><span class="ams-dv">${tray.brand||'—'}</span></div>`+
+    `<div class="ams-drow"><span class="ams-dk">Material</span><span class="ams-dv">${esc(tray.type||'—')}</span></div>`+
+    `<div class="ams-drow"><span class="ams-dk">Hersteller</span><span class="ams-dv">${esc(tray.brand||'—')}</span></div>`+
     `<div class="ams-drow"><span class="ams-dk">Restmenge</span><span class="ams-dv">${tray.remain>=0?tray.remain+'%':'—'}</span></div>`+
     `<div class="ams-drow"><span class="ams-dk">Düse</span><span class="ams-dv">${tray.nozzle_min?tray.nozzle_min+'–'+(tray.nozzle_max||'?')+'°C':'—'}</span></div>`+
     `<div class="ams-dacts">`+
@@ -1680,7 +1692,7 @@ async function loadStats(){
 async function initFilePage(){
   const printers=await api('/api/printers');
   const sel=document.getElementById('file-printer-select');
-  sel.innerHTML='<option value="">-- Drucker wählen --</option>'+printers.map(p=>`<option value="${p.id}">${p.name} (${p.model})</option>`).join('');
+  sel.innerHTML='<option value="">-- Drucker wählen --</option>'+printers.map(p=>`<option value="${p.id}">${esc(p.name)} (${esc(p.model)})</option>`).join('');
   loadPiFiles();
   // Toggle-Status laden
   try{const s=await api('/api/settings');setAutoCostToggle(s.auto_cost_calc==='1');}catch(e){}
@@ -1717,16 +1729,42 @@ async function loadSdFiles(){
   container.innerHTML='<div style="color:var(--text3);font-size:13px;">Lade Dateien vom Drucker...</div>';
   try{
     const result=await api('/api/printers/'+pid+'/files');
-    if(result.error){container.innerHTML='<div style="color:var(--red);font-size:13px;">⚠️ '+result.error+'</div>';return;}
+    if(result.error){container.innerHTML='<div style="color:var(--red);font-size:13px;">⚠️ '+esc(result.error)+'</div>';return;}
     if(!result.length){container.innerHTML='<div style="color:var(--text3);font-size:13px;">Keine Dateien gefunden</div>';return;}
-    container.innerHTML=result.map(f=>`<div class="file-row"><div><div class="file-name">${f.name}</div><div class="file-meta">${fmtSize(f.size||0)}</div></div><div class="file-actions"><button class="btn btn-primary btn-sm" onclick="startSdFile('${pid}','${f.name}')">▶️ Starten</button><button class="btn btn-danger btn-sm" onclick="deleteSdFile('${pid}','${f.name}')">🗑</button></div></div>`).join('');
-  }catch(e){container.innerHTML='<div style="color:var(--red);font-size:13px;">⚠️ '+e.message+'</div>';}
+    container.innerHTML='';
+    result.forEach(f=>{
+      const row=document.createElement('div'); row.className='file-row';
+      const info=document.createElement('div');
+      const name=document.createElement('div'); name.className='file-name'; name.textContent=f.name;
+      const meta=document.createElement('div'); meta.className='file-meta'; meta.textContent=fmtSize(f.size||0);
+      info.append(name,meta);
+      const actions=document.createElement('div'); actions.className='file-actions';
+      const btnStart=document.createElement('button'); btnStart.className='btn btn-primary btn-sm'; btnStart.textContent='▶️ Starten';
+      btnStart.addEventListener('click',()=>startSdFile(pid,f.name));
+      const btnDel=document.createElement('button'); btnDel.className='btn btn-danger btn-sm'; btnDel.textContent='🗑';
+      btnDel.addEventListener('click',()=>deleteSdFile(pid,f.name));
+      actions.append(btnStart,btnDel); row.append(info,actions); container.appendChild(row);
+    });
+  }catch(e){container.innerHTML='<div style="color:var(--red);font-size:13px;">⚠️ '+esc(e.message)+'</div>';}
 }
 async function loadPiFiles(){
   const container=document.getElementById('pi-files');
   const files=await api('/api/uploads');
   if(!files.length){container.innerHTML='<div style="color:var(--text3);font-size:13px;">Noch keine Dateien hochgeladen</div>';return;}
-  container.innerHTML=files.map(f=>`<div class="file-row"><div><div class="file-name">${f.filename.replace(/^\d+-/,'')}</div><div class="file-meta">${fmtSize(f.size)}</div></div><div class="file-actions"><button class="btn btn-primary btn-sm" onclick="printFromPi('${f.filename}')">▶️ Drucken</button><button class="btn btn-danger btn-sm" onclick="deletePiFile('${f.filename}')">🗑</button></div></div>`).join('');
+  container.innerHTML='';
+  files.forEach(f=>{
+    const row=document.createElement('div'); row.className='file-row';
+    const info=document.createElement('div');
+    const name=document.createElement('div'); name.className='file-name'; name.textContent=f.filename.replace(/^\d+-/,'');
+    const meta=document.createElement('div'); meta.className='file-meta'; meta.textContent=fmtSize(f.size);
+    info.append(name,meta);
+    const actions=document.createElement('div'); actions.className='file-actions';
+    const btnPrint=document.createElement('button'); btnPrint.className='btn btn-primary btn-sm'; btnPrint.textContent='▶️ Drucken';
+    btnPrint.addEventListener('click',()=>printFromPi(f.filename));
+    const btnDel=document.createElement('button'); btnDel.className='btn btn-danger btn-sm'; btnDel.textContent='🗑';
+    btnDel.addEventListener('click',()=>deletePiFile(f.filename));
+    actions.append(btnPrint,btnDel); row.append(info,actions); container.appendChild(row);
+  });
 }
 async function startSdFile(pid,filename){if(!confirm('Datei "'+filename+'" starten?'))return;await api('/api/printers/'+pid+'/startfile','POST',{filename});toast('▶️ Druck gestartet!');}
 async function deleteSdFile(pid,filename){if(!confirm('Löschen?'))return;await api('/api/printers/'+pid+'/files/'+encodeURIComponent(filename),'DELETE');toast('Gelöscht');loadSdFiles();}
@@ -1751,7 +1789,14 @@ async function uploadFile(file){
     if(data.filename){
       toast('✅ Hochgeladen!');
       const pid=document.getElementById('file-printer-select').value;
-      q.innerHTML=`<div class="file-row"><div><div class="file-name">${file.name}</div><div class="file-meta">${fmtSize(file.size)}</div></div><div class="file-actions">${pid?`<button class="btn btn-primary btn-sm" onclick="printFromPiDirect('${data.filename}',${pid})">▶️ Jetzt drucken</button>`:''}</div></div>`;
+      const qRow=document.createElement('div');qRow.className='file-row';
+      const qInfo=document.createElement('div');
+      const qName=document.createElement('div');qName.className='file-name';qName.textContent=file.name;
+      const qMeta=document.createElement('div');qMeta.className='file-meta';qMeta.textContent=fmtSize(file.size);
+      qInfo.append(qName,qMeta);
+      const qActs=document.createElement('div');qActs.className='file-actions';
+      if(pid){const btn=document.createElement('button');btn.className='btn btn-primary btn-sm';btn.textContent='▶️ Jetzt drucken';btn.addEventListener('click',()=>printFromPiDirect(data.filename,pid));qActs.appendChild(btn);}
+      qRow.append(qInfo,qActs);q.innerHTML='';q.appendChild(qRow);
       // Auto-Kostenberechnung wenn aktiviert
       try{
         const s=await api('/api/settings');
@@ -1838,7 +1883,7 @@ async function printFromPiDirect(filename,pid){
 async function loadPrinters(){
   const printers=await api('/api/printers');
   document.getElementById('printers-list').innerHTML=!printers.length?'<div class="card" style="color:var(--text3);">Noch kein Drucker hinzugefügt.</div>':
-    printers.map(p=>`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;"><div><div style="font-size:14px;font-weight:600;">🖨️ ${p.name}</div><div style="font-size:11px;color:var(--text3);margin-top:3px;font-family:var(--mono);">${p.model} · ${p.ip} · ${p.serial}</div></div><button class="btn btn-danger btn-sm" onclick="deletePrinter(${p.id})">Löschen</button></div></div>`).join('');
+    printers.map(p=>`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;"><div><div style="font-size:14px;font-weight:600;">🖨️ ${esc(p.name)}</div><div style="font-size:11px;color:var(--text3);margin-top:3px;font-family:var(--mono);">${esc(p.model)} · ${esc(p.ip)}</div></div><button class="btn btn-danger btn-sm" onclick="deletePrinter(${p.id})">Löschen</button></div></div>`).join('');
 }
 async function addPrinter(){
   const data={name:document.getElementById('p-name').value,model:document.getElementById('p-model').value,ip:document.getElementById('p-ip').value,access_code:document.getElementById('p-code').value,serial:document.getElementById('p-serial').value};
@@ -1857,7 +1902,7 @@ async function loadFilaments(){
     const rem=f.weight_total-f.weight_used;const pct=Math.max(0,Math.round((rem/f.weight_total)*100));
     const bc=pct>50?'var(--green)':pct>20?'var(--orange)':'var(--red)';
     const warnTag=pct<=20?`<div class="fil-warn">⚠️ Fast leer! Nur noch ${Math.round(rem)}g</div>`:'';
-    return `<div class="fil-card"><div class="fil-top"><div class="fil-dot" style="background:${f.color_hex};"></div><div><div class="fil-name">${f.brand} ${f.color}</div><div class="fil-sub">${f.material}${f.temp_nozzle?' · '+f.temp_nozzle+'°C':''}</div></div></div><div class="fil-bar"><div class="fil-bar-fill" style="width:${pct}%;background:${bc};"></div></div><div class="fil-info"><span>${Math.round(rem)}g übrig</span><span>${pct}%</span></div>${warnTag}${f.price_per_kg>0?`<div style="font-size:11px;color:var(--text3);margin-top:5px;">💰 ${f.price_per_kg}€/kg</div>`:''} ${f.location?`<div style="font-size:11px;color:var(--text3);">📍 ${f.location}</div>`:''}<div class="fil-actions"><button class="btn btn-danger btn-sm" onclick="deleteFilament(${f.id})">Löschen</button></div></div>`;
+    return `<div class="fil-card"><div class="fil-top"><div class="fil-dot" style="background:${esc(f.color_hex)};"></div><div><div class="fil-name">${esc(f.brand)} ${esc(f.color)}</div><div class="fil-sub">${esc(f.material)}${f.temp_nozzle?' · '+f.temp_nozzle+'°C':''}</div></div></div><div class="fil-bar"><div class="fil-bar-fill" style="width:${pct}%;background:${bc};"></div></div><div class="fil-info"><span>${Math.round(rem)}g übrig</span><span>${pct}%</span></div>${warnTag}${f.price_per_kg>0?`<div style="font-size:11px;color:var(--text3);margin-top:5px;">💰 ${f.price_per_kg}€/kg</div>`:''} ${f.location?`<div style="font-size:11px;color:var(--text3);">📍 ${esc(f.location)}</div>`:''}<div class="fil-actions"><button class="btn btn-danger btn-sm" onclick="deleteFilament(${f.id})">Löschen</button></div></div>`;
   }).join('');
 }
 function updateFilamentBadge(count){
@@ -1877,7 +1922,7 @@ async function deleteFilament(id){if(!confirm('Filament wirklich löschen?'))ret
 async function loadHistory(){
   const list=await api('/api/history');const tbody=document.getElementById('history-table');
   if(!list.length){tbody.innerHTML='<tr><td colspan="7" style="color:var(--text3);text-align:center;padding:24px;">Noch keine Drucke</td></tr>';return;}
-  tbody.innerHTML=list.map(j=>`<tr><td style="font-family:var(--mono);">${new Date(j.started_at).toLocaleDateString('de-DE')}</td><td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${j.filename||'-'}</td><td>${j.printer_name||'-'}</td><td>${j.color_hex?`<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${j.color_hex};margin-right:4px;"></span>`:''}${j.brand?j.brand+' '+j.material:'-'}</td><td style="font-family:var(--mono);">${j.grams_used}g</td><td style="font-family:var(--mono);">${j.duration_min?Math.round(j.duration_min/60*10)/10+'h':'-'}</td><td style="font-family:var(--mono);">${j.total_cost?j.total_cost.toFixed(2)+'€':'-'}</td></tr>`).join('');
+  tbody.innerHTML=list.map(j=>`<tr><td style="font-family:var(--mono);">${new Date(j.started_at).toLocaleDateString('de-DE')}</td><td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(j.filename||'-')}</td><td>${esc(j.printer_name||'-')}</td><td>${j.color_hex?`<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${esc(j.color_hex)};margin-right:4px;"></span>`:''}${j.brand?esc(j.brand)+' '+esc(j.material):'-'}</td><td style="font-family:var(--mono);">${j.grams_used}g</td><td style="font-family:var(--mono);">${j.duration_min?Math.round(j.duration_min/60*10)/10+'h':'-'}</td><td style="font-family:var(--mono);">${j.total_cost?j.total_cost.toFixed(2)+'€':'-'}</td></tr>`).join('');
 }
 
 async function exportCSV(){
@@ -1907,7 +1952,7 @@ async function exportCSV(){
 // ── KOSTENRECHNER ─────────────────────────────
 async function loadCalcFilaments(){
   const list=await api('/api/filaments');
-  document.getElementById('calc-filament').innerHTML='<option value="">-- Filament wählen --</option>'+list.map(f=>`<option value="${f.id}">${f.brand} ${f.color} ${f.material}</option>`).join('');
+  document.getElementById('calc-filament').innerHTML='<option value="">-- Filament wählen --</option>'+list.map(f=>`<option value="${f.id}">${esc(f.brand)} ${esc(f.color)} ${esc(f.material)}</option>`).join('');
   // Fehldruck-Standard aus Settings laden
   try{const s=await api('/api/settings');const fr=parseInt(s.failure_rate)||10;document.getElementById('calc-failure').value=fr;document.getElementById('calc-failure-val').textContent=fr+'%';}catch(e){}
 }
@@ -1987,6 +2032,24 @@ function updateMachineCostPreview(){
   document.getElementById('set-machine-preview').textContent=(cph*100).toFixed(2)+' ct/h';
 }
 
+async function changePassword(){
+  const current=document.getElementById('pw-current').value;
+  const nw=document.getElementById('pw-new').value;
+  const confirm=document.getElementById('pw-confirm').value;
+  const msg=document.getElementById('pw-msg');
+  const show=(text,ok)=>{msg.style.display='block';msg.style.color=ok?'var(--green)':'var(--red)';msg.textContent=text;};
+  if(!current||!nw||!confirm)return show('Bitte alle Felder ausfüllen.',false);
+  if(nw!==confirm)return show('Die neuen Passwörter stimmen nicht überein.',false);
+  if(nw.length<8)return show('Mindestlänge: 8 Zeichen.',false);
+  const r=await api('/api/auth/change-password','POST',{currentPass:current,newPass:nw});
+  if(r?.ok){
+    show('Passwort geändert. Bitte neu anmelden.',true);
+    setTimeout(()=>location.reload(),1500);
+  } else {
+    show(r?.error||'Fehler',false);
+  }
+}
+
 // ── SYSTEM ────────────────────────────────────
 function reloadUI(){
   toast('🔄 Seite wird neu geladen…');
@@ -2053,7 +2116,7 @@ async function checkForUpdate(){
     const statusIcon=document.getElementById('update-status-icon');
     const statusText=document.getElementById('update-status-text');
     const commitsList=document.getElementById('update-commits-list');
-    const applyBtn=document.getElementById('update-apply-btn');
+    const sshHint=document.getElementById('update-ssh-hint');
     const badge=document.getElementById('update-badge');
 
     if(r.hasUpdate){
@@ -2067,7 +2130,7 @@ async function checkForUpdate(){
           <span class="update-commit-date">${c.date}</span>
         </div>`
       ).join('');
-      applyBtn.style.display='block';
+      if(sshHint)sshHint.style.display='block';
       if(badge){badge.textContent=r.count;badge.style.display='inline-flex';}
     } else {
       box.className='update-box';
@@ -2088,33 +2151,7 @@ async function checkForUpdate(){
   }
 }
 
-async function applyUpdate(){
-  const applyBtn=document.getElementById('update-apply-btn');
-  const result=document.getElementById('update-result');
-  const progress=document.getElementById('update-progress');
-  const progressText=document.getElementById('update-progress-text');
-  applyBtn.disabled=true;
-  result.style.display='none';
-  progress.style.display='block';
-
-  const steps=['📥 Code wird heruntergeladen…','📦 Abhängigkeiten werden aktualisiert…','🔄 Server wird neu gestartet…'];
-  let si=0;
-  const tick=setInterval(()=>{if(si<steps.length){progressText.textContent=steps[si++];}},3000);
-
-  try{
-    await api('/api/update/apply','POST',{});
-    clearInterval(tick);
-    progressText.textContent='✅ Update erfolgreich! Seite lädt in 8 Sekunden neu…';
-    toast('✅ Update installiert! Server startet neu…');
-    setTimeout(()=>location.reload(),8000);
-  }catch(e){
-    clearInterval(tick);
-    progress.style.display='none';
-    result.style.display='block';
-    applyBtn.disabled=false;
-    toast('Update fehlgeschlagen: '+e.message,'error');
-  }
-}
+// applyUpdate entfernt — Update nur per SSH möglich
 
 // ── MOBILE SWIPE TO CLOSE SIDEBAR ─────────────
 (function(){

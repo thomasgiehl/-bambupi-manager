@@ -25,7 +25,6 @@ A local web dashboard for Bambu Lab 3D printers on Raspberry Pi — no cloud, no
 | 📊 Auto-Kostenanalyse | .3mf-Metadaten → Kosten-Preview (Opt-in) / .3mf metadata → cost preview |
 | 💰 Kostenrechner | Filament + Strom + Maschine + Fehldruck + Marge / Full cost breakdown + margin |
 | 📜 Druckhistorie | Log + CSV-Export / Print log + CSV export |
-| 🔄 In-App Updates | Git pull + Neustart per Knopf / One-click git pull + restart |
 | ⛶ Kiosk-Modus | Vollbild für Wandtablet / Fullscreen for wall tablet |
 | 📲 PWA | Als App installierbar / Installable as home screen app |
 | 🖥️ Multi-Drucker | Beliebig viele Drucker / Any number of printers |
@@ -44,8 +43,6 @@ A local web dashboard for Bambu Lab 3D printers on Raspberry Pi — no cloud, no
 | A1 | AMS Lite | ✅ | ✅ |
 | A1 Mini | AMS Lite | ✅ | ✅ |
 | H2D | ✅ | ✅ | ✅ |
-
----
 
 ---
 
@@ -113,6 +110,8 @@ curl -fsSL https://raw.githubusercontent.com/thomasgiehl/-bambupi-manager/main/i
 Das Skript installiert automatisch:
 - Node.js (falls nicht vorhanden)
 - Alle Abhängigkeiten
+- go2rtc für Kamera-Streaming (mit SHA-256-Verifikation)
+- Bambu CA-Zertifikat für sichere MQTT/FTP-Verbindungen
 - Startet den Dienst automatisch beim Systemstart (systemd)
 
 ### Option B: Manuelle Installation
@@ -120,10 +119,10 @@ Das Skript installiert automatisch:
 ```bash
 # Repository klonen
 git clone https://github.com/thomasgiehl/-bambupi-manager.git
-cd -bambupi-manager
+cd bambupi-manager
 
 # Abhängigkeiten installieren
-npm install
+npm install --production
 
 # Konfigurationsdatei anlegen
 cp .env.example .env
@@ -134,14 +133,18 @@ Inhalt der `.env` anpassen:
 
 ```env
 PORT=3000
-ELECTRICITY_COST=0.35    # Strompreis in €/kWh
-PRINTER_WATT=350          # Verbrauch des Druckers in Watt
+ELECTRICITY_COST=0.35     # Strompreis in €/kWh
+PRINTER_WATT=350           # Verbrauch des Druckers in Watt
+
+# Sicherheit — werden beim ersten Start automatisch generiert falls leer:
+ADMIN_USER=admin
+ADMIN_PASS=
+ENCRYPTION_KEY=
 ```
 
 Dann als Systemdienst einrichten:
 
 ```bash
-# Service-Datei anlegen
 sudo nano /etc/systemd/system/bambupi.service
 ```
 
@@ -155,7 +158,7 @@ After=network.target
 [Service]
 Type=simple
 User=pi
-WorkingDirectory=/home/pi/-bambupi-manager
+WorkingDirectory=/home/pi/bambupi-manager
 ExecStart=/usr/bin/node server.js
 Restart=always
 RestartSec=5
@@ -168,7 +171,6 @@ WantedBy=multi-user.target
 > ⚠️ Passe `User` und `WorkingDirectory` an deinen tatsächlichen Benutzernamen und Installationspfad an!
 
 ```bash
-# Dienst aktivieren und starten
 sudo systemctl daemon-reload
 sudo systemctl enable bambupi
 sudo systemctl start bambupi
@@ -176,12 +178,27 @@ sudo systemctl start bambupi
 
 ---
 
-## Schritt 3 — Dashboard öffnen
+## Schritt 3 — Erster Login
 
-Finde die IP-Adresse deines Pi:
+Beim ersten Start generiert BambuPi Manager automatisch ein sicheres Passwort und gibt es in der Konsole aus:
+
+```
+┌─────────────────────────────────────────────┐
+│  ⚠️  Neue Admin-Zugangsdaten generiert:       │
+│  User: admin                                 │
+│  Pass: a60c6c299988cb6556a4375492cfa784      │
+│  → werden in .env gespeichert               │
+└─────────────────────────────────────────────┘
+```
+
+Das Passwort wird automatisch in der `.env` gespeichert. Beim nächsten Start wird es von dort gelesen.
+
+**Logs ansehen (um Passwort zu finden falls verpasst):**
 
 ```bash
-hostname -I
+sudo journalctl -u bambupi --since today | grep "Pass:"
+# oder direkt in .env nachsehen:
+grep ADMIN_PASS ~/bambupi-manager/.env
 ```
 
 Öffne im Browser auf einem Gerät im selben WLAN:
@@ -191,6 +208,16 @@ http://DEINE_PI_IP:3000
 ```
 
 Beispiel: `http://192.168.178.50:3000`
+
+Der Browser fragt nach Benutzername und Passwort — gib die generierten Credentials ein.
+
+**Eigenes Passwort setzen:**
+
+```bash
+nano ~/bambupi-manager/.env
+# ADMIN_PASS=MeinSicheresPasswort eintragen
+sudo systemctl restart bambupi
+```
 
 ---
 
@@ -211,6 +238,23 @@ Beispiel: `http://192.168.178.50:3000`
 4. Klicke auf **Speichern**
 5. Das Dashboard wechselt automatisch und zeigt deinen Drucker live an ✅
 
+> 🔐 Der Access Code wird **verschlüsselt** in der Datenbank gespeichert (AES-256-GCM) und niemals über die API zurückgegeben.
+
+---
+
+## Updates installieren
+
+Updates werden **ausschließlich per SSH** eingespielt — kein Update-Button im Browser:
+
+```bash
+cd ~/bambupi-manager
+git pull
+npm install --production
+sudo systemctl restart bambupi
+```
+
+Das Dashboard zeigt weiterhin an, ob neue Commits verfügbar sind (🔔-Badge im Seitenmenü).
+
 ---
 
 ## Nützliche Befehle
@@ -219,23 +263,29 @@ Beispiel: `http://192.168.178.50:3000`
 # Status prüfen
 sudo systemctl status bambupi
 
-# Live-Logs anschauen
+# Live-Logs anschauen (mit Pino strukturiert)
 sudo journalctl -u bambupi -f
 
 # Neustart
 sudo systemctl restart bambupi
 
-# Update (neuste Version holen)
-cd ~/bambupi-manager && git pull && sudo systemctl restart bambupi
+# Zugangsdaten anzeigen
+grep -E "ADMIN_USER|ADMIN_PASS" ~/bambupi-manager/.env
 ```
 
 ---
 
 ## Fehlerbehebung
 
-**Dashboard lädt nicht:**
+**Dashboard lädt nicht / Passwort-Dialog erscheint nicht:**
 - Prüfe ob der Dienst läuft: `sudo systemctl status bambupi`
 - Prüfe ob Port 3000 erreichbar ist: `curl http://localhost:3000`
+
+**Passwort vergessen:**
+```bash
+grep ADMIN_PASS ~/bambupi-manager/.env
+```
+Oder neues Passwort setzen: `ADMIN_PASS=NeuesPasswort` in `.env`, dann Dienst neu starten.
 
 **Drucker zeigt "offline":**
 - Ist der LAN-Only-Modus am Drucker aktiviert?
@@ -249,7 +299,7 @@ cd ~/bambupi-manager && git pull && sudo systemctl restart bambupi
 - Bis zu 60 Sekunden warten nach dem Einschalten
 
 **Kamera zeigt nichts:**
-- Die Kamera wird über go2rtc eingebunden (separate Installation nötig)
+- Die Kamera wird über go2rtc eingebunden — wird vom Installer automatisch heruntergeladen
 - Ohne go2rtc: Kamerafeld bleibt leer, alle anderen Funktionen funktionieren
 
 ---
@@ -320,6 +370,8 @@ curl -fsSL https://raw.githubusercontent.com/thomasgiehl/-bambupi-manager/main/i
 The script automatically:
 - Installs Node.js (if not present)
 - Installs all dependencies
+- Downloads go2rtc for camera streaming (with SHA-256 integrity check)
+- Installs the Bambu CA certificate for verified MQTT/FTP connections
 - Sets up the service to auto-start on boot (systemd)
 
 ### Option B: Manual Installation
@@ -327,10 +379,10 @@ The script automatically:
 ```bash
 # Clone the repository
 git clone https://github.com/thomasgiehl/-bambupi-manager.git
-cd -bambupi-manager
+cd bambupi-manager
 
 # Install dependencies
-npm install
+npm install --production
 
 # Create config file
 cp .env.example .env
@@ -341,14 +393,18 @@ Adjust the `.env` file:
 
 ```env
 PORT=3000
-ELECTRICITY_COST=0.35    # Electricity price in €/kWh
-PRINTER_WATT=350          # Printer power consumption in watts
+ELECTRICITY_COST=0.35     # Electricity price in €/kWh
+PRINTER_WATT=350           # Printer power consumption in watts
+
+# Security — auto-generated on first start if left empty:
+ADMIN_USER=admin
+ADMIN_PASS=
+ENCRYPTION_KEY=
 ```
 
 Then set up as a system service:
 
 ```bash
-# Create service file
 sudo nano /etc/systemd/system/bambupi.service
 ```
 
@@ -362,7 +418,7 @@ After=network.target
 [Service]
 Type=simple
 User=pi
-WorkingDirectory=/home/pi/-bambupi-manager
+WorkingDirectory=/home/pi/bambupi-manager
 ExecStart=/usr/bin/node server.js
 Restart=always
 RestartSec=5
@@ -375,7 +431,6 @@ WantedBy=multi-user.target
 > ⚠️ Adjust `User` and `WorkingDirectory` to match your actual username and installation path!
 
 ```bash
-# Enable and start the service
 sudo systemctl daemon-reload
 sudo systemctl enable bambupi
 sudo systemctl start bambupi
@@ -383,12 +438,27 @@ sudo systemctl start bambupi
 
 ---
 
-## Step 3 — Open the Dashboard
+## Step 3 — First Login
 
-Find your Pi's IP address:
+On first start, BambuPi Manager automatically generates a secure password and prints it to the console:
+
+```
+┌─────────────────────────────────────────────┐
+│  ⚠️  Neue Admin-Zugangsdaten generiert:       │
+│  User: admin                                 │
+│  Pass: a60c6c299988cb6556a4375492cfa784      │
+│  → werden in .env gespeichert               │
+└─────────────────────────────────────────────┘
+```
+
+The password is automatically saved to `.env`. On subsequent starts it is read from there.
+
+**View logs to find the password if you missed it:**
 
 ```bash
-hostname -I
+sudo journalctl -u bambupi --since today | grep "Pass:"
+# or check .env directly:
+grep ADMIN_PASS ~/bambupi-manager/.env
 ```
 
 Open in a browser on any device on the same network:
@@ -398,6 +468,16 @@ http://YOUR_PI_IP:3000
 ```
 
 Example: `http://192.168.178.50:3000`
+
+Your browser will prompt for username and password — enter the generated credentials.
+
+**Set your own password:**
+
+```bash
+nano ~/bambupi-manager/.env
+# Set ADMIN_PASS=MySecurePassword
+sudo systemctl restart bambupi
+```
 
 ---
 
@@ -418,6 +498,23 @@ Example: `http://192.168.178.50:3000`
 4. Click **Speichern** (Save)
 5. The dashboard switches and shows your printer live ✅
 
+> 🔐 The Access Code is **encrypted** in the database (AES-256-GCM) and is never returned by the API.
+
+---
+
+## Installing Updates
+
+Updates are applied **exclusively via SSH** — there is no update button in the browser:
+
+```bash
+cd ~/bambupi-manager
+git pull
+npm install --production
+sudo systemctl restart bambupi
+```
+
+The dashboard still shows whether new commits are available (🔔 badge in the sidebar).
+
 ---
 
 ## Useful Commands
@@ -426,23 +523,29 @@ Example: `http://192.168.178.50:3000`
 # Check service status
 sudo systemctl status bambupi
 
-# Watch live logs
+# Watch live logs (structured via Pino)
 sudo journalctl -u bambupi -f
 
 # Restart the service
 sudo systemctl restart bambupi
 
-# Update to latest version
-cd ~/bambupi-manager && git pull && sudo systemctl restart bambupi
+# Show login credentials
+grep -E "ADMIN_USER|ADMIN_PASS" ~/bambupi-manager/.env
 ```
 
 ---
 
 ## Troubleshooting
 
-**Dashboard won't load:**
+**Dashboard won't load / no password prompt:**
 - Check if the service is running: `sudo systemctl status bambupi`
 - Check if port 3000 is reachable: `curl http://localhost:3000`
+
+**Forgot password:**
+```bash
+grep ADMIN_PASS ~/bambupi-manager/.env
+```
+Or set a new password: put `ADMIN_PASS=NewPassword` in `.env`, then restart the service.
 
 **Printer shows "offline":**
 - Is LAN-Only Mode enabled on the printer?
@@ -456,24 +559,207 @@ cd ~/bambupi-manager && git pull && sudo systemctl restart bambupi
 - Wait up to 60 seconds after turning on
 
 **Camera not showing:**
-- The camera is integrated via go2rtc (separate installation required)
+- The camera is integrated via go2rtc — downloaded automatically by the installer
 - Without go2rtc: camera area stays empty, all other features work fine
 
 ---
 
-## 📁 Project Structure
+---
+
+# 🔒 Sicherheit / Security
+
+## 🇩🇪 Deutsch
+
+BambuPi Manager ist für den Betrieb im Heimnetz konzipiert und enthält mehrere Schutzmaßnahmen für den Einsatz in gemischten Netzwerken (Gäste-WLAN, Smart-TVs, IoT-Geräte).
+
+### Übersicht aller Sicherheitsmaßnahmen
+
+| Maßnahme | Details |
+|---|---|
+| 🔑 **Basic Auth** | Alle Routen geschützt — Credentials aus `.env`, beim ersten Start automatisch generiert |
+| 🔐 **AES-256-GCM Verschlüsselung** | Access Codes verschlüsselt in SQLite gespeichert, Entschlüsselung nur intern bei MQTT/FTP |
+| 🌐 **CORS deaktiviert** | `origin: false` — Browser blockiert alle cross-origin Requests |
+| 🛡️ **DNS-Rebinding-Schutz** | Host-Header-Whitelist: nur eigene LAN-IPs und localhost erlaubt |
+| 📁 **Path-Traversal-Schutz** | Alle Dateinamen durch `validateFilename()`: Basename + Regex-Whitelist + realpath-Check |
+| 🚦 **Rate-Limiting** | Global 100 req/min/IP; Upload/gcode/Update-Endpoints: 10 req/min/IP |
+| 📤 **Upload-Limits** | Max. 500 MB, nur `.3mf`, `.gcode`, `.stl` — alle anderen Extensions abgelehnt |
+| 🔒 **TLS-Verifikation** | MQTT und FTP mit `rejectUnauthorized: true` + Bambu CA-Zertifikat + CN-Prüfung |
+| 🗄️ **SQLite-Hardening** | Dateiberechtigungen 0600, WAL-Mode, Foreign Keys erzwungen |
+| 🚫 **Kein Remote-Update** | `/api/update/apply` entfernt — Updates nur per SSH |
+| 🔏 **Security-Header** | CSP, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy` |
+| 📝 **Generische Fehler** | Interne Details nur ins Log (Pino), nie an den Client |
+
+### Zugangsdaten verwalten
+
+```bash
+# Aktuelles Passwort anzeigen
+grep ADMIN_PASS ~/bambupi-manager/.env
+
+# Eigenes Passwort setzen
+nano ~/bambupi-manager/.env
+# → ADMIN_PASS=MeinSicheresPasswort
+sudo systemctl restart bambupi
+```
+
+### Updates installieren
+
+```bash
+cd ~/bambupi-manager
+git pull
+npm install --production
+sudo systemctl restart bambupi
+```
+
+### Empfehlung für gemischte Netzwerke: Nginx + TLS
+
+Für maximale Sicherheit (z.B. wenn Gäste-Geräte im selben WLAN sind) empfehlen wir Nginx als Reverse-Proxy mit TLS vorschalten:
+
+```bash
+sudo apt install -y nginx certbot python3-certbot-nginx
+```
+
+```nginx
+# /etc/nginx/sites-available/bambupi
+server {
+    listen 443 ssl;
+    server_name bambupi.local;
+
+    ssl_certificate     /etc/letsencrypt/live/bambupi.local/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/bambupi.local/privkey.pem;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+
+    location / {
+        proxy_pass         http://127.0.0.1:3000;
+        proxy_set_header   Host $host;
+        proxy_set_header   X-Real-IP $remote_addr;
+        proxy_http_version 1.1;
+        proxy_set_header   Upgrade $http_upgrade;
+        proxy_set_header   Connection "upgrade";
+    }
+}
+
+server {
+    listen 80;
+    server_name bambupi.local;
+    return 301 https://$host$request_uri;
+}
+```
+
+### Was BambuPi Manager **nicht** schützt
+
+- **Physischen Zugriff** auf den Raspberry Pi
+- **Netzwerksegmentierung** — das ist Aufgabe deines Routers/Switches
+- **Drucker-Firmware** — der Drucker selbst hat keine Authentifizierung im LAN-Modus
+
+---
+
+## 🇬🇧 English
+
+BambuPi Manager is designed for home network use and includes several layers of protection for mixed networks (guest WiFi, smart TVs, IoT devices).
+
+### Security Measures Overview
+
+| Measure | Details |
+|---|---|
+| 🔑 **Basic Auth** | All routes protected — credentials from `.env`, auto-generated on first start |
+| 🔐 **AES-256-GCM Encryption** | Access Codes encrypted at rest in SQLite, decrypted only internally for MQTT/FTP |
+| 🌐 **CORS disabled** | `origin: false` — browser blocks all cross-origin requests |
+| 🛡️ **DNS-Rebinding protection** | Host header whitelist: only your own LAN IPs and localhost allowed |
+| 📁 **Path-Traversal protection** | All filenames validated: basename + regex whitelist + realpath check |
+| 🚦 **Rate limiting** | Global 100 req/min/IP; upload/gcode/update endpoints: 10 req/min/IP |
+| 📤 **Upload limits** | Max 500 MB, only `.3mf`, `.gcode`, `.stl` — all other extensions rejected with 415 |
+| 🔒 **TLS verification** | MQTT and FTP with `rejectUnauthorized: true` + Bambu CA cert + CN validation |
+| 🗄️ **SQLite hardening** | File permissions 0600, WAL mode, foreign keys enforced |
+| 🚫 **No remote updates** | `/api/update/apply` removed — updates via SSH only |
+| 🔏 **Security headers** | CSP, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy` |
+| 📝 **Generic error messages** | Internal details logged only (Pino), never sent to the client |
+
+### Managing Credentials
+
+```bash
+# Show current password
+grep ADMIN_PASS ~/bambupi-manager/.env
+
+# Set your own password
+nano ~/bambupi-manager/.env
+# → ADMIN_PASS=MySecurePassword
+sudo systemctl restart bambupi
+```
+
+### Installing Updates
+
+```bash
+cd ~/bambupi-manager
+git pull
+npm install --production
+sudo systemctl restart bambupi
+```
+
+### Recommended for Mixed Networks: Nginx + TLS
+
+For maximum security (e.g. if guest devices share your WiFi) we recommend adding Nginx as a reverse proxy with TLS:
+
+```bash
+sudo apt install -y nginx certbot python3-certbot-nginx
+```
+
+```nginx
+# /etc/nginx/sites-available/bambupi
+server {
+    listen 443 ssl;
+    server_name bambupi.local;
+
+    ssl_certificate     /etc/letsencrypt/live/bambupi.local/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/bambupi.local/privkey.pem;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+
+    location / {
+        proxy_pass         http://127.0.0.1:3000;
+        proxy_set_header   Host $host;
+        proxy_set_header   X-Real-IP $remote_addr;
+        proxy_http_version 1.1;
+        proxy_set_header   Upgrade $http_upgrade;
+        proxy_set_header   Connection "upgrade";
+    }
+}
+
+server {
+    listen 80;
+    server_name bambupi.local;
+    return 301 https://$host$request_uri;
+}
+```
+
+### What BambuPi Manager does **not** protect against
+
+- **Physical access** to the Raspberry Pi
+- **Network segmentation** — that is your router/switch's responsibility
+- **Printer firmware** — the printer itself has no authentication in LAN mode
+
+---
+
+## 📁 Projektstruktur / Project Structure
 
 ```
 bambupi-manager/
 ├── public/
-│   └── index.html     # Frontend (all UI + JS inline)
-├── db/                # SQLite database (auto-created)
-├── uploads/           # Uploaded print files
-├── docs/              # Masterplan + wireframes
-├── server.js          # Express + MQTT backend
-├── install.sh         # One-command installer
-└── .env               # Your config (not in git)
+│   └── index.html        # Frontend (UI + JS)
+├── certs/
+│   └── bambu-ca.crt      # Bambu Lab CA certificate (TLS verification)
+├── db/                   # SQLite database (auto-created, 0600 permissions)
+├── uploads/              # Uploaded print files (.3mf, .gcode, .stl)
+├── scripts/
+│   └── go2rtc.yaml       # go2rtc camera config
+├── docs/                 # Feature docs + wireframes
+├── server.js             # Express + MQTT + security backend
+├── install.sh            # One-command installer with integrity checks
+├── .env                  # Your config + secrets (not in git)
+└── .env.example          # Template with all available options
 ```
+
+> **Hinweis / Note:** `go2rtc_linux_arm64` wird vom Installer heruntergeladen und per SHA-256 verifiziert — die Binary ist nicht im Repository enthalten. / The binary is downloaded by the installer with SHA-256 verification — it is not included in the repository.
 
 ---
 
