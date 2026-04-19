@@ -101,6 +101,18 @@ function renderAms(array $amsData, int $pid): string {
   </div>
 </div>
 
+<!-- Event Log (Moved to top for better visibility) -->
+<div class="card" id="event-log-card" style="display:none; margin-bottom: 16px; padding: 12px 16px;">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+    <div class="card-title" style="margin:0; font-size: 14px;">📟 Live Events</div>
+    <div style="display:flex; gap: 8px;">
+      <button onclick="loadEventLog()" class="btn btn-secondary btn-sm" title="Aktualisieren">↻</button>
+      <button onclick="clearEventLog()" class="btn btn-secondary btn-sm">Leeren</button>
+    </div>
+  </div>
+  <div id="event-log-list" style="max-height: 120px; overflow-y: auto; font-family: var(--mono); font-size: 11px;"></div>
+</div>
+
 <?php if (empty($printers)): ?>
 <div class="card" style="text-align:center;padding:40px;color:var(--text3);">
   <div style="font-size:40px;margin-bottom:12px;">🖨️</div>
@@ -343,15 +355,6 @@ function renderAms(array $amsData, int $pid): string {
 
 </div><!-- /.printer-card -->
 <?php endforeach; ?>
-
-<!-- Event Log -->
-<div class="card" id="event-log-card" style="display:none;margin-top:4px;">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-    <div class="card-title" style="margin:0;">📟 Live Events</div>
-    <button onclick="clearEventLog()" class="btn btn-secondary btn-sm">Leeren</button>
-  </div>
-  <div id="event-log-list"></div>
-</div>
 
 <script>
 // Printer-IDs für JavaScript bereitstellen
