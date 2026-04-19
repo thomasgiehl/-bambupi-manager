@@ -689,6 +689,15 @@ body.kiosk .kiosk-btn { color: var(--accent); border-color: rgba(41,182,246,0.4)
       <div class="grid2">
         <div class="card">
           <div class="card-title">Material & Zeit</div>
+          <div class="form-group" style="margin-bottom:8px;">
+            <label>Aus Datei laden</label>
+            <div style="display:flex;gap:6px;">
+              <select id="calc-file-select" style="flex:1;background:var(--surface3);border:1px solid var(--border);border-radius:6px;padding:6px 8px;color:var(--text);font-size:12px;">
+                <option value="">— Datei wählen —</option>
+              </select>
+              <button class="btn btn-secondary btn-sm" onclick="loadMetaIntoCalc()" style="white-space:nowrap;">📂 Laden</button>
+            </div>
+          </div>
           <div class="form-group"><label>Filament</label><select id="calc-filament" onchange="calculate()"></select></div>
           <div class="form-row">
             <div class="form-group"><label>Gramm verbraucht</label><input type="number" id="calc-grams" placeholder="45" oninput="calculate()"></div>
@@ -1952,8 +1961,24 @@ async function exportCSV(){
 async function loadCalcFilaments(){
   const list=await api('/api/filaments');
   document.getElementById('calc-filament').innerHTML='<option value="">-- Filament wählen --</option>'+list.map(f=>`<option value="${f.id}">${esc(f.brand)} ${esc(f.color)} ${esc(f.material)}</option>`).join('');
-  // Fehldruck-Standard aus Settings laden
   try{const s=await api('/api/settings');const fr=parseInt(s.failure_rate)||10;document.getElementById('calc-failure').value=fr;document.getElementById('calc-failure-val').textContent=fr+'%';}catch(e){}
+  try{
+    const files=await api('/api/uploads');
+    const sel=document.getElementById('calc-file-select');
+    if(sel&&files.length){sel.innerHTML='<option value="">— Datei wählen —</option>'+files.map(f=>`<option value="${esc(f.filename)}">${esc(f.filename.replace(/^\d+-/,''))}</option>`).join('');}
+  }catch(e){}
+}
+async function loadMetaIntoCalc(){
+  const sel=document.getElementById('calc-file-select');
+  if(!sel||!sel.value){toast('Bitte zuerst eine Datei wählen','error');return;}
+  try{
+    const meta=await api('/api/uploads/'+encodeURIComponent(sel.value)+'/metadata');
+    if(meta.error){toast('Keine Metadaten in dieser Datei','error');return;}
+    if(meta.weight_g){document.getElementById('calc-grams').value=meta.weight_g;}
+    if(meta.time_s){document.getElementById('calc-duration').value=Math.round(meta.time_s/60);}
+    calculate();
+    toast('Metadaten geladen: '+Math.round(meta.weight_g||0)+'g, '+(meta.time_formatted||'?'));
+  }catch(e){toast('Fehler beim Laden','error');}
 }
 async function calculate(){
   const grams=parseFloat(document.getElementById('calc-grams').value)||0;

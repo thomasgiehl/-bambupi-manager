@@ -896,7 +896,24 @@ async function deleteFilament(id){if(!confirm('Filament wirklich löschen?'))ret
 async function loadHistory(){const list=await api('/api/history');const tbody=document.getElementById('history-table');if(!list.length){tbody.innerHTML='<tr><td colspan="7" style="color:var(--text3);text-align:center;padding:20px;">Noch keine Drucke</td></tr>';return;}tbody.innerHTML=list.map(j=>`<tr><td style="font-family:var(--mono);">${new Date(j.started_at).toLocaleDateString('de-DE')}</td><td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${j.filename||'-'}</td><td>${j.printer_name||'-'}</td><td>${j.color_hex?`<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${j.color_hex};margin-right:4px;"></span>`:''}${j.brand?j.brand+' '+j.material:'-'}</td><td style="font-family:var(--mono);">${j.grams_used}g</td><td style="font-family:var(--mono);">${j.duration_min?Math.round(j.duration_min/60*10)/10+'h':'-'}</td><td style="font-family:var(--mono);">${j.total_cost?j.total_cost.toFixed(2)+'€':'-'}</td></tr>`).join('');}
 
 // ── KOSTENRECHNER ─────────────────────────────
-async function loadCalcFilaments(){const list=await api('/api/filaments');document.getElementById('calc-filament').innerHTML='<option value="">-- Filament wählen --</option>'+list.map(f=>`<option value="${f.id}">${f.brand} ${f.color} ${f.material}</option>`).join('');}
+async function loadCalcFilaments(){
+  const list=await api('/api/filaments');
+  document.getElementById('calc-filament').innerHTML='<option value="">-- Filament wählen --</option>'+list.map(f=>`<option value="${f.id}">${f.brand} ${f.color} ${f.material}</option>`).join('');
+  try{const s=await api('/api/settings');const fr=parseInt(s.failure_rate)||10;const el=document.getElementById('calc-failure');if(el){el.value=fr;document.getElementById('calc-failure-val').textContent=fr+'%';}}catch(e){}
+  try{const files=await api('/api/uploads');const sel=document.getElementById('calc-file-select');if(sel&&files.length){sel.innerHTML='<option value="">— Datei wählen —</option>'+files.map(f=>`<option value="${f.filename}">${f.filename.replace(/^\d+-/,'')}</option>`).join('');}}catch(e){}
+}
+async function loadMetaIntoCalc(){
+  const sel=document.getElementById('calc-file-select');
+  if(!sel||!sel.value){toast('Bitte zuerst eine Datei wählen','error');return;}
+  try{
+    const meta=await api('/api/uploads/'+encodeURIComponent(sel.value)+'/metadata');
+    if(meta.error){toast('Keine Metadaten in dieser Datei','error');return;}
+    if(meta.weight_g)document.getElementById('calc-grams').value=meta.weight_g;
+    if(meta.time_s)document.getElementById('calc-duration').value=Math.round(meta.time_s/60);
+    calculate();
+    toast('Metadaten geladen: '+Math.round(meta.weight_g||0)+'g, '+(meta.time_formatted||'?'));
+  }catch(e){toast('Fehler beim Laden','error');}
+}
 async function calculate(){const grams=parseFloat(document.getElementById('calc-grams').value)||0;const duration=parseFloat(document.getElementById('calc-duration').value)||0;const post=parseFloat(document.getElementById('calc-post').value)||0;const rate=parseFloat(document.getElementById('calc-rate').value)||0;const filament_id=document.getElementById('calc-filament').value;if(!grams&&!duration)return;const result=await api('/api/calculate','POST',{grams,duration_min:duration,filament_id,post_processing_min:post,hourly_rate:rate});document.getElementById('calc-result').style.display='block';document.getElementById('r-filament').textContent=result.filament_cost.toFixed(2)+' €';document.getElementById('r-electricity').textContent=result.electricity_cost.toFixed(2)+' €';document.getElementById('r-post').textContent=result.post_cost.toFixed(2)+' €';document.getElementById('r-total').textContent=result.total_cost.toFixed(2)+' €';}
 
 // ── EINSTELLUNGEN ─────────────────────────────

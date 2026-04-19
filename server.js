@@ -454,26 +454,25 @@ function handlePrintFinished(printerId, printData) {
         'SELECT a.filament_id, f.material, f.price_per_kg, f.diameter FROM ams_slots a JOIN filaments f ON a.filament_id=f.id WHERE a.printer_id=? ORDER BY a.unit_idx, a.slot_idx LIMIT 1'
       ).get(printerId);
     }
-    if (!row) return;
-
-    // Gramm berechnen aus filament_used (mm Länge → Gramm)
-    const usedMm = parseFloat(printData.filament_used) || 0;
+    // Gramm berechnen aus filament_used — Bambu meldet in Metern (z.B. 16.8 für ~50g PLA)
+    const usedM = parseFloat(printData.filament_used) || 0;
     let grams = 0;
-    if (usedMm > 0) {
-      const r = (row.diameter || 1.75) / 2 / 10; // mm → cm
-      const densityKey = Object.keys(MATERIAL_DENSITY).find(k => (row.material || '').startsWith(k)) || 'PLA';
-      grams = Math.round(Math.PI * r * r * (usedMm / 10) * MATERIAL_DENSITY[densityKey] * 10) / 10;
+    const diameter = row?.diameter || 1.75;
+    if (usedM > 0) {
+      const r = diameter / 2 / 10; // mm → cm
+      const densityKey = Object.keys(MATERIAL_DENSITY).find(k => (row?.material || '').startsWith(k)) || 'PLA';
+      grams = Math.round(Math.PI * r * r * (usedM * 100) * MATERIAL_DENSITY[densityKey] * 10) / 10;
     }
 
-    if (grams > 0) {
+    if (row && grams > 0) {
       db.prepare('UPDATE filaments SET weight_used = weight_used + ? WHERE id = ?').run(grams, row.filament_id);
     }
 
     const s = Object.fromEntries(db.prepare('SELECT * FROM settings').all().map(r => [r.key, parseFloat(r.value)]));
-    const filamentCost = (grams / 1000) * (row.price_per_kg || 0);
+    const filamentCost = row ? (grams / 1000) * (row.price_per_kg || 0) : 0;
     const electricityCost = (durationMin / 60) * ((s.printer_watt || 350) / 1000) * (s.electricity_cost || 0.35);
     db.prepare("INSERT INTO print_jobs (printer_id,filament_id,filename,grams_used,duration_min,electricity_cost,filament_cost,total_cost,status,finished_at) VALUES (?,?,?,?,?,?,?,?,'finished',CURRENT_TIMESTAMP)")
-      .run(printerId, row.filament_id, printData.subtask_name || '', grams, durationMin, electricityCost, filamentCost, filamentCost + electricityCost);
+      .run(printerId, row?.filament_id || null, printData.subtask_name || '', grams, durationMin, electricityCost, filamentCost, filamentCost + electricityCost);
 
     console.log(`✅ Auto-Tracking: "${printData.subtask_name || '?'}" — ${grams}g, ${durationMin}min, ${(filamentCost + electricityCost).toFixed(2)}€`);
   } catch (e) {
@@ -497,7 +496,7 @@ function connectMQTT(ip, accessCode, serial, printerId) {
       if (data.print) {
         const prevState = printerStatus[printerId]?.gcode_state;
         const newState = data.print.gcode_state;
-        printerStatus[printerId] = { ...data.print, last_update: new Date().toISOString() };
+        printerStatus[printerId] = { ...(printerStatus[printerId] || {}), ...data.print, last_update: new Date().toISOString() };
         // Temperatur-Ringbuffer befüllen
         const nozzle = data.print.nozzle_temper || 0;
         const bed    = data.print.bed_temper    || 0;
@@ -1411,6 +1410,22 @@ app.get('/api/uploads/:filename/debug', (req, res) => {
     const entries = zip.getEntries().map(e => ({ name: e.entryName, size: e.header.size }));
     res.json({ entries });
   } catch(e) { return serverError(res, e, 'Debug-Extraktion fehlgeschlagen'); }
+});
+
+app.get('/api/uploads/:filename/metadata', (req, res) => {
+  const filePath = validateFilename(req.params.filename);
+  if (!filePath) return res.status(400).json({ error: 'Ungültiger Dateiname' });
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Datei nicht gefunden' });
+  const meta = extractPrintMetadata(filePath);
+  if (!meta || (!meta.weight_g && !meta.time_s)) return res.json({ error: 'Keine Metadaten gefunden' });
+  res.json({
+    weight_g: meta.weight_g,
+    time_s: meta.time_s,
+    time_formatted: meta.time_s ? formatSeconds(meta.time_s) : null,
+    filament_type: meta.filament_type || (meta.filaments?.[0]?.type || null),
+    filament_color: meta.filaments?.[0]?.color || null,
+    filaments: meta.filaments || []
+  });
 });
 
 app.get('/api/uploads/:filename/thumbnail', (req, res) => {
