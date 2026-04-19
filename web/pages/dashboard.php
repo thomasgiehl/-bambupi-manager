@@ -149,7 +149,7 @@ function renderAms(array $amsData, int $pid): string {
         <div class="pbar"><div class="pbar-fill" id="pf-<?= $id ?>" style="width:<?= $progress ?>%"></div></div>
         <div class="progress-meta">
           <span id="pt-<?= $id ?>">⏱ <?= $remaining ?> Min verbleibend</span>
-          <span>Schicht <?= (int)($s['layer_num'] ?? 0) ?>/<?= (int)($s['total_layer_num'] ?? 0) ?></span>
+          <span id="layer-<?= $id ?>">Schicht <?= (int)($s['layer_num'] ?? 0) ?>/<?= (int)($s['total_layer_num'] ?? 0) ?></span>
         </div>
       </div>
       <?php if ($state !== 'RUNNING'): ?>

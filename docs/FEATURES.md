@@ -510,6 +510,106 @@ Manage any number of Bambu Lab printers simultaneously — each with its own car
 
 ---
 
+## ⏳ Druck-Warteschlange (Phase 2)
+
+Jobs können nun in eine Warteschlange gestellt werden. Der Server startet den nächsten Druck automatisch, sobald der Drucker bereit ist und das Druckbett als leer markiert wurde.
+
+- **Automatischer Start** — Sobald der Drucker `IDLE` ist und das Bett manuell freigegeben wurde.
+- **Bett-Status-Management** — Ein Klick in der Warteschlange markiert das Bett als frei.
+- **Druckoptionen** — Jedes Element in der Queue behält seine spezifischen Einstellungen (Bett-Leveling, AMS etc.).
+
+---
+
+## 🛠️ Wartungs-Manager (Phase 2)
+
+Professionelles Tracking von Verschleißteilen basierend auf den echten Druckstunden.
+
+- **Echtzeit-Tracking** — Der Server zählt die Minuten zwischen Druckstart und Ende.
+- **Wartungs-Aufgaben** — Standard-Aufgaben wie Achsen schmieren, Carbon-Stangen reinigen etc.
+- **Intervall-Visualisierung** — Fortschrittsbalken zeigen an, wie bald die nächste Wartung fällig ist.
+- **Wartungs-Historie** — "Erledigt"-Button setzt den Zähler für die jeweilige Aufgabe zurück.
+
+---
+
+## 👁️ 3D G-Code Vorschau (Phase 3)
+
+Betrachte deine G-Code und .3mf Dateien direkt im Browser in 3D.
+
+- **In-Browser Rendering** — Schnelle 3D-Vorschau ohne externe Software.
+- **.3mf Unterstützung** — Automatisches Extrahieren des G-Codes aus Bambu Studio Projektdateien.
+- **Layer-Analyse** — Sieh dir den Pfad Schicht für Schicht an.
+
+---
+
+## 📈 Erweiterte Statistiken (Phase 3)
+
+Detaillierte Analyse deiner Druckfarm-Auslastung.
+
+- **Drucker-Auslastung** — Donut-Chart zeigt, welcher Drucker am meisten arbeitet.
+- **Material-Verbrauch** — Balkendiagramm schlüsselt den Verbrauch nach Materialtyp (PLA, PETG etc.) auf.
+- **Gesamtdaten** — Gesamtgewicht, Gesamtstunden und Anzahl der Drucke auf einen Blick.
+
+---
+
+## 🤖 KI-Spaghetti-Detection (Phase 3 - BETA)
+
+Experimentelle Fehldruck-Erkennung durch Analyse des Kamerastreams.
+
+- **Stream-Analyse** — Prüft periodisch den MJPEG-Stream auf Unregelmäßigkeiten.
+- **Automatischer Stopp** — Kann bei Erkennung den Druck pausieren (Einstellbar).
+
+---
+
+## ⏳ Print Queue (Phase 2)
+
+Jobs can now be queued. The server automatically starts the next print as soon as the printer is ready and the bed is marked as clear.
+
+- **Automatic Start** — As soon as the printer is `IDLE` and the bed has been manually cleared.
+- **Bed Status Management** — One click in the queue marks the bed as free.
+- **Print Options** — Each item in the queue retains its specific settings (bed leveling, AMS etc.).
+
+---
+
+## 🛠️ Maintenance Manager (Phase 2)
+
+Professional tracking of wear parts based on actual print hours.
+
+- **Real-Time Tracking** — The server counts the minutes between print start and end.
+- **Maintenance Tasks** — Standard tasks like lubricating axes, cleaning carbon rods etc.
+- **Interval Visualization** — Progress bars show how soon the next maintenance is due.
+- **Maintenance History** — "Done" button resets the counter for the respective task.
+
+---
+
+## 👁️ 3D G-Code Preview (Phase 3)
+
+View your G-Code and .3mf files directly in 3D in your browser.
+
+- **In-Browser Rendering** — Fast 3D preview without external software.
+- **.3mf Support** — Automatic extraction of G-Code from Bambu Studio project files.
+- **Layer Analysis** — View the path layer by layer.
+
+---
+
+## 📈 Advanced Statistics (Phase 3)
+
+Detailed analysis of your print farm utilization.
+
+- **Printer Utilization** — Donut chart shows which printer is working the most.
+- **Material Consumption** — Bar chart breaks down consumption by material type (PLA, PETG etc.).
+- **Total Data** — Total weight, total hours, and number of prints at a glance.
+
+---
+
+## 🤖 AI Spaghetti Detection (Phase 3 - BETA)
+
+Experimental failure detection by analyzing the camera stream.
+
+- **Stream Analysis** — Periodically checks the MJPEG stream for irregularities.
+- **Automatic Stop** — Can pause the print when a failure is detected (configurable).
+
+---
+
 ## 📸 Screenshots hinzufügen / Adding Screenshots
 
 Screenshots können durch folgende Schritte hinzugefügt werden:

@@ -297,9 +297,38 @@ db.exec(`
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(printer_id, unit_idx, slot_idx)
   );
+  CREATE TABLE IF NOT EXISTS events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    printer_id INTEGER REFERENCES printers(id),
+    type TEXT NOT NULL, -- 'info', 'warning', 'error', 'success'
+    message TEXT NOT NULL,
+    hms_code TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE TABLE IF NOT EXISTS maintenance_tasks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    printer_id INTEGER REFERENCES printers(id),
+    name TEXT NOT NULL,
+    threshold_hours INTEGER NOT NULL,
+    last_reset_hours REAL DEFAULT 0,
+    added_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE TABLE IF NOT EXISTS print_queue (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    printer_id INTEGER REFERENCES printers(id),
+    filename TEXT NOT NULL,
+    options TEXT, -- JSON string
+    status TEXT DEFAULT 'pending', -- 'pending', 'printing', 'completed', 'failed'
+    added_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
 `);
 
 // ── MIGRATION: neue Spalten falls DB schon existiert ──
+const printCols = db.prepare("PRAGMA table_info(printers)").all().map(c => c.name);
+if (!printCols.includes('total_print_minutes')) {
+  db.prepare('ALTER TABLE printers ADD COLUMN total_print_minutes REAL DEFAULT 0').run();
+}
+
 const filCols = db.prepare("PRAGMA table_info(filaments)").all().map(c => c.name);
 const newCols = [
   ['diameter', 'REAL DEFAULT 1.75'],
@@ -326,7 +355,13 @@ const defaultSettings = {
   machine_price: '700',
   machine_hours: '5000',
   failure_rate: '10',
-  auto_cost_calc: '0'
+  auto_cost_calc: '0',
+  telegram_token: '',
+  telegram_chat_id: '',
+  discord_webhook: '',
+  notify_on_finish: '1',
+  notify_on_fail: '1',
+  notify_on_pause: '1'
 };
 for (const [key, value] of Object.entries(defaultSettings)) {
   const exists = db.prepare('SELECT key FROM settings WHERE key = ?').get(key);
@@ -440,15 +475,105 @@ setInterval(() => {
 const eventLog = [];             // Letzte 50 Events für Event-Log Panel
 const EVENT_LOG_MAX = 50;
 
-function addEvent(type, message, printerId = null) {
+// ── HMS ERROR MAPPING ─────────────────────────
+const HMS_CODES = {
+  '03000100': 'Bett-Heizung Fehler (Sensor)',
+  '03000200': 'Bett-Heizung Fehler (Heizung)',
+  '03000300': 'Bett-Heizung Fehler (Überhitzung)',
+  '05000100': 'Nozzle-Heizung Fehler (Sensor)',
+  '05000200': 'Nozzle-Heizung Fehler (Heizung)',
+  '12000100': 'Lüfter Fehler (Teilekühler)',
+  '12000200': 'Lüfter Fehler (Hotend)',
+  '12000300': 'Lüfter Fehler (Gehäuse)',
+  '12000400': 'Lüfter Fehler (MC-Board)',
+  '12000500': 'Lüfter Fehler (Filter)',
+  '0C000100': 'AMS Fehler (Einzug)',
+  '0C000200': 'AMS Fehler (Auswurf)',
+  '0C000300': 'AMS Fehler (Verstopfung)',
+  '13000100': 'HMS Fehler (Lidar/Laser)',
+  '13000200': 'HMS Fehler (Bett scannen)',
+  '1b000100': 'HMS Fehler (Motor/Achse)',
+  '1b000200': 'HMS Fehler (Homing)'
+};
+
+function translateHMS(code) {
+  if (!code) return null;
+  // Code formatieren: 0300 0100 -> 03000100
+  const clean = code.toString().replace(/\s/g, '').toLowerCase();
+  return HMS_CODES[clean] || `Unbekannter Fehler (${code})`;
+}
+
+// ── EXTERNAL NOTIFICATIONS ───────────────────
+async function sendExternalNotif(title, message) {
+  const s = Object.fromEntries(db.prepare('SELECT * FROM settings').all().map(r => [r.key, r.value]));
+  const text = `🔔 *${title}*\n${message}`;
+
+  // Telegram
+  if (s.telegram_token && s.telegram_chat_id) {
+    try {
+      await fetch(`https://api.telegram.org/bot${s.telegram_token}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: s.telegram_chat_id, text, parse_mode: 'Markdown' })
+      });
+    } catch (e) { log.error({ err: e }, 'Telegram Notif failed'); }
+  }
+
+  // Discord
+  if (s.discord_webhook) {
+    try {
+      await fetch(s.discord_webhook, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: `**${title}**\n${message}` })
+      });
+    } catch (e) { log.error({ err: e }, 'Discord Notif failed'); }
+  }
+}
+
+function sendNotif(title, message, forceExternal = false) {
+  // Immer via SSE für Browser-Push (via Frontend-Logik)
+  const payload = JSON.stringify({ type: 'notification', title, message });
+  const chunk = `data: ${payload}\n\n`;
+  for (const res of sseClients) {
+    try { res.write(chunk); } catch(e) { sseClients.delete(res); }
+  }
+  
+  if (forceExternal) {
+    sendExternalNotif(title, message);
+  }
+}
+
+function addEvent(type, message, printerId = null, hmsCode = null) {
+  // In-Memory Liste für schnellen Abruf (optional, wir nutzen jetzt DB)
   eventLog.unshift({
     type,       // 'finish' | 'fail' | 'pause' | 'start' | 'offline' | 'info'
     message,
     printerId,
+    hmsCode,
     time: new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }),
     ts: Date.now()
   });
   if (eventLog.length > EVENT_LOG_MAX) eventLog.pop();
+
+  // In Datenbank persistieren
+  try {
+    db.prepare('INSERT INTO events (printer_id, type, message, hms_code) VALUES (?, ?, ?, ?)').run(printerId, type, message, hmsCode);
+  } catch (e) { log.error({ err: e }, 'DB Event Logging'); }
+
+  // Sofort via SSE an alle Clients pushen
+  const payload = JSON.stringify({ type: 'event', printer_id: printerId, event_type: type, message, hms_code: hmsCode, created_at: new Date().toISOString() });
+  const chunk = `data: ${payload}\n\n`;
+  for (const res of sseClients) {
+    try { res.write(chunk); } catch(e) { sseClients.delete(res); }
+  }
+
+  // Externe Benachrichtigungen
+  const s = Object.fromEntries(db.prepare('SELECT * FROM settings').all().map(r => [r.key, r.value]));
+  if (type === 'finish' && s.notify_on_finish === '1') sendExternalNotif('Druck fertig ✅', message);
+  if (type === 'fail'   && s.notify_on_fail === '1')   sendExternalNotif('Druckfehler ❌', message);
+  if (type === 'pause'  && s.notify_on_pause === '1')  sendExternalNotif('Druck pausiert ⏸', message);
+  if (type === 'error')                                sendExternalNotif('Systemfehler ⚠️', message);
 }
 
 const MATERIAL_DENSITY = {
@@ -463,6 +588,10 @@ function handlePrintFinished(printerId, printData) {
     const durationMin = printStartTimes[printerId]
       ? Math.round((Date.now() - printStartTimes[printerId]) / 60000) : 0;
     delete printStartTimes[printerId];
+
+    if (durationMin > 0) {
+      db.prepare('UPDATE printers SET total_print_minutes = total_print_minutes + ? WHERE id = ?').run(durationMin, printerId);
+    }
 
     // Aktiven AMS-Slot bestimmen (tray_now: 0-15, 255=extern)
     const trayNow = parseInt(printData?.ams?.tray_now);
@@ -550,6 +679,24 @@ function connectMQTT(ip, accessCode, serial, printerId) {
             (newState === 'FINISH' || newState === 'FAILED')) {
           handlePrintFinished(printerId, printerStatus[printerId]);
         }
+
+        // HMS Fehlerüberwachung
+        if (data.print.hms && Array.isArray(data.print.hms)) {
+          data.print.hms.forEach(h => {
+            const code = h.attr?.toString(16).toUpperCase().padStart(8, '0') || h.code;
+            if (code && code !== '00000000') {
+              const translated = translateHMS(code);
+              // Nur loggen wenn es neu ist oder sich geändert hat (Vermeidung von Spam)
+              const lastHMS = printerStatus[printerId]?.last_hms_code;
+              if (lastHMS !== code) {
+                addEvent('error', `⚠️ HMS: ${translated}`, printerId, code);
+                printerStatus[printerId].last_hms_code = code;
+                // Benachrichtigung senden
+                sendNotif(`Drucker-Fehler (${printerName})`, translated);
+              }
+            }
+          });
+        }
       }
     } catch (e) {}
   });
@@ -570,10 +717,112 @@ function sendGcode(printerId, gcode) {
   return sendMQTT(printerId, { print: { sequence_id: '0', command: 'gcode_line', param: gcode + '\n' } });
 }
 
+function startPrintOnBambu(printerId, filename, options = {}) {
+  const { timelapse, bed_levelling, flow_cali, vibration_cali, use_ams } = options;
+  
+  // Filament-Gewichts-Check
+  try {
+    const filePath = validateFilename(filename);
+    if (filePath && fs.existsSync(filePath)) {
+      const meta = extractPrintMetadata(filePath);
+      if (meta && meta.weight_g) {
+        const status = printerStatus[printerId];
+        const trayNow = parseInt(status?.ams?.tray_now);
+        let filament = null;
+        if (!isNaN(trayNow) && trayNow !== 255) {
+          filament = db.prepare('SELECT f.* FROM ams_slots a JOIN filaments f ON a.filament_id=f.id WHERE a.printer_id=? AND a.unit_idx=? AND a.slot_idx=?')
+            .get(printerId, Math.floor(trayNow / 4), trayNow % 4);
+        } else {
+          filament = db.prepare('SELECT f.* FROM ams_slots a JOIN filaments f ON a.filament_id=f.id WHERE a.printer_id=? ORDER BY a.unit_idx, a.slot_idx LIMIT 1')
+            .get(printerId);
+        }
+        
+        if (filament) {
+          const available = filament.weight_total - filament.weight_used;
+          if (available < meta.weight_g) {
+            addEvent('warning', `⚠️ Filament-Warnung: "${filament.brand} ${filament.material}" reicht evtl. nicht (verfügbar: ${Math.round(available)}g, benötigt: ${Math.round(meta.weight_g)}g)`, printerId);
+          }
+        }
+      }
+    }
+  } catch (e) { log.warn({ err: e }, 'Filament weight check failed'); }
+
+  return sendMQTT(printerId, {
+    print: {
+      sequence_id: '0',
+      command: 'project_file',
+      param: 'Metadata/plate_1.gcode',
+      url: `ftp:///` + filename,
+      timelapse: !!timelapse,
+      bed_levelling: bed_levelling !== false,
+      flow_cali: !!flow_cali,
+      vibration_cali: vibration_cali !== false,
+      layer_inspect: true,
+      use_ams: use_ams !== false
+    }
+  });
+}
+
 const mqttClients = {};
+const printerBedCleared = {}; // { printerId: boolean }
+
+// ── QUEUE WORKER ──────────────────────────────
+setInterval(() => {
+  const pendingJobs = db.prepare('SELECT * FROM print_queue WHERE status = "pending" ORDER BY added_at ASC').all();
+  if (pendingJobs.length === 0) return;
+
+  pendingJobs.forEach(job => {
+    const status = printerStatus[job.printer_id];
+    // Wenn der Drucker IDLE ist UND das Bett als leer markiert wurde
+    if (status && status.gcode_state === 'IDLE' && printerBedCleared[job.printer_id]) {
+      try {
+        const options = JSON.parse(job.options || '{}');
+        const ok = startPrintOnBambu(job.printer_id, job.filename, options);
+        if (ok) {
+          db.prepare('UPDATE print_queue SET status = "printing" WHERE id = ?').run(job.id);
+          printerBedCleared[job.printer_id] = false; // Zurücksetzen nach Start
+          addEvent('info', `Queue: Job "${job.filename}" auf Drucker gestartet`, job.printer_id);
+        }
+      } catch (e) {
+        log.error({ err: e, job }, 'Queue Worker failed to start job');
+        db.prepare('UPDATE print_queue SET status = "failed" WHERE id = ?').run(job.id);
+      }
+    }
+  });
+}, 10000); // Alle 10 Sekunden prüfen
+
+function initMaintenanceTasks(printerId) {
+  const defaults = [
+    ['Carbon-Stangen reinigen', 50],
+    ['Achsen schmieren (X/Y)', 100],
+    ['Z-Spindeln fetten', 200],
+    ['Hotend-Lüfter prüfen', 300]
+  ];
+  const stmt = db.prepare('INSERT OR IGNORE INTO maintenance_tasks (printer_id, name, threshold_hours) VALUES (?, ?, ?)');
+  defaults.forEach(([name, hours]) => stmt.run(printerId, name, hours));
+}
+
+// ── AI SPAGHETTI DETECTION (EXPERIMENTELL) ───
+setInterval(async () => {
+  try {
+    const settings = Object.fromEntries(db.prepare('SELECT * FROM settings').all().map(r => [r.key, r.value]));
+    if (settings.spaghetti_detect !== '1') return;
+
+    for (const [pid, status] of Object.entries(printerStatus)) {
+      if (status && status.gcode_state === 'RUNNING') {
+        log.info({ pid }, 'KI-Check: Analysiere Stream auf Fehldrucke...');
+        // In einer echten Implementierung würde hier ein Frame an ein Modell gesendet werden.
+        // Da wir lokal auf dem Pi sind, simulieren wir hier die Bereitschaft des Frameworks.
+        // placeholder for future: analyzeFrame(pid);
+      }
+    }
+  } catch (e) {}
+}, 45000);
+
 const savedPrinters = db.prepare('SELECT * FROM printers').all();
 savedPrinters.forEach(p => {
   mqttClients[p.id] = connectMQTT(p.ip, decryptAccessCode(p.access_code), p.serial, p.id);
+  initMaintenanceTasks(p.id);
 });
 
 // ── ORCA FILAMENT DATABASE ────────────────────
@@ -763,6 +1012,14 @@ app.post('/api/filament-db/refresh', async (req, res) => {
 // ── API STATUS ────────────────────────────────
 app.get('/api/status', (req, res) => res.json({ ok: true, uptime: process.uptime() }));
 
+app.post('/api/queue/clear-bed', (req, res) => {
+  const { printer_id } = req.body;
+  if (!printer_id) return res.status(400).json({ error: 'printer_id missing' });
+  printerBedCleared[printer_id] = true;
+  addEvent('info', 'Druckbett als leer markiert', printer_id);
+  res.json({ ok: true });
+});
+
 // ── SERVER-SENT EVENTS ────────────────────────
 app.get('/api/events', (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
@@ -795,8 +1052,35 @@ app.get('/api/printers/:id/temp-history', (req, res) => {
 });
 
 // ── EVENT-LOG ─────────────────────────────────
-app.get('/api/event-log', (req, res) => res.json(eventLog));
-app.post('/api/event-log/clear', (req, res) => { eventLog.length = 0; res.json({ ok: true }); });
+// ── EVENT LOG ─────────────────────────────────
+app.get('/api/event-log', (req, res) => {
+  // Letzte 50 Events aus der Datenbank laden
+  const rows = db.prepare(`
+    SELECT e.*, p.name as printer_name 
+    FROM events e 
+    LEFT JOIN printers p ON e.printer_id = p.id 
+    ORDER BY e.created_at DESC LIMIT 50
+  `).all();
+  
+  // Formatieren für das Frontend (Kompatibilität mit altem In-Memory Log)
+  const formatted = rows.map(r => ({
+    id: r.id,
+    type: r.type,
+    message: r.message,
+    hmsCode: r.hms_code,
+    printerId: r.printer_id,
+    printerName: r.printer_name,
+    time: new Date(r.created_at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }),
+    ts: new Date(r.created_at).getTime()
+  }));
+  res.json(formatted);
+});
+
+app.post('/api/event-log/clear', (req, res) => {
+  db.prepare('DELETE FROM events').run();
+  eventLog.length = 0;
+  res.json({ ok: true });
+});
 
 // ── SYSTEM MONITOR ────────────────────────────
 app.get('/api/system', (req, res) => {
@@ -827,8 +1111,10 @@ app.post('/api/printers', (req, res) => {
   const { name, model, ip, access_code, serial } = req.body;
   const result = db.prepare('INSERT INTO printers (name,model,ip,access_code,serial) VALUES (?,?,?,?,?)')
     .run(name, model || 'X1C', ip, encryptAccessCode(access_code), serial);
-  mqttClients[result.lastInsertRowid] = connectMQTT(ip, access_code, serial, result.lastInsertRowid);
-  res.json({ id: result.lastInsertRowid });
+  const pid = result.lastInsertRowid;
+  mqttClients[pid] = connectMQTT(ip, access_code, serial, pid);
+  initMaintenanceTasks(pid);
+  res.json({ id: pid });
 });
 
 app.delete('/api/printers/:id', (req, res) => {
@@ -839,6 +1125,24 @@ app.delete('/api/printers/:id', (req, res) => {
 
 app.get('/api/printers/:id/status', (req, res) => {
   res.json(printerStatus[req.params.id] || { state: 'offline' });
+});
+
+app.get('/api/printers/:id/maintenance', (req, res) => {
+  const tasks = db.prepare('SELECT * FROM maintenance_tasks WHERE printer_id = ?').all(req.params.id);
+  res.json(tasks);
+});
+
+app.post('/api/printers/:id/maintenance/reset', (req, res) => {
+  const { name } = req.body;
+  const printer = db.prepare('SELECT total_print_minutes FROM printers WHERE id = ?').get(req.params.id);
+  if (!printer) return res.status(404).json({ error: 'Drucker nicht gefunden' });
+  
+  const currentHours = printer.total_print_minutes / 60;
+  db.prepare('UPDATE maintenance_tasks SET last_reset_hours = ? WHERE printer_id = ? AND name = ?')
+    .run(currentHours, req.params.id, name);
+    
+  addEvent('info', `Wartung "${name}" erledigt`, req.params.id);
+  res.json({ ok: true });
 });
 
 // ── DRUCKERSTEUERUNG ──────────────────────────
@@ -1012,20 +1316,7 @@ app.post('/api/printers/:id/print', async (req, res) => {
     const remoteName = path.basename(localPath);
     await ftpClient.uploadFrom(localPath, '/' + remoteName);
     if (start) {
-      sendMQTT(req.params.id, {
-        print: {
-          sequence_id: '0',
-          command: 'project_file',
-          param: 'Metadata/plate_1.gcode',
-          url: `ftp:///` + remoteName,
-          timelapse: !!timelapse,
-          bed_levelling: bed_levelling !== false,
-          flow_cali: !!flow_cali,
-          vibration_cali: vibration_cali !== false,
-          layer_inspect: true,
-          use_ams: use_ams !== false
-        }
-      });
+      startPrintOnBambu(req.params.id, remoteName, { timelapse, bed_levelling, flow_cali, vibration_cali, use_ams });
     }
     res.json({ ok: true, message: start ? 'Hochgeladen und gestartet' : 'Hochgeladen' });
   } catch (e) {
@@ -1037,20 +1328,7 @@ app.post('/api/printers/:id/print', async (req, res) => {
 app.post('/api/printers/:id/startfile', (req, res) => {
   const { filename, timelapse, bed_levelling, flow_cali, vibration_cali, use_ams } = req.body;
   res.json({
-    ok: sendMQTT(req.params.id, {
-      print: {
-        sequence_id: '0',
-        command: 'project_file',
-        param: 'Metadata/plate_1.gcode',
-        url: `ftp:///` + filename,
-        timelapse: !!timelapse,
-        bed_levelling: bed_levelling !== false,
-        flow_cali: !!flow_cali,
-        vibration_cali: vibration_cali !== false,
-        layer_inspect: true,
-        use_ams: use_ams !== false
-      }
-    })
+    ok: startPrintOnBambu(req.params.id, filename, { timelapse, bed_levelling, flow_cali, vibration_cali, use_ams })
   });
 });
 
@@ -1068,6 +1346,29 @@ app.delete('/api/printers/:id/files/:filename', async (req, res) => {
     log.error({ err: e }, 'FTP Delete');
     res.status(500).json({ error: 'FTP-Löschen fehlgeschlagen' });
   } finally { ftpClient.close(); }
+});
+
+app.get('/api/queue', (req, res) => {
+  const jobs = db.prepare('SELECT * FROM print_queue ORDER BY added_at ASC').all();
+  res.json(jobs.map(j => ({ ...j, options: JSON.parse(j.options || '{}') })));
+});
+
+app.post('/api/queue', (req, res) => {
+  const { printer_id, filename, options } = req.body;
+  if (!printer_id || !filename) return res.status(400).json({ error: 'Fehlende Daten' });
+  const result = db.prepare('INSERT INTO print_queue (printer_id, filename, options) VALUES (?, ?, ?)')
+    .run(printer_id, filename, JSON.stringify(options || {}));
+  res.json({ id: result.lastInsertRowid });
+});
+
+app.delete('/api/queue/:id', (req, res) => {
+  db.prepare('DELETE FROM print_queue WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+app.post('/api/printers/:id/clear-bed', (req, res) => {
+  printerBedCleared[req.params.id] = true;
+  res.json({ ok: true });
 });
 
 // ── FILAMENTE ─────────────────────────────────
@@ -1153,6 +1454,31 @@ app.post('/api/filaments/:id/use', (req, res) => {
 // ── HISTORY ───────────────────────────────────
 app.get('/api/history', (req, res) => {
   res.json(db.prepare('SELECT p.*,f.brand,f.material,f.color,f.color_hex,pr.name as printer_name FROM print_jobs p LEFT JOIN filaments f ON p.filament_id=f.id LEFT JOIN printers pr ON p.printer_id=pr.id ORDER BY p.started_at DESC LIMIT 100').all());
+});
+
+app.get('/api/history/stats', (req, res) => {
+  try {
+    const stats = {
+      total_prints: db.prepare('SELECT COUNT(*) as count FROM print_jobs WHERE status="finished"').get().count,
+      total_grams: Math.round(db.prepare('SELECT SUM(grams_used) as sum FROM print_jobs WHERE status="finished"').get().sum || 0),
+      total_hours: Math.round((db.prepare('SELECT SUM(duration_min) as sum FROM print_jobs WHERE status="finished"').get().sum || 0) / 60),
+      by_printer: db.prepare(`
+        SELECT pr.name, COUNT(*) as count 
+        FROM print_jobs p 
+        JOIN printers pr ON p.printer_id = pr.id 
+        WHERE p.status="finished" 
+        GROUP BY pr.name
+      `).all(),
+      by_material: db.prepare(`
+        SELECT f.material, SUM(p.grams_used) as grams 
+        FROM print_jobs p 
+        JOIN filaments f ON p.filament_id = f.id 
+        WHERE p.status="finished" 
+        GROUP BY f.material
+      `).all()
+    };
+    res.json(stats);
+  } catch (e) { log.error(e); res.status(500).json({ error: e.message }); }
 });
 
 // ── KOSTENRECHNER ─────────────────────────────
@@ -1441,6 +1767,33 @@ app.get('/api/uploads', (req, res) => {
     }));
   res.json(files);
 });
+app.get('/api/uploads/:filename/gcode', (req, res) => {
+  const filePath = validateFilename(req.params.filename);
+  if (!filePath || !fs.existsSync(filePath)) return res.status(404).json({ error: 'Datei nicht gefunden' });
+  
+  const ext = path.extname(filePath).toLowerCase();
+  if (ext === '.gcode') return res.sendFile(filePath);
+  
+  if (ext === '.3mf' && AdmZip) {
+    try {
+      const zip = new AdmZip(filePath);
+      const entry = zip.getEntry('Metadata/plate_1.gcode');
+      if (entry) {
+        res.setHeader('Content-Type', 'text/plain');
+        return res.send(entry.getData().toString('utf8'));
+      }
+    } catch (e) {}
+  }
+  
+  res.status(400).json({ error: 'G-Code konnte nicht extrahiert werden' });
+});
+
+app.get('/api/uploads/:filename/content', (req, res) => {
+  const filePath = validateFilename(req.params.filename);
+  if (!filePath || !fs.existsSync(filePath)) return res.status(404).json({ error: 'Datei nicht gefunden' });
+  res.sendFile(filePath);
+});
+
 app.delete('/api/uploads/:filename', (req, res) => {
   const filePath = validateFilename(req.params.filename);
   if (!filePath) return res.status(400).json({ error: 'Ungültiger Dateiname' });

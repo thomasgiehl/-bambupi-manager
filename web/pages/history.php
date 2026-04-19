@@ -1,5 +1,31 @@
 <?php $history = api('/api/history') ?? []; ?>
 
+<div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:15px; margin-bottom:20px;">
+  <div class="card" style="text-align:center; padding:15px;">
+    <div style="font-size:11px; color:var(--text3); text-transform:uppercase;">Drucke gesamt</div>
+    <div id="stat-total-prints" style="font-size:24px; font-weight:700; color:var(--accent);">—</div>
+  </div>
+  <div class="card" style="text-align:center; padding:15px;">
+    <div style="font-size:11px; color:var(--text3); text-transform:uppercase;">Materialverbrauch</div>
+    <div id="stat-total-grams" style="font-size:24px; font-weight:700; color:var(--green);">—</div>
+  </div>
+  <div class="card" style="text-align:center; padding:15px;">
+    <div style="font-size:11px; color:var(--text3); text-transform:uppercase;">Druckzeit gesamt</div>
+    <div id="stat-total-hours" style="font-size:24px; font-weight:700; color:var(--orange);">—</div>
+  </div>
+</div>
+
+<div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap:20px; margin-bottom:20px;">
+  <div class="card">
+    <div class="card-title" style="font-size:14px;">Auslastung nach Drucker</div>
+    <div style="height:200px;"><canvas id="chart-printer-usage"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-title" style="font-size:14px;">Materialverbrauch nach Typ</div>
+    <div style="height:200px;"><canvas id="chart-material-usage"></canvas></div>
+  </div>
+</div>
+
 <div style="display:flex;justify-content:flex-end;margin-bottom:20px;">
   <button class="btn btn-secondary" onclick="exportCSV()">📥 CSV Export</button>
 </div>
@@ -54,3 +80,57 @@
   </div>
   <?php endif; ?>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+  try {
+    const s = await api('/api/history/stats');
+    document.getElementById('stat-total-prints').textContent = s.total_prints;
+    document.getElementById('stat-total-grams').textContent = (s.total_grams / 1000).toFixed(1) + ' kg';
+    document.getElementById('stat-total-hours').textContent = s.total_hours + ' h';
+
+    // Printer Chart
+    if (s.by_printer.length) {
+      new Chart(document.getElementById('chart-printer-usage'), {
+        type: 'doughnut',
+        data: {
+          labels: s.by_printer.map(p => p.name),
+          datasets: [{
+            data: s.by_printer.map(p => p.count),
+            backgroundColor: ['#29b6f6', '#66bb6a', '#ffa726', '#ef5350', '#ab47bc'],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { position: 'right', labels: { color: '#fff', font: { size: 10 } } } }
+        }
+      });
+    }
+
+    // Material Chart
+    if (s.by_material.length) {
+      new Chart(document.getElementById('chart-material-usage'), {
+        type: 'bar',
+        data: {
+          labels: s.by_material.map(m => m.material),
+          datasets: [{
+            label: 'Gramm',
+            data: s.by_material.map(m => m.grams),
+            backgroundColor: '#66bb6a',
+            borderRadius: 4
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          scales: { 
+            x: { ticks: { color: '#888', font: { size: 10 } }, grid: { display: false } },
+            y: { ticks: { color: '#888', font: { size: 10 } }, grid: { color: '#222' } }
+          },
+          plugins: { legend: { display: false } }
+        }
+      });
+    }
+  } catch(e) {}
+});
+</script>

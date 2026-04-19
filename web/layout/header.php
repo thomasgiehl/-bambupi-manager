@@ -6,9 +6,11 @@
   <title><?= htmlspecialchars($pageTitle ?? 'BambuPi') ?> — BambuPi</title>
   <link rel="stylesheet" href="/assets/style.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+  <script src="https://unpkg.com/gcode-preview@0.3.0/dist/gcode-preview.js"></script>
 </head>
-<body>
+<body class="<?= ($page==='kiosk') ? 'kiosk-mode' : '' ?>">
 
+<?php if ($page !== 'kiosk'): ?>
 <nav class="sidebar">
   <div class="sidebar-logo">🖨️ BambuPi Manager</div>
   <div class="nav-section">Übersicht</div>
@@ -18,11 +20,14 @@
   <a href="/?page=filaments"   class="<?= ($page==='filaments')   ? 'active':'' ?>">🧵 Filamente</a>
   <div class="nav-section">Dateien & Daten</div>
   <a href="/?page=files"       class="<?= ($page==='files')       ? 'active':'' ?>">📂 Dateien</a>
+  <a href="/?page=queue"       class="<?= ($page==='queue')       ? 'active':'' ?>">⏳ Warteschlange</a>
   <a href="/?page=history"     class="<?= ($page==='history')     ? 'active':'' ?>">📋 Historie</a>
   <a href="/?page=calculator"  class="<?= ($page==='calculator')  ? 'active':'' ?>">💰 Kostenrechner</a>
   <div class="nav-section">System</div>
+  <a href="/?page=maintenance" class="<?= ($page==='maintenance') ? 'active':'' ?>">🛠️ Wartung</a>
   <a href="/?page=settings"    class="<?= ($page==='settings')    ? 'active':'' ?>">⚙️ Einstellungen</a>
 </nav>
+<?php endif; ?>
 
 <main class="content">
 
@@ -147,6 +152,22 @@
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('modal-add-filament')">Abbrechen</button>
       <button class="btn btn-primary" onclick="saveFilament()">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modal: G-Code Preview ── -->
+<div id="modal-gcode-preview" class="modal-backdrop">
+  <div class="modal-box wide">
+    <div class="modal-title">G-Code Vorschau</div>
+    <div class="modal-sub" id="gcode-preview-filename">...</div>
+    <div id="gcode-preview-container" style="background:#000; border-radius:8px; width:100%; height:450px; overflow:hidden; position:relative;">
+      <canvas id="gcode-canvas" style="width:100%; height:100%;"></canvas>
+      <div id="gcode-loading" style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.5); color:#fff; font-size:14px;">⏳ Lade Vorschau...</div>
+    </div>
+    <div class="modal-footer">
+      <div id="gcode-stats" style="flex:1; font-size:11px; color:var(--text3); font-family:var(--mono);"></div>
+      <button class="btn btn-secondary" onclick="closeModal('modal-gcode-preview')">Schließen</button>
     </div>
   </div>
 </div>

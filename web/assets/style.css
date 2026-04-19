@@ -82,6 +82,15 @@ body {
 .sidebar a:hover  { color: var(--text1); background: var(--bg3); }
 .sidebar a.active { color: var(--accent); border-left-color: var(--accent); background: rgba(41,182,246,.08); }
 
+body.kiosk-mode {
+  display: block;
+}
+
+body.kiosk-mode .content {
+  padding: 10px;
+  max-width: 100vw;
+}
+
 /* ── Content ───────────────────────────────── */
 .content {
   flex: 1;
@@ -710,6 +719,15 @@ input[type=range]::-webkit-slider-thumb {
 
 /* ── Filament search list ──────────────────── */
 #filsearch-list { max-height: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+
+/* ── Events ────────────────────────────────── */
+.new-event {
+  animation: highlight-event 2s ease-out;
+}
+@keyframes highlight-event {
+  0% { background: rgba(41,182,246,.2); }
+  100% { background: transparent; }
+}
 
 /* ── Upload cost preview ───────────────────── */
 .upload-preview {

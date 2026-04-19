@@ -11,6 +11,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             'machine_price'    => (float)($_POST['machine_price']    ?? 700),
             'machine_hours'    => (float)($_POST['machine_hours']    ?? 5000),
             'failure_rate'     => (float)($_POST['failure_rate']     ?? 10),
+            'telegram_token'   => $_POST['telegram_token']   ?? '',
+            'telegram_chat_id' => $_POST['telegram_chat_id'] ?? '',
+            'discord_webhook'  => $_POST['discord_webhook']  ?? '',
+            'notify_on_finish' => isset($_POST['notify_on_finish']) ? '1' : '0',
+            'notify_on_fail'   => isset($_POST['notify_on_fail'])   ? '1' : '0',
+            'notify_on_pause'  => isset($_POST['notify_on_pause'])  ? '1' : '0',
+            'spaghetti_detect' => isset($_POST['spaghetti_detect']) ? '1' : '0',
         ]);
         $msg = '✅ Einstellungen gespeichert.';
     }
@@ -82,7 +89,47 @@ $version  = api('/api/version')  ?? [];
       <input type="number" name="failure_rate" min="0" max="100" step="1"
              value="<?= htmlspecialchars($settings['failure_rate'] ?? '10') ?>">
     </div>
-    <button class="btn btn-primary" type="submit">Speichern</button>
+
+    <div class="card-title" style="margin-top:20px;">Messenger & Benachrichtigungen</div>
+    <div class="form-group">
+      <label>Telegram Bot Token</label>
+      <input type="text" name="telegram_token" placeholder="123456:ABC-DEF..."
+             value="<?= htmlspecialchars($settings['telegram_token'] ?? '') ?>">
+    </div>
+    <div class="form-group">
+      <label>Telegram Chat ID</label>
+      <input type="text" name="telegram_chat_id" placeholder="12345678"
+             value="<?= htmlspecialchars($settings['telegram_chat_id'] ?? '') ?>">
+    </div>
+    <div class="form-group" style="margin-top:12px;">
+      <label>Discord Webhook URL</label>
+      <input type="text" name="discord_webhook" placeholder="https://discord.com/api/webhooks/..."
+             value="<?= htmlspecialchars($settings['discord_webhook'] ?? '') ?>">
+    </div>
+
+    <div style="display:flex; gap:15px; margin-top:12px; font-size:12px; color:var(--text2);">
+      <label style="display:flex; align-items:center; gap:5px; cursor:pointer;">
+        <input type="checkbox" name="notify_on_finish" <?= ($settings['notify_on_finish'] ?? '1') === '1' ? 'checked' : '' ?>> Bei Fertigstellung
+      </label>
+      <label style="display:flex; align-items:center; gap:5px; cursor:pointer;">
+        <input type="checkbox" name="notify_on_fail" <?= ($settings['notify_on_fail'] ?? '1') === '1' ? 'checked' : '' ?>> Bei Fehlern
+      </label>
+      <label style="display:flex; align-items:center; gap:5px; cursor:pointer;">
+        <input type="checkbox" name="notify_on_pause" <?= ($settings['notify_on_pause'] ?? '1') === '1' ? 'checked' : '' ?>> Bei Pause
+      </label>
+    </div>
+
+    <div class="card-title" style="margin-top:20px;">KI-Funktionen (Experimentell)</div>
+    <div class="form-group">
+      <label style="display:flex; align-items:center; gap:5px; cursor:pointer;">
+        <input type="checkbox" name="spaghetti_detect" <?= ($settings['spaghetti_detect'] ?? '0') === '1' ? 'checked' : '' ?>> KI-Fehldruck-Erkennung (Spaghetti Detection)
+      </label>
+      <p style="font-size:11px; color:var(--text3); margin-top:5px;">
+        Erfordert einen Pi 4/5. Analysiert alle 30s den Kamerastream auf Filament-Salat.
+      </p>
+    </div>
+
+    <button class="btn btn-primary" type="submit" style="margin-top:20px;">Speichern</button>
   </form>
 </div>
 

@@ -104,9 +104,27 @@ function checkTempAlarm(pid, nozzle, state) {
 }
 
 // ── Browser notifications ─────────────────────
-function sendNotif(title, body) {
+function sendNotif(title, body, sound = false) {
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
-  try { new Notification(title, { body, icon: '/favicon.ico' }); } catch (e) {}
+  try { 
+    new Notification(title, { body, icon: '/favicon.ico' }); 
+    if (sound) playAlertSound();
+  } catch (e) {}
+}
+
+function playAlertSound() {
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(880, ctx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.5);
+  gain.gain.setValueAtTime(0.1, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+  osc.start();
+  osc.stop(ctx.currentTime + 0.5);
 }
 
 // ── Chart ─────────────────────────────────────
@@ -181,7 +199,29 @@ function applyPrinterStatus(p) {
 
   const pfEl = document.getElementById('pf-' + pid); if (pfEl) pfEl.style.width = progress + '%';
   const ppEl = document.getElementById('pp-' + pid); if (ppEl) ppEl.textContent = progress + '%';
-  const ptEl = document.getElementById('pt-' + pid); if (ptEl) ptEl.textContent = '⏱ ' + remaining + ' Min';
+  
+  const ptEl = document.getElementById('pt-' + pid); 
+  if (ptEl) {
+    if (state === 'RUNNING' || state === 'PAUSE') {
+      const h = Math.floor(remaining / 60);
+      const m = remaining % 60;
+      const timeStr = h > 0 ? `${h}h ${m}m` : `${m} Min`;
+      const finishDate = new Date(Date.now() + remaining * 60000);
+      const finishStr = finishDate.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+      ptEl.innerHTML = `<span title="Restzeit">⏱ ${timeStr}</span> <span style="margin-left:8px;color:var(--text3);" title="Fertig um">🏁 ${finishStr}</span>`;
+    } else {
+      ptEl.textContent = '';
+    }
+  }
+
+  // Layer info (falls vorhanden)
+  const lEl = document.getElementById('layer-' + pid);
+  if (lEl) {
+    const cur = s.layer_num || 0;
+    const tot = s.total_layer_num || 0;
+    if (tot > 0) lEl.textContent = `Layer ${cur} / ${tot}`;
+    else lEl.textContent = '';
+  }
 
   // Badge
   const bdEl = document.getElementById('badge-' + pid);
@@ -207,12 +247,13 @@ function applyPrinterStatus(p) {
 
   // Push notification on state change
   const prev = prevStates[pid];
-  if (prev === 'RUNNING' && state === 'FINISH')  sendNotif('✅ Druck abgeschlossen!', p.name + (s.subtask_name ? ' · ' + s.subtask_name : ''));
-  if (prev === 'RUNNING' && state === 'FAILED')  sendNotif('❌ Druck fehlgeschlagen!', p.name + (s.subtask_name ? ' · ' + s.subtask_name : ''));
+  if (prev === 'RUNNING' && state === 'FINISH')  sendNotif('✅ Druck abgeschlossen!', p.name + (s.subtask_name ? ' · ' + s.subtask_name : ''), true);
+  if (prev === 'RUNNING' && state === 'FAILED')  sendNotif('❌ Druck fehlgeschlagen!', p.name + (s.subtask_name ? ' · ' + s.subtask_name : ''), true);
   prevStates[pid] = state;
 
   checkTempAlarm(pid, nozzle, state);
   updateTempChart(pid, nozzle, bed);
+  window.dispatchEvent(new CustomEvent('sseMessage', { detail: p }));
   updateSSEChip('live');
 }
 
@@ -233,7 +274,11 @@ function startSSE() {
     sseSource.onmessage = e => {
       try {
         const msg = JSON.parse(e.data);
-        if (msg.type === 'status') applyPrinterStatus({ id: msg.id, name: msg.name || '', status: msg.status });
+        if (msg.type === 'status') {
+          applyPrinterStatus({ id: msg.id, name: msg.name || '', status: msg.status });
+        } else if (msg.type === 'event') {
+          handleIncomingEvent(msg);
+        }
       } catch (_) {}
     };
     sseSource.onopen  = () => updateSSEChip('live');
@@ -255,7 +300,28 @@ function startSSE() {
 }
 
 // ── Event Log ─────────────────────────────────
-const EV_ICONS = { finish: '✅', fail: '❌', start: '▶️', pause: '⏸️', offline: '🔌', info: 'ℹ️' };
+const EV_ICONS = { finish: '✅', fail: '❌', start: '▶️', pause: '⏸️', offline: '🔌', info: 'ℹ️', error: '⚠️' };
+
+function handleIncomingEvent(e) {
+  const card = document.getElementById('event-log-card');
+  const list = document.getElementById('event-log-list');
+  if (!card || !list) return;
+
+  card.style.display = 'block';
+  const row = document.createElement('div');
+  row.className = 'ev-row new-event';
+  const time = new Date(e.created_at || Date.now()).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+  
+  row.innerHTML = `<span class="ev-icon">${EV_ICONS[e.event_type] || 'ℹ️'}</span>
+                   <span class="ev-msg">${esc(e.message)}</span>
+                   <span class="ev-time">${esc(time)}</span>`;
+  
+  list.insertBefore(row, list.firstChild);
+  if (list.children.length > 50) list.lastChild.remove();
+  
+  // Highlight-Effekt entfernen nach 2s
+  setTimeout(() => row.classList.remove('new-event'), 2000);
+}
 
 async function loadEventLog() {
   try {
@@ -648,6 +714,7 @@ async function loadSdFiles() {
       row.innerHTML = `<div style="flex:1"><div class="file-name">${esc(f.name)}</div><div class="file-meta">${fmtSize(f.size || 0)}</div></div>
         <div class="file-actions">
           <button class="btn btn-primary btn-sm" onclick="startSdFile(${pid},'${esc(f.name)}')">▶️ Start</button>
+          <button class="btn btn-secondary btn-sm" onclick="enqueueFile(${pid},'${esc(f.name)}')">⏳ Queue</button>
           <button class="btn btn-danger btn-sm"  onclick="deleteSdFile(${pid},'${esc(f.name)}')">🗑</button>
         </div>`;
       container.appendChild(row);
@@ -669,6 +736,7 @@ async function loadPiFiles() {
     const displayName = f.filename.replace(/^\d+-/, '');
     row.innerHTML = `<div style="flex:1"><div class="file-name">${esc(displayName)}</div><div class="file-meta">${fmtSize(f.size)}</div></div>
       <div class="file-actions">
+        <button class="btn btn-secondary btn-sm" onclick="showGcodePreview('${esc(f.filename)}')">👁️</button>
         ${pid ? `<button class="btn btn-primary btn-sm" onclick="printFromPi('${esc(f.filename)}')">▶️ Drucken</button>` : ''}
         <button class="btn btn-danger btn-sm" onclick="deletePiFile('${esc(f.filename)}')">🗑</button>
       </div>`;
@@ -816,4 +884,59 @@ function updateMachineCostPreview() {
   const hours = parseFloat(document.getElementById('set-machine-hours')?.value) || 5000;
   const el = document.getElementById('machine-cost-preview');
   if (el) el.textContent = (price / hours).toFixed(4) + ' €/h';
+}
+
+async function enqueueFile(pid, filename) {
+  if (!confirm('Datei "' + filename + '" zur Warteschlange hinzufügen?')) return;
+  const options = getPrintOptions();
+  const r = await api('/api/queue', 'POST', { printer_id: pid, filename, options });
+  if (r.id) toast('⏳ Zur Warteschlange hinzugefügt');
+}
+
+// ── G-Code Preview (Phase 3) ──────────────────
+async function showGcodePreview(filename) {
+  const modal = document.getElementById('modal-gcode-preview');
+  const fnameEl = document.getElementById('gcode-preview-filename');
+  const loading = document.getElementById('gcode-loading');
+  const canvas = document.getElementById('gcode-canvas');
+  const statsEl = document.getElementById('gcode-stats');
+
+  if (!modal || !canvas) return;
+  fnameEl.textContent = filename;
+  loading.style.display = 'flex';
+  loading.textContent = '⏳ Lade G-Code...';
+  statsEl.textContent = '';
+  openModal('modal-gcode-preview');
+
+  try {
+    const res = await fetch('/api/uploads/' + encodeURIComponent(filename) + '/gcode');
+    if (!res.ok) throw new Error('Download fehlgeschlagen');
+    const gcode = await res.text();
+    loading.style.display = 'none';
+
+    if (window._gcodePreview) {
+      // Re-use or clear is tricky with WebGLPreview in some versions, 
+      // often easier to just re-instantiate if simple.
+      window._gcodePreview = null;
+    }
+    
+    // GCodePreview uses the canvas dimensions
+    const box = canvas.parentElement.getBoundingClientRect();
+    canvas.width = box.width;
+    canvas.height = box.height;
+
+    window._gcodePreview = GCodePreview.init({
+      canvas: canvas,
+      buildVolume: {x: 256, y: 256, z: 256},
+      initialCameraPosition: [0, 400, 450],
+      renderNonHomogeneous: true
+    });
+
+    window._gcodePreview.processGCode(gcode);
+    statsEl.textContent = `Zeilen: ${gcode.split('\n').length.toLocaleString()} · Typ: ${filename.split('.').pop().toUpperCase()}`;
+    
+  } catch (e) {
+    loading.style.display = 'flex';
+    loading.textContent = '❌ Fehler: ' + e.message;
+  }
 }

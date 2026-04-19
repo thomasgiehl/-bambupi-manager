@@ -11,13 +11,16 @@ if (!file_exists($pageFile)) {
 }
 
 $titles = [
-    'dashboard'  => 'Dashboard',
-    'printers'   => 'Drucker',
-    'filaments'  => 'Filamente',
-    'files'      => 'Dateien',
-    'history'    => 'Druckhistorie',
-    'calculator' => 'Kostenrechner',
-    'settings'   => 'Einstellungen',
+    'dashboard'   => 'Dashboard',
+    'printers'    => 'Drucker',
+    'filaments'   => 'Filamente',
+    'files'       => 'Dateien',
+    'queue'       => 'Druck-Warteschlange',
+    'history'     => 'Druckhistorie',
+    'calculator'  => 'Kostenrechner',
+    'maintenance' => 'Wartung',
+    'settings'    => 'Einstellungen',
+    'kiosk'       => 'Kiosk Modus',
 ];
 $pageTitle = $titles[$page] ?? ucfirst($page);
 
