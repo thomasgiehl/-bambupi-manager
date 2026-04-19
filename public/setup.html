@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BambuPi - Erst-Einrichtung</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        body {
+            justify-content: center;
+            align-items: center;
+            background: var(--bg);
+        }
+        .setup-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 30px;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        .setup-header {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+        .setup-header h1 {
+            font-family: var(--mono);
+            font-size: 20px;
+            color: var(--blue);
+            margin-bottom: 8px;
+        }
+        .setup-header p {
+            color: var(--text2);
+            font-size: 13px;
+        }
+        .form-group {
+            margin-bottom: 16px;
+        }
+        .form-group label {
+            display: block;
+            font-size: 11px;
+            color: var(--text3);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 6px;
+            font-family: var(--mono);
+        }
+        .form-group input {
+            width: 100%;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 10px;
+            color: var(--text);
+            font-family: var(--mono);
+            font-size: 14px;
+        }
+        .form-group input:focus {
+            border-color: var(--blue);
+            outline: none;
+        }
+        .btn-setup {
+            width: 100%;
+            background: var(--blue);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 12px;
+            font-weight: 700;
+            font-family: var(--mono);
+            cursor: pointer;
+            margin-top: 10px;
+            transition: opacity 0.2s;
+        }
+        .btn-setup:hover {
+            opacity: 0.9;
+        }
+        .error-msg {
+            color: var(--red);
+            font-size: 12px;
+            margin-top: 10px;
+            text-align: center;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="setup-card">
+        <div class="setup-header">
+            <h1>BambuPi Setup</h1>
+            <p>Willkommen! Bitte erstelle einen Admin-Account.</p>
+        </div>
+        <form id="setupForm">
+            <div class="form-group">
+                <label for="username">Benutzername</label>
+                <input type="text" id="username" name="username" required value="admin">
+            </div>
+            <div class="form-group">
+                <label for="password">Passwort</label>
+                <input type="password" id="password" name="password" required placeholder="Sicheres Passwort wählen">
+            </div>
+            <div class="form-group">
+                <label for="password_confirm">Passwort bestätigen</label>
+                <input type="password" id="password_confirm" name="password_confirm" required>
+            </div>
+            <button type="submit" class="btn-setup">Account erstellen</button>
+            <div id="errorMsg" class="error-msg"></div>
+        </form>
+    </div>
+
+    <script>
+        document.getElementById('setupForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const confirm = document.getElementById('password_confirm').value;
+            const errorMsg = document.getElementById('errorMsg');
+
+            if (password !== confirm) {
+                errorMsg.innerText = 'Passwörter stimmen nicht überein';
+                errorMsg.style.display = 'block';
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/setup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+
+                const result = await response.json();
+                if (result.ok) {
+                    alert('Erfolgreich eingerichtet! Du wirst nun eingeloggt.');
+                    window.location.href = '/';
+                } else {
+                    errorMsg.innerText = result.error || 'Fehler beim Setup';
+                    errorMsg.style.display = 'block';
+                }
+            } catch (err) {
+                errorMsg.innerText = 'Serverfehler';
+                errorMsg.style.display = 'block';
+            }
+        });
+
+        // Check if setup is actually required
+        fetch('/api/setup/status')
+            .then(res => res.json())
+            .then(data => {
+                if (!data.setup_required) {
+                    window.location.href = '/';
+                }
+            });
+    </script>
+</body>
+</html>

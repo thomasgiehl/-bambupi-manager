@@ -10,6 +10,7 @@ const ftp = require('basic-ftp');
 const os = require('os');
 const { execSync, spawn } = require('child_process');
 const crypto = require('crypto');
+const bcrypt = require('bcryptjs');
 const basicAuth = require('express-basic-auth');
 let AdmZip; try { AdmZip = require('adm-zip'); } catch(e) { AdmZip = null; }
 require('dotenv').config();
@@ -29,60 +30,218 @@ function serverError(res, err, clientMsg = 'Interner Serverfehler') {
   res.status(500).json({ error: clientMsg });
 }
 
-// ── BASIC AUTH BOOTSTRAP ──────────────────────
-// Liest ADMIN_USER / ADMIN_PASS aus .env.
-// Falls nicht gesetzt: sichere Zufallswerte generieren, in .env persistieren
-// und beim ersten Start in die Konsole ausgeben.
-(function bootstrapAuth() {
-  const envPath = path.resolve(__dirname, '.env');
-  let changed = false;
+// ── DATENBANK ─────────────────────────────────
+const DB_PATH = './db/bambupi.db';
+const db = new Database(DB_PATH);
 
-  if (!process.env.ADMIN_USER) {
-    process.env.ADMIN_USER = 'admin';
-    changed = true;
-  }
-  if (!process.env.ADMIN_PASS) {
-    process.env.ADMIN_PASS = crypto.randomBytes(16).toString('hex');
-    changed = true;
-  }
+// WAL-Mode: bessere Lese-/Schreib-Parallelität, atomare Commits
+db.pragma('journal_mode = WAL');
+db.pragma('foreign_keys = ON');
 
-  if (changed) {
-    console.log('┌─────────────────────────────────────────────┐');
-    console.log('│  ⚠️  Neue Admin-Zugangsdaten generiert:       │');
-    console.log(`│  User: ${process.env.ADMIN_USER.padEnd(38)}│`);
-    console.log(`│  Pass: ${process.env.ADMIN_PASS.padEnd(38)}│`);
-    console.log('│  → werden in .env gespeichert               │');
-    console.log('└─────────────────────────────────────────────┘');
+// 0600: nur der Service-User darf lesen/schreiben
+try {
+  if (fs.existsSync(DB_PATH)) fs.chmodSync(DB_PATH, 0o600);
+} catch(e) {}
 
-    // Bestehende .env lesen (falls vorhanden), neue Werte anhängen/ersetzen
-    let envContent = '';
-    try { envContent = fs.readFileSync(envPath, 'utf8'); } catch (_) {}
-    const setVar = (content, key, value) => {
-      const re = new RegExp(`^${key}=.*$`, 'm');
-      // Wert in Anführungszeichen, damit Sonderzeichen (#, Leerzeichen) korrekt erkannt werden
-      const line = `${key}="${value.replace(/"/g, '\\"')}"`;
-      return re.test(content) ? content.replace(re, line) : content + (content.endsWith('\n') ? '' : '\n') + line + '\n';
-    };
-    envContent = setVar(envContent, 'ADMIN_USER', process.env.ADMIN_USER);
-    envContent = setVar(envContent, 'ADMIN_PASS', process.env.ADMIN_PASS);
-    fs.writeFileSync(envPath, envContent, 'utf8');
+db.exec(`
+  CREATE TABLE IF NOT EXISTS filaments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    brand TEXT NOT NULL,
+    material TEXT NOT NULL,
+    color TEXT NOT NULL,
+    color_hex TEXT DEFAULT '#888888',
+    diameter REAL DEFAULT 1.75,
+    weight_total INTEGER DEFAULT 1000,
+    weight_used REAL DEFAULT 0,
+    price_per_kg REAL DEFAULT 0,
+    temp_nozzle_min INTEGER,
+    temp_nozzle_max INTEGER,
+    temp_nozzle INTEGER,
+    temp_bed INTEGER,
+    temp_dry INTEGER,
+    time_dry INTEGER,
+    pa REAL,
+    ka REAL,
+    flow_rate REAL DEFAULT 100,
+    shrink_factor REAL DEFAULT 100,
+    location TEXT,
+    notes TEXT,
+    added_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE TABLE IF NOT EXISTS printers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL, model TEXT DEFAULT 'X1C', ip TEXT NOT NULL,
+    access_code TEXT NOT NULL, serial TEXT NOT NULL,
+    added_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE TABLE IF NOT EXISTS print_jobs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    printer_id INTEGER REFERENCES printers(id),
+    filament_id INTEGER REFERENCES filaments(id),
+    filename TEXT, grams_used REAL DEFAULT 0, duration_min INTEGER DEFAULT 0,
+    electricity_cost REAL DEFAULT 0, filament_cost REAL DEFAULT 0,
+    total_cost REAL DEFAULT 0, status TEXT DEFAULT 'running',
+    started_at DATETIME DEFAULT CURRENT_TIMESTAMP, finished_at DATETIME
+  );
+  CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
+  CREATE TABLE IF NOT EXISTS ams_slots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    printer_id INTEGER NOT NULL, unit_idx INTEGER NOT NULL DEFAULT 0,
+    slot_idx INTEGER NOT NULL, filament_id INTEGER REFERENCES filaments(id),
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(printer_id, unit_idx, slot_idx)
+  );
+  CREATE TABLE IF NOT EXISTS events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    printer_id INTEGER REFERENCES printers(id),
+    type TEXT NOT NULL, -- 'info', 'warning', 'error', 'success'
+    message TEXT NOT NULL,
+    hms_code TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE TABLE IF NOT EXISTS maintenance_tasks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    printer_id INTEGER REFERENCES printers(id),
+    name TEXT NOT NULL,
+    threshold_hours INTEGER NOT NULL,
+    last_reset_hours REAL DEFAULT 0,
+    added_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE TABLE IF NOT EXISTS print_queue (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    printer_id INTEGER REFERENCES printers(id),
+    filename TEXT NOT NULL,
+    options TEXT, -- JSON string
+    status TEXT DEFAULT 'pending', -- 'pending', 'printing', 'completed', 'failed'
+    added_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE TABLE IF NOT EXISTS macros (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    icon TEXT DEFAULT '⚡',
+    gcode TEXT NOT NULL,
+    printer_id INTEGER REFERENCES printers(id) -- NULL = alle Drucker
+  );
+  CREATE TABLE IF NOT EXISTS timelapses (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    printer_id INTEGER REFERENCES printers(id),
+    filename TEXT NOT NULL,
+    frame_count INTEGER DEFAULT 0,
+    status TEXT DEFAULT 'recording', -- 'recording', 'rendering', 'done'
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    is_admin INTEGER DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+
+// ── MIGRATION: neue Spalten falls DB schon existiert ──
+const printCols = db.prepare("PRAGMA table_info(printers)").all().map(c => c.name);
+if (!printCols.includes('total_print_minutes')) {
+  db.prepare('ALTER TABLE printers ADD COLUMN total_print_minutes REAL DEFAULT 0').run();
+}
+if (!printCols.includes('timelapse_enabled')) {
+  db.prepare('ALTER TABLE printers ADD COLUMN timelapse_enabled INTEGER DEFAULT 0').run();
+}
+
+const filCols = db.prepare("PRAGMA table_info(filaments)").all().map(c => c.name);
+const newCols = [
+  ['diameter', 'REAL DEFAULT 1.75'],
+  ['temp_nozzle_min', 'INTEGER'],
+  ['temp_nozzle_max', 'INTEGER'],
+  ['temp_dry', 'INTEGER'],
+  ['time_dry', 'INTEGER'],
+  ['pa', 'REAL'],
+  ['ka', 'REAL'],
+  ['flow_rate', 'REAL DEFAULT 100'],
+  ['shrink_factor', 'REAL DEFAULT 100'],
+];
+newCols.forEach(([col, type]) => {
+  if (!filCols.includes(col)) {
+    db.prepare(`ALTER TABLE filaments ADD COLUMN ${col} ${type}`).run();
+    console.log(`✅ Spalte hinzugefügt: ${col}`);
   }
-})();
+});
+
+const defaultSettings = {
+  electricity_cost: process.env.ELECTRICITY_COST || '0.35',
+  printer_watt: process.env.PRINTER_WATT || '350',
+  currency: 'EUR',
+  machine_price: '700',
+  machine_hours: '5000',
+  failure_rate: '10',
+  auto_cost_calc: '0',
+  telegram_token: '',
+  telegram_chat_id: '',
+  discord_webhook: '',
+  notify_on_finish: '1',
+  notify_on_fail: '1',
+  notify_on_pause: '1'
+};
+for (const [key, value] of Object.entries(defaultSettings)) {
+  const exists = db.prepare('SELECT key FROM settings WHERE key = ?').get(key);
+  if (!exists) db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run(key, value);
+}
+
+function hasAdmin() {
+  const user = db.prepare('SELECT id FROM users WHERE is_admin = 1 LIMIT 1').get();
+  return !!user;
+}
 
 const app = express();
-app.set('trust proxy', 1); // Notwendig für express-rate-limit hinter Nginx/Apache
+app.set('trust proxy', 1);
 
-// ── BASIC AUTH MIDDLEWARE ─────────────────────
-// Schützt alle Routes. SSE-Verbindungen und statische Assets eingeschlossen.
-// Härtungs-Hinweis: Für TLS und zusätzlichen Auth-Layer Nginx als Reverse-Proxy
-// vorschalten (z.B. mit ssl_certificate + auth_basic in nginx.conf).
-app.use(basicAuth({
-  authorizer: (user, pass) =>
-    basicAuth.safeCompare(user, process.env.ADMIN_USER) &&
-    basicAuth.safeCompare(pass, process.env.ADMIN_PASS),
-  challenge: true,
-  realm: 'BambuPi Manager'
-}));
+// ── AUTH MIDDLEWARE ───────────────────────────
+app.use((req, res, next) => {
+  const adminExists = hasAdmin();
+  
+  // Setup-Flow: Erlaube Zugriff auf Setup-API und Setup-Seite falls kein Admin existiert
+  if (!adminExists) {
+    if (req.path === '/api/setup' || req.path === '/setup.html') {
+      return next();
+    }
+    // Alles andere auf setup.html umleiten
+    return res.redirect('/setup.html');
+  }
+
+  // Normaler Auth-Flow via Basic Auth
+  return basicAuth({
+    authorizer: (username, password) => {
+      const user = db.prepare('SELECT password_hash FROM users WHERE username = ?').get(username);
+      if (!user) return false;
+      return bcrypt.compareSync(password, user.password_hash);
+    },
+    challenge: true,
+    realm: 'BambuPi Manager'
+  })(req, res, next);
+});
+
+// JSON Parser für POST Requests
+app.use(express.json());
+
+// ── SETUP ENDPOINTS ───────────────────────────
+app.get('/api/setup/status', (req, res) => {
+  res.json({ setup_required: !hasAdmin() });
+});
+
+app.post('/api/setup', (req, res) => {
+  if (hasAdmin()) return res.status(403).json({ error: 'Setup bereits abgeschlossen' });
+  const { username, password } = req.body;
+  if (!username || !password) return res.status(400).json({ error: 'Username und Passwort erforderlich' });
+  
+  const hash = bcrypt.hashSync(password, 10);
+  try {
+    db.prepare('INSERT INTO users (username, password_hash, is_admin) VALUES (?, ?, 1)').run(username, hash);
+    log.info({ username }, 'Admin Account erstellt');
+    res.json({ ok: true });
+  } catch (err) {
+    serverError(res, err, 'Fehler beim Erstellen des Admin Accounts');
+  }
+});
 
 // ── CORS ──────────────────────────────────────
 // origin: false → kein Access-Control-Allow-Origin Header → Browser blockt
@@ -239,154 +398,6 @@ const upload = multer({
     }
   }
 });
-
-// ── DATENBANK ─────────────────────────────────
-const DB_PATH = './db/bambupi.db';
-const db = new Database(DB_PATH);
-
-// WAL-Mode: bessere Lese-/Schreib-Parallelität, atomare Commits
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
-
-// 0600: nur der Service-User darf lesen/schreiben
-fs.chmodSync(DB_PATH, 0o600);
-
-db.exec(`
-  CREATE TABLE IF NOT EXISTS filaments (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    brand TEXT NOT NULL,
-    material TEXT NOT NULL,
-    color TEXT NOT NULL,
-    color_hex TEXT DEFAULT '#888888',
-    diameter REAL DEFAULT 1.75,
-    weight_total INTEGER DEFAULT 1000,
-    weight_used REAL DEFAULT 0,
-    price_per_kg REAL DEFAULT 0,
-    temp_nozzle_min INTEGER,
-    temp_nozzle_max INTEGER,
-    temp_nozzle INTEGER,
-    temp_bed INTEGER,
-    temp_dry INTEGER,
-    time_dry INTEGER,
-    pa REAL,
-    ka REAL,
-    flow_rate REAL DEFAULT 100,
-    shrink_factor REAL DEFAULT 100,
-    location TEXT,
-    notes TEXT,
-    added_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-  CREATE TABLE IF NOT EXISTS printers (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL, model TEXT DEFAULT 'X1C', ip TEXT NOT NULL,
-    access_code TEXT NOT NULL, serial TEXT NOT NULL,
-    added_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-  CREATE TABLE IF NOT EXISTS print_jobs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    printer_id INTEGER REFERENCES printers(id),
-    filament_id INTEGER REFERENCES filaments(id),
-    filename TEXT, grams_used REAL DEFAULT 0, duration_min INTEGER DEFAULT 0,
-    electricity_cost REAL DEFAULT 0, filament_cost REAL DEFAULT 0,
-    total_cost REAL DEFAULT 0, status TEXT DEFAULT 'running',
-    started_at DATETIME DEFAULT CURRENT_TIMESTAMP, finished_at DATETIME
-  );
-  CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
-  CREATE TABLE IF NOT EXISTS ams_slots (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    printer_id INTEGER NOT NULL, unit_idx INTEGER NOT NULL DEFAULT 0,
-    slot_idx INTEGER NOT NULL, filament_id INTEGER REFERENCES filaments(id),
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(printer_id, unit_idx, slot_idx)
-  );
-  CREATE TABLE IF NOT EXISTS events (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    printer_id INTEGER REFERENCES printers(id),
-    type TEXT NOT NULL, -- 'info', 'warning', 'error', 'success'
-    message TEXT NOT NULL,
-    hms_code TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-  CREATE TABLE IF NOT EXISTS maintenance_tasks (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    printer_id INTEGER REFERENCES printers(id),
-    name TEXT NOT NULL,
-    threshold_hours INTEGER NOT NULL,
-    last_reset_hours REAL DEFAULT 0,
-    added_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-  CREATE TABLE IF NOT EXISTS print_queue (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    printer_id INTEGER REFERENCES printers(id),
-    filename TEXT NOT NULL,
-    options TEXT, -- JSON string
-    status TEXT DEFAULT 'pending', -- 'pending', 'printing', 'completed', 'failed'
-    added_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-  CREATE TABLE IF NOT EXISTS macros (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    icon TEXT DEFAULT '⚡',
-    gcode TEXT NOT NULL,
-    printer_id INTEGER REFERENCES printers(id) -- NULL = alle Drucker
-  );
-  CREATE TABLE IF NOT EXISTS timelapses (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    printer_id INTEGER REFERENCES printers(id),
-    filename TEXT NOT NULL,
-    frame_count INTEGER DEFAULT 0,
-    status TEXT DEFAULT 'recording', -- 'recording', 'rendering', 'done'
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-`);
-
-// ── MIGRATION: neue Spalten falls DB schon existiert ──
-const printCols = db.prepare("PRAGMA table_info(printers)").all().map(c => c.name);
-if (!printCols.includes('total_print_minutes')) {
-  db.prepare('ALTER TABLE printers ADD COLUMN total_print_minutes REAL DEFAULT 0').run();
-}
-if (!printCols.includes('timelapse_enabled')) {
-  db.prepare('ALTER TABLE printers ADD COLUMN timelapse_enabled INTEGER DEFAULT 0').run();
-}
-
-const filCols = db.prepare("PRAGMA table_info(filaments)").all().map(c => c.name);
-const newCols = [
-  ['diameter', 'REAL DEFAULT 1.75'],
-  ['temp_nozzle_min', 'INTEGER'],
-  ['temp_nozzle_max', 'INTEGER'],
-  ['temp_dry', 'INTEGER'],
-  ['time_dry', 'INTEGER'],
-  ['pa', 'REAL'],
-  ['ka', 'REAL'],
-  ['flow_rate', 'REAL DEFAULT 100'],
-  ['shrink_factor', 'REAL DEFAULT 100'],
-];
-newCols.forEach(([col, type]) => {
-  if (!filCols.includes(col)) {
-    db.prepare(`ALTER TABLE filaments ADD COLUMN ${col} ${type}`).run();
-    console.log(`✅ Spalte hinzugefügt: ${col}`);
-  }
-});
-
-const defaultSettings = {
-  electricity_cost: process.env.ELECTRICITY_COST || '0.35',
-  printer_watt: process.env.PRINTER_WATT || '350',
-  currency: 'EUR',
-  machine_price: '700',
-  machine_hours: '5000',
-  failure_rate: '10',
-  auto_cost_calc: '0',
-  telegram_token: '',
-  telegram_chat_id: '',
-  discord_webhook: '',
-  notify_on_finish: '1',
-  notify_on_fail: '1',
-  notify_on_pause: '1'
-};
-for (const [key, value] of Object.entries(defaultSettings)) {
-  const exists = db.prepare('SELECT key FROM settings WHERE key = ?').get(key);
-  if (!exists) db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run(key, value);
-}
 
 // ── AES-256-GCM VERSCHLÜSSELUNG ──────────────
 // access_code wird verschlüsselt in der DB gespeichert.

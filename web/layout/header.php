@@ -17,7 +17,7 @@
 </head>
 <body class="<?= ($page==='kiosk') ? 'kiosk-mode' : '' ?>">
 
-<?php if ($page !== 'kiosk'): ?>
+<?php if ($page !== 'kiosk' && $page !== 'setup'): ?>
 <nav class="sidebar">
   <div class="sidebar-logo">🖨️ BambuPi Manager</div>
   <div class="nav-section">Übersicht</div>
@@ -68,7 +68,7 @@
 <main class="content">
 
 <!-- ── Global Header ── -->
-<?php if ($page !== 'kiosk'): ?>
+<?php if ($page !== 'kiosk' && $page !== 'setup'): ?>
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
   <h1 style="font-size:20px;font-weight:700;"><?= htmlspecialchars($pageTitle ?? 'BambuPi') ?></h1>
   <div class="sse-chip">● Live</div>

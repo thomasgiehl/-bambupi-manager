@@ -26,6 +26,16 @@ function api(string $path, string $method = 'GET', mixed $body = null): mixed {
 
 // Basic-Auth weiterleiten: Browser-Credentials an Node.js durchreichen
 function requireAuth(): void {
+    // Prüfen ob Setup erforderlich ist
+    $status = api('/api/setup/status');
+    if ($status && ($status['setup_required'] ?? false)) {
+        if (($_GET['page'] ?? '') !== 'setup') {
+            header('Location: index.php?page=setup');
+            exit;
+        }
+        return;
+    }
+
     if (empty($_SERVER['PHP_AUTH_USER'])) {
         header('WWW-Authenticate: Basic realm="BambuPi Manager"');
         header('HTTP/1.1 401 Unauthorized');
