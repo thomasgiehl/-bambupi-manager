@@ -245,6 +245,8 @@ async function buildDashboard() {
 async function realtimeUpdate() {
   if (!dashboardBuilt) return;
   const printers = await api('/api/printers');
+  const eventLog = await api('/api/event-log');
+
   printers.forEach(p => {
     const s = p.status || {};
     const nozzle   = s.nozzle_temper || 0;
@@ -256,318 +258,208 @@ async function realtimeUpdate() {
     const bTarget  = s.bed_target_temper || 0;
     const layer    = s.layer_num || 0;
     const totalLayer= s.total_layer_num || 0;
-    const speedMag = s.spd_mag || 100;
-    const speedLevel= s.spd_lvl || 2;
 
-    // ── Temperaturen ──
-    const prev=tempPrev[p.id]||{};
-    const nTrend=nozzle>prev.nozzle+0.4?'↑':nozzle<prev.nozzle-0.4?'↓':'';
-    const bTrend=bed>prev.bed+0.2?'↑':bed<prev.bed-0.2?'↓':'';
-    tempPrev[p.id]={nozzle,bed};
-    const nEl=document.getElementById('tro-val-n-'+p.id);
-    const bEl=document.getElementById('tro-val-b-'+p.id);
-    if(nEl){nEl.innerHTML=nozzle.toFixed(1)+'°'+(nTrend?`<span style="font-size:11px;opacity:0.7;margin-left:2px">${nTrend}</span>`:'');nEl.className='tro-val '+(nozzle>150?'tv-hot':nozzle>50?'tv-warm':nozzle>0?'tv-cool':'tv-off');}
-    if(bEl){bEl.innerHTML=bed.toFixed(1)+'°'+(bTrend?`<span style="font-size:11px;opacity:0.7;margin-left:2px">${bTrend}</span>`:'');bEl.className='tro-val '+(bed>50?'tv-warm':bed>0?'tv-cool':'tv-off');}
-    const ntEl=document.getElementById('tro-tgt-n-'+p.id); if(ntEl)ntEl.textContent='→ '+nTarget+'°C';
-    const btEl=document.getElementById('tro-tgt-b-'+p.id); if(btEl)btEl.textContent='→ '+bTarget+'°C';
-    const nbEl=document.getElementById('tro-bar-n-'+p.id); if(nbEl)nbEl.style.width=Math.min(100,nozzle/3)+'%';
-    const bbEl=document.getElementById('tro-bar-b-'+p.id); if(bbEl)bbEl.style.width=Math.min(100,bed/1.2)+'%';
-    updateHeatStatus(p.id,'nozzle',nozzle,nTarget);
-    updateHeatStatus(p.id,'bed',bed,bTarget);
+    // ── Gauges ──
+    updateGauge(p.id, 'nozzle', nozzle, nTarget);
+    updateGauge(p.id, 'bed', bed, bTarget);
 
     // ── Print Progress ──
-    const pfEl=document.getElementById('cnc-pf-'+p.id); if(pfEl)pfEl.style.width=progress+'%';
-    const ppEl=document.getElementById('cnc-pp-'+p.id); if(ppEl)ppEl.textContent=progress+'%';
-    const ptEl=document.getElementById('cnc-eta-'+p.id); if(ptEl)ptEl.textContent=remaining?remaining+' min':'—';
-    const pfinEl=document.getElementById('cnc-fin-'+p.id);const pfinWrap=document.getElementById('cnc-fin-wrap-'+p.id);
-    if(pfinEl&&pfinWrap){if(remaining>0){pfinEl.textContent=new Date(Date.now()+remaining*60000).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});pfinWrap.style.display='';}else{pfinWrap.style.display='none';}}
-    const plEl=document.getElementById('cnc-lay-'+p.id); if(plEl)plEl.textContent=layer+' / '+totalLayer;
-    const pfnEl=document.getElementById('cnc-fn-'+p.id); if(pfnEl)pfnEl.textContent=s.subtask_name||'—';
-    const prgEl=document.getElementById('cnc-prog-'+p.id);
-    const idlEl=document.getElementById('cnc-idle-'+p.id);
-    if(prgEl&&idlEl){prgEl.style.display=state==='RUNNING'?'block':'none';idlEl.style.display=state!=='RUNNING'?'flex':'none';}
+    const pfEl = document.getElementById('cnc-pf-' + p.id); if (pfEl) pfEl.style.width = progress + '%';
+    const ppEl = document.getElementById('cnc-pp-' + p.id); if (ppEl) ppEl.textContent = progress + '%';
+    const ptEl = document.getElementById('cnc-eta-' + p.id); if (ptEl) ptEl.textContent = (remaining > 0 ? remaining + ' min' : '—');
+    const fnEl = document.getElementById('cnc-fn-' + p.id); if (fnEl) fnEl.textContent = s.subtask_name || '—';
+    const layEl = document.getElementById('cnc-lay-' + p.id); if (layEl) layEl.textContent = layer + '/' + totalLayer;
 
-    // ── Status Badge ──
-    const bdEl=document.getElementById('cnc-badge-'+p.id);
-    if(bdEl){bdEl.className=stateBadgeClass(state);bdEl.innerHTML=stateBadgeHtml(state);}
-
-    // ── Idle Panel Inhalt (Stage / HMS / Finish) ──
-    const idlEl2=document.getElementById('cnc-idle-'+p.id);
-    if(idlEl2){
-      const stage=s.stage;
-      const hms=Array.isArray(s.hms)&&s.hms.length?s.hms:null;
-      let html='';
-      if(state==='offline'){html='🔌 OFFLINE';}
-      else if(state==='FINISH'){html='<span style="color:#26a69a">✅ Druck abgeschlossen</span>';}
-      else if(state==='FAILED'){
-        html='<span style="color:var(--red)">❌ Druckfehler';
-        if(s.print_error&&s.print_error!==0)html+=' ('+s.print_error+')';
-        html+='</span>';
-      }
-      else if(state==='PAUSE'){
-        html='<span style="color:var(--orange)">⏸ PAUSIERT';
-        if(stage!=null&&stage!==0&&stage!==255)html+=' · '+stageName(stage);
-        html+='</span>';
-      }
-      else if(stage!=null&&stage!==0&&stage!==255&&stage!==-1){
-        html='<span class="stage-label">⚙ '+stageName(stage)+'…</span>';
-      }
-      if(hms){
-        hms.forEach(h=>{html+='<div class="hms-warn">⚠ '+( h.msg||h.code||JSON.stringify(h))+'</div>';});
-      }
-      idlEl2.innerHTML=html||'';
+    // ── Console / Events ──
+    const conEl = document.getElementById('console-' + p.id);
+    if (conEl && eventLog) {
+      const pEvents = eventLog.filter(e => e.printerId === p.id).slice(0, 10);
+      conEl.innerHTML = pEvents.map(e => `
+        <div style="margin-bottom: 4px; display: flex; gap: 6px;">
+          <span style="color: var(--text3); min-width: 40px;">${e.time}</span>
+          <span style="color: ${e.type==='error'?'var(--red)':e.type==='warning'?'var(--orange)':e.type==='success'?'var(--green)':'var(--text2)'}">${e.message}</span>
+        </div>
+      `).join('') || '<div style="color: var(--text3); font-style: italic;">Keine Events</div>';
     }
 
-    // ── Speed Buttons ──
-    [1,2,3,4].forEach(l=>{const el=document.getElementById(`cncspd-${p.id}-${l}`);if(el)el.className='cnc-spd-btn'+(speedLevel===l?' active':'');});
-
-    // ── CNC Status Bar ──
-    const stateEl=document.getElementById('csb-state');
-    if(stateEl){
-      const stateLabels={RUNNING:'DRUCKT',PAUSE:'PAUSIERT',FAILED:'FEHLER',FINISH:'FERTIG',IDLE:'BEREIT',offline:'OFFLINE'};
-      stateEl.textContent=stateLabels[state]||state;
-      stateEl.className='csb-val '+(state==='RUNNING'?'csb-running':state==='PAUSE'?'csb-pause':state==='FAILED'?'csb-error':'csb-idle');
-    }
-    const csbFile=document.getElementById('csb-file'); if(csbFile)csbFile.textContent=s.subtask_name||'—';
-    const csbPct=document.getElementById('csb-pct'); if(csbPct)csbPct.textContent=progress+'%';
-    const csbEta=document.getElementById('csb-eta');if(csbEta){if(remaining>0){const ft=new Date(Date.now()+remaining*60000).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});csbEta.textContent=remaining+' min · ⏰ '+ft;}else csbEta.textContent='—';}
-    const csbLay=document.getElementById('csb-layer'); if(csbLay)csbLay.textContent=layer+' / '+totalLayer;
-    const csbSpd=document.getElementById('csb-speed'); if(csbSpd)csbSpd.textContent=speedMag+'%';
+    // ── Badge & Speed ──
+    const badgeEl = document.getElementById('cnc-badge-' + p.id);
+    if (badgeEl) badgeEl.innerHTML = stateBadgeHtml(state);
+    
+    [1,2,3,4].forEach(l => {
+      const el = document.getElementById(`cncspd-${p.id}-${l}`);
+      if (el) el.className = 'spd-btn' + (s.spd_lvl === l ? ' active' : '');
+    });
 
     updateConnectionChip(state);
-
-    // ── Temperatur-Graph ──
     updateTempChart(p.id, nozzle, bed);
-
-    // ── Thumbnail aktualisieren ──
-    const thumbEl=document.getElementById('cnc-thumb-'+p.id);
-    if(thumbEl&&s.subtask_name&&thumbEl.dataset.file!==s.subtask_name){
-      thumbEl.dataset.file=s.subtask_name;
-      thumbEl.src=`/api/printers/${p.id}/files/${encodeURIComponent(s.subtask_name)}/thumbnail`;
-      thumbEl.style.display='';
-    }
-
-    // ── Home-Erkennung ──
-    const prevState = printerPrevState[p.id];
-    const prevFlag  = printerHomeFlags[p.id];
-    if(prevState && prevState !== 'IDLE' && state === 'IDLE' &&
-       prevFlag !== undefined && prevFlag !== s.home_flag) {
-      axisPos[p.id] = {x:0, y:0, z:0, homed:true};
-      toast('🏠 Homing abgeschlossen — X:0 Y:0 Z:0');
-    }
-    // ── Push-Benachrichtigung bei Druckende ──
-    if(prevState==='RUNNING'&&state==='FINISH') sendNotif('✅ Druck abgeschlossen!',`${p.name}${s.subtask_name?' · '+s.subtask_name:''}`);
-    else if(prevState==='RUNNING'&&state==='FAILED') sendNotif('❌ Druck fehlgeschlagen!',`${p.name}${s.subtask_name?' · '+s.subtask_name:''}`);
-
     printerPrevState[p.id] = state;
-    printerHomeFlags[p.id] = s.home_flag;
-
-    updatePosDisplay(p.id);
   });
 }
 
+function updateGauge(pid, type, val, target) {
+  const path = document.getElementById(`gauge-path-${pid}-${type}`);
+  const valEl = document.getElementById(`gauge-val-${pid}-${type}`);
+  const tgtEl = document.getElementById(`gauge-tgt-${pid}-${type}`);
+  if (!path || !valEl) return;
+
+  const max = type === 'nozzle' ? 300 : 100;
+  const pct = Math.min(100, (val / max) * 100);
+  const offset = 283 - (283 * pct) / 100;
+  
+  path.style.strokeDashoffset = offset;
+  valEl.textContent = Math.round(val) + '°';
+  if (tgtEl) tgtEl.textContent = '→ ' + target + '°C';
+  
+  // Color feedback
+  if (target > 0 && Math.abs(val - target) < 2) {
+    path.style.stroke = 'var(--green)';
+  } else {
+    path.style.stroke = type === 'nozzle' ? 'var(--red)' : 'var(--accent)';
+  }
+}
+
 function buildPrinterCard(p) {
-  const s=p.status||{}; const state=s.gcode_state||'offline';
-  const nozzle=s.nozzle_temper||0; const bed=s.bed_temper||0;
-  const progress=s.mc_percent||0; const remaining=s.mc_remaining_time||0;
-  const speedLevel=s.spd_lvl||2; const ams=cachedAms[p.id];
-  const nc=nozzle>150?'tv-hot':nozzle>50?'tv-warm':nozzle>0?'tv-cool':'tv-off';
-  const bc=bed>50?'tv-warm':bed>0?'tv-cool':'tv-off';
-  const speeds=[{l:1,n:'STILLE'},{l:2,n:'NORMAL'},{l:3,n:'SPORT'},{l:4,n:'TURBO'}];
-  const badgeHtml=`<span class="${stateBadgeClass(state)}">${stateBadgeHtml(state)}</span>`;
+  const s = p.status || {};
+  const state = s.gcode_state || 'offline';
+  const ams = cachedAms[p.id];
+  const progress = s.mc_percent || 0;
 
   return `
-  <!-- PRINTER HEADER -->
-  <div class="cnc-printer-header" id="pcard-${p.id}">
-    <div>
-      <div class="cph-name">🖨️ ${p.name} <span id="cnc-badge-${p.id}">${badgeHtml}</span></div>
-      <div class="cph-sub">${p.model} · ${p.ip} · ${p.serial}</div>
+  <div class="dashboard-container" id="pcard-${p.id}">
+    <!-- HEADER -->
+    <div class="area-header widget" style="padding: 10px 20px; flex-direction: row; align-items: center; justify-content: space-between;">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <div class="logo-mark" style="width: 36px; height: 36px;">🖨️</div>
+        <div>
+          <div style="font-size: 16px; font-weight: 700;">${p.name}</div>
+          <div style="font-size: 10px; color: var(--text3); font-family: var(--mono);">${p.model} · ${p.serial}</div>
+        </div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <div id="cnc-badge-${p.id}">${stateBadgeHtml(state)}</div>
+        <div class="status-pill">
+          <div class="sdot sdot-green"></div>
+          <span>LIVE</span>
+        </div>
+      </div>
     </div>
-  </div>
 
-  <!-- 3-COLUMN CNC PANEL -->
-  <div class="cnc-3col" style="margin-bottom:8px;">
-
-    <!-- ── LINKE SPALTE: TEMPS + LÜFTER + AMS ── -->
-    <div class="cnc-col">
-
-      <!-- TEMPERATUREN -->
-      <div class="cnc-panel">
-        <div class="cnc-panel-head"><span class="cnc-panel-title">Temperaturen</span></div>
-        <div class="cnc-panel-body" style="padding:8px;">
-          <div class="temp-ro" id="tb-nozzle-${p.id}" onclick="openTempModal(${p.id},'nozzle',${Math.round(nozzle)})">
-            <div class="tro-head"><span class="tro-label">Nozzle</span><span class="tro-edit">✏</span></div>
-            <div class="tro-val ${nc}" id="tro-val-n-${p.id}">${nozzle.toFixed(1)}°</div>
-            <div class="tro-sub">
-              <span class="tro-target" id="tro-tgt-n-${p.id}">→ ${s.nozzle_temper_target||0}°C</span>
-              <span class="tro-status" id="hl-nozzle-${p.id}" style="color:var(--text3)">—</span>
+    <!-- CAMERA -->
+    <div class="area-camera widget" style="padding: 0; overflow: hidden; height: 100%;">
+      <div class="widget-header" style="position: absolute; top: 12px; left: 12px; right: 12px; z-index: 10; pointer-events: none;">
+        <span class="widget-title" style="background: rgba(0,0,0,0.5); padding: 4px 8px; border-radius: 4px; backdrop-filter: blur(4px);">KAMERA</span>
+      </div>
+      <div style="position: relative; width: 100%; height: 100%; background: #000; min-height: 320px;">
+        <img src="/api/stream/mjpeg" alt="Kamera" style="width: 100%; height: 100%; object-fit: cover; display: block;">
+        
+        <!-- Camera Overlays -->
+        <div style="position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(transparent, rgba(0,0,0,0.8)); padding: 16px; pointer-events: none;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-end;">
+            <div>
+              <div style="font-size: 20px; font-weight: 800; color: var(--green); font-family: var(--mono); line-height: 1;" id="cnc-pp-${p.id}">${progress}%</div>
+              <div style="font-size: 10px; color: var(--text2); margin-top: 4px;" id="cnc-fn-${p.id}">${s.subtask_name || '—'}</div>
             </div>
-            <div class="tro-bar"><div class="tro-bar-fill ttf-nozzle" id="tro-bar-n-${p.id}" style="width:${Math.min(100,nozzle/3)}%"></div></div>
+            <div style="text-align: right;">
+              <div style="font-size: 10px; color: var(--text2); font-family: var(--mono);">ETA: <span id="cnc-eta-${p.id}">${s.mc_remaining_time || '—'} min</span></div>
+              <div style="font-size: 10px; color: var(--text2); font-family: var(--mono);">Layer: <span id="cnc-lay-${p.id}">${s.layer_num || 0}/${s.total_layer_num || 0}</span></div>
+            </div>
           </div>
-          <div class="temp-ro" id="tb-bed-${p.id}" onclick="openTempModal(${p.id},'bed',${Math.round(bed)})">
-            <div class="tro-head"><span class="tro-label">Bett</span><span class="tro-edit">✏</span></div>
-            <div class="tro-val ${bc}" id="tro-val-b-${p.id}">${bed.toFixed(1)}°</div>
-            <div class="tro-sub">
-              <span class="tro-target" id="tro-tgt-b-${p.id}">→ ${s.bed_target_temper||0}°C</span>
-              <span class="tro-status" id="hl-bed-${p.id}" style="color:var(--text3)">—</span>
-            </div>
-            <div class="tro-bar"><div class="tro-bar-fill ttf-bed" id="tro-bar-b-${p.id}" style="width:${Math.min(100,bed/1.2)}%"></div></div>
+          <div class="vp-pbar" style="margin-top: 8px; height: 3px; background: rgba(255,255,255,0.1);">
+            <div class="vp-pbar-fill" id="cnc-pf-${p.id}" style="width: ${progress}%; background: var(--green);"></div>
           </div>
         </div>
       </div>
+    </div>
 
-      <!-- LÜFTER -->
-      <div class="cnc-panel">
-        <div class="cnc-panel-head"><span class="cnc-panel-title">Lüfter</span></div>
-        <div class="cnc-panel-body" style="padding:8px;">
-          <div class="fan-ro">
-            <div class="fan-ro-head"><span class="fan-ro-lbl">Part Cooling</span><span class="fan-ro-val" id="fan-val-${p.id}">0%</span></div>
-            <div class="fan-ro-bar"><div class="fan-ro-fill" id="fan-bar-${p.id}" style="width:0%"></div></div>
-            <input type="range" class="fan-slider" style="margin-top:5px;" min="0" max="100" value="0"
-              oninput="document.getElementById('fan-val-${p.id}').textContent=this.value+'%';document.getElementById('fan-bar-${p.id}').style.width=this.value+'%'"
-              onchange="setFan(${p.id},parseInt(this.value),'part')">
-          </div>
-          <div class="fan-ro">
-            <div class="fan-ro-head"><span class="fan-ro-lbl">Aux Fan</span><span class="fan-ro-val" id="fan-val2-${p.id}">0%</span></div>
-            <div class="fan-ro-bar"><div class="fan-ro-fill" id="fan-bar2-${p.id}" style="width:0%"></div></div>
-            <input type="range" class="fan-slider" style="margin-top:5px;" min="0" max="100" value="0"
-              oninput="document.getElementById('fan-val2-${p.id}').textContent=this.value+'%';document.getElementById('fan-bar2-${p.id}').style.width=this.value+'%'"
-              onchange="setFan(${p.id},parseInt(this.value),'aux')">
-          </div>
-        </div>
+    <!-- AMS -->
+    <div class="area-ams widget">
+      <div class="widget-header">
+        <span class="widget-title">AMS / FILAMENT</span>
       </div>
-
-      <!-- AMS -->
       ${buildAmsHtml(ams, p.id)}
     </div>
 
-    <!-- ── MITTLERE SPALTE: KAMERA + PRINT STATUS + STEUERUNG ── -->
-    <div class="cnc-col">
-
-      <!-- KAMERA -->
-      <div class="cnc-panel">
-        <div class="cnc-panel-head">
-          <span class="cnc-panel-title">Kamera</span>
-          <div class="cnc-live-badge"><div class="cnc-live-dot"></div>LIVE</div>
-        </div>
-        <div class="cnc-viewport">
-          <img src="/api/stream/mjpeg" alt="Kamera" onerror="this.style.opacity='0.3'" style="width:100%;height:100%;object-fit:cover;display:block;">
-          <div class="cnc-vp-overlay">
-            <div></div>
-            <div>
-              <div id="cnc-prog-${p.id}" style="${state!=='RUNNING'?'display:none':''}">
-                <div class="cnc-vp-prog">
-                  <div class="print-pct" id="cnc-pp-${p.id}">${progress}%</div>
-                  <div style="font-size:10px;color:var(--text2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" id="cnc-fn-${p.id}">${s.subtask_name||'—'}</div>
-                  <img id="cnc-thumb-${p.id}" data-file="${s.subtask_name||''}" src="${s.subtask_name?`/api/printers/${p.id}/files/${encodeURIComponent(s.subtask_name)}/thumbnail`:''}" style="height:48px;width:auto;border-radius:2px;margin-top:4px;object-fit:cover;${!s.subtask_name?'display:none;':''}" onerror="this.style.display='none'" alt="">
-                  <div class="print-pbar-wrap" style="margin:5px 0 3px;">
-                    <div class="print-pbar-bg"><div class="print-pbar-fill" id="cnc-pf-${p.id}" style="width:${progress}%"></div></div>
-                  </div>
-                  <div style="display:flex;flex-wrap:wrap;gap:8px;font-size:10px;color:var(--text2);font-family:var(--mono);">
-                    <span>⏱ <span id="cnc-eta-${p.id}">${remaining?remaining+' min':'—'}</span></span>
-                    <span id="cnc-fin-wrap-${p.id}" ${!remaining?'style="display:none"':''}>⏰ <span id="cnc-fin-${p.id}">${remaining?new Date(Date.now()+remaining*60000).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}):''}</span></span>
-                    <span>Layer <span id="cnc-lay-${p.id}">${s.layer_num||0}/${s.total_layer_num||0}</span></span>
-                  </div>
-                </div>
-              </div>
-              <div id="cnc-idle-${p.id}" style="display:${state!=='RUNNING'?'flex':'none'};flex-direction:column;align-items:center;justify-content:center;padding:10px;gap:4px;font-size:11px;color:var(--text3);font-family:var(--mono);">
-                ${state==='offline'?'🔌 OFFLINE':state==='FINISH'?'<span style="color:#26a69a">✅ Druck abgeschlossen</span>':state==='FAILED'?'<span style="color:var(--red)">❌ Druckfehler</span>':state==='PAUSE'?'<span style="color:var(--orange)">⏸ PAUSIERT</span>':''}
-              </div>
-            </div>
-          </div>
+    <!-- STATUS / GAUGES -->
+    <div class="area-status widget">
+      <div class="widget-header">
+        <span class="widget-title">TELEMETRIE</span>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px;">
+        ${buildGaugeHtml(p.id, 'nozzle', 'NOZZLE')}
+        ${buildGaugeHtml(p.id, 'bed', 'BED')}
+      </div>
+      <div style="margin-top: 8px;">
+        <div class="fan-ctrl">
+          <div class="fan-ctrl-lbl" style="font-size: 9px;"><span>Bauteillüfter</span><span id="fan-val-${p.id}">0%</span></div>
+          <input type="range" class="fan-slider" min="0" max="100" value="0" onchange="setFan(${p.id}, parseInt(this.value), 'part')">
         </div>
       </div>
-
-      <!-- DRUCK STEUERUNG -->
-      <div class="cnc-panel">
-        <div class="cnc-panel-head"><span class="cnc-panel-title">Drucksteuerung</span></div>
-        <div class="cnc-panel-body" style="padding:8px;">
-          <div class="cnc-btn-grid">
-            ${state==='RUNNING'
-              ?`<button class="cnc-btn cnc-btn-pause" onclick="printerCmd(${p.id},'pause')"><span class="cnc-btn-icon">⏸</span><span class="cnc-btn-lbl">PAUSE</span></button>`
-              :`<button class="cnc-btn cnc-btn-resume" onclick="printerCmd(${p.id},'resume')"><span class="cnc-btn-icon">▶</span><span class="cnc-btn-lbl">START</span></button>`}
-            <button class="cnc-btn cnc-btn-stop" onclick="printerCmd(${p.id},'stop')"><span class="cnc-btn-icon">⏹</span><span class="cnc-btn-lbl">STOPP</span></button>
-            <button class="cnc-btn cnc-btn-light" onclick="setLight(${p.id},true)"><span class="cnc-btn-icon">💡</span><span class="cnc-btn-lbl">LICHT AN</span></button>
-            <button class="cnc-btn cnc-btn-light" onclick="setLight(${p.id},false)"><span class="cnc-btn-icon">🌑</span><span class="cnc-btn-lbl">LICHT AUS</span></button>
-            <button class="cnc-btn cnc-btn-load" onclick="filamentLoad(${p.id})"><span class="cnc-btn-icon">⬇</span><span class="cnc-btn-lbl">EINZIEHEN</span></button>
-            <button class="cnc-btn cnc-btn-unload" onclick="filamentUnload(${p.id})"><span class="cnc-btn-icon">⬆</span><span class="cnc-btn-lbl">AUSWERFEN</span></button>
-            <button class="cnc-btn cnc-btn-cooldown" onclick="cooldown(${p.id})" style="grid-column:span 2;"><span class="cnc-btn-icon">❄️</span><span class="cnc-btn-lbl">COOLDOWN</span></button>
-          </div>
-          <div class="cnc-sep">Geschwindigkeit</div>
-          <div class="cnc-spd-row">
-            ${speeds.map(sp=>`<button id="cncspd-${p.id}-${sp.l}" class="cnc-spd-btn${speedLevel===sp.l?' active':''}" onclick="setSpeed(${p.id},${sp.l})">${sp.n}</button>`).join('')}
-          </div>
-          <button class="cnc-btn cnc-btn-motor" style="width:100%;flex-direction:row;gap:8px;margin-top:6px;" onclick="motorsOff(${p.id})">
-            <span class="cnc-btn-icon" style="font-size:12px;">⚡</span><span class="cnc-btn-lbl" style="font-size:10px;">MOTOREN AUS</span>
-          </button>
-        </div>
-      </div>
-
     </div>
 
-    <!-- ── RECHTE SPALTE: DRO POSITION + ACHSENSTEUERUNG ── -->
-    <div class="cnc-col">
-
-      <!-- DRO POSITION -->
-      <div class="cnc-panel">
-        <div class="cnc-panel-head"><span class="cnc-panel-title">Position</span></div>
-        <div class="cnc-panel-body" style="padding:8px;">
-          <div class="dro-wrap">
-            <div class="dro-axis">
-              <span class="dro-lbl">X</span>
-              <span class="dro-val dro-unknown" id="dro-x-${p.id}">—</span>
-              <span class="dro-unit">mm</span>
-            </div>
-            <div class="dro-axis">
-              <span class="dro-lbl">Y</span>
-              <span class="dro-val dro-unknown" id="dro-y-${p.id}">—</span>
-              <span class="dro-unit">mm</span>
-            </div>
-            <div class="dro-axis">
-              <span class="dro-lbl">Z</span>
-              <span class="dro-val dro-unknown" id="dro-z-${p.id}">—</span>
-              <span class="dro-unit">mm</span>
-            </div>
-          </div>
-          <div class="pos-warn" id="pos-warn-${p.id}">⚠ Erst HOME ALL fahren!</div>
+    <!-- CONTROLS -->
+    <div class="area-controls widget">
+      <div class="widget-header">
+        <span class="widget-title">STEUERUNG</span>
+      </div>
+      <div class="cnc-btn-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+        ${state === 'RUNNING'
+          ? `<button class="cb cb-pause" onclick="printerCmd(${p.id}, 'pause')"><span class="cb-icon">⏸</span><span class="cb-lbl">PAUSE</span></button>`
+          : `<button class="cb cb-resume" onclick="printerCmd(${p.id}, 'resume')"><span class="cb-icon">▶</span><span class="cb-lbl">START</span></button>`}
+        <button class="cb cb-stop" onclick="printerCmd(${p.id}, 'stop')"><span class="cb-icon">⏹</span><span class="cb-lbl">STOPP</span></button>
+        <button class="cb cb-light" onclick="setLight(${p.id}, true)"><span class="cb-icon">💡</span><span class="cb-lbl">LICHT AN</span></button>
+        <button class="cb cb-light" onclick="setLight(${p.id}, false)"><span class="cb-icon">🌑</span><span class="cb-lbl">LICHT AUS</span></button>
+      </div>
+      <div style="margin-top: 12px;">
+        <div class="widget-title" style="margin-bottom: 8px; font-size: 9px;">GESCHWINDIGKEIT</div>
+        <div class="spd-row" style="display: flex; gap: 4px;">
+          <button class="spd-btn ${s.spd_lvl===1?'active':''}" onclick="setSpeed(${p.id},1)">Silent</button>
+          <button class="spd-btn ${s.spd_lvl===2?'active':''}" onclick="setSpeed(${p.id},2)">Normal</button>
+          <button class="spd-btn ${s.spd_lvl===3?'active':''}" onclick="setSpeed(${p.id},3)">Sport</button>
+          <button class="spd-btn ${s.spd_lvl===4?'active':''}" onclick="setSpeed(${p.id},4)">Turbo</button>
         </div>
       </div>
+    </div>
 
-      <!-- ACHSENSTEUERUNG -->
-      <div class="cnc-panel">
-        <div class="cnc-panel-head"><span class="cnc-panel-title">Achsensteuerung</span></div>
-        <div class="cnc-panel-body" style="padding:8px;">
-          <div class="axis-section">
-            <div class="axis-row-cnc">
-              <span class="axis-lbl-cnc">X</span>
-              <button class="ab-cnc" onclick="moveAxis(${p.id},'x',-10)">◄10</button>
-              <button class="ab-cnc" onclick="moveAxis(${p.id},'x',-5)">◄5</button>
-              <button class="ab-cnc" onclick="moveAxis(${p.id},'x',-1)">◄1</button>
-              <span class="ab-sep-cnc">mm</span>
-              <button class="ab-cnc" onclick="moveAxis(${p.id},'x',1)">1►</button>
-              <button class="ab-cnc" onclick="moveAxis(${p.id},'x',5)">5►</button>
-              <button class="ab-cnc" onclick="moveAxis(${p.id},'x',10)">10►</button>
-            </div>
-            <div class="axis-row-cnc">
-              <span class="axis-lbl-cnc">Y</span>
-              <button class="ab-cnc" onclick="moveAxis(${p.id},'y',-10)">▼10</button>
-              <button class="ab-cnc" onclick="moveAxis(${p.id},'y',-5)">▼5</button>
-              <button class="ab-cnc" onclick="moveAxis(${p.id},'y',-1)">▼1</button>
-              <span class="ab-sep-cnc">mm</span>
-              <button class="ab-cnc" onclick="moveAxis(${p.id},'y',1)">1▲</button>
-              <button class="ab-cnc" onclick="moveAxis(${p.id},'y',5)">5▲</button>
-              <button class="ab-cnc" onclick="moveAxis(${p.id},'y',10)">10▲</button>
-            </div>
-            <div class="axis-row-cnc">
-              <span class="axis-lbl-cnc">Z</span>
-              <button class="ab-cnc" onclick="moveAxis(${p.id},'z',-10)">▲10</button>
-              <button class="ab-cnc" onclick="moveAxis(${p.id},'z',-5)">▲5</button>
-              <button class="ab-cnc" onclick="moveAxis(${p.id},'z',-1)">▲1</button>
-              <span class="ab-sep-cnc">mm</span>
-              <button class="ab-cnc" onclick="moveAxis(${p.id},'z',1)">1▼</button>
-              <button class="ab-cnc" onclick="moveAxis(${p.id},'z',5)">5▼</button>
-              <button class="ab-cnc" onclick="moveAxis(${p.id},'z',10)">10▼</button>
-            </div>
+    <!-- CONSOLE -->
+    <div class="area-console widget" style="min-height: 200px;">
+      <div class="widget-header">
+        <span class="widget-title">CONSOLE</span>
+        <span style="font-size: 9px; color: var(--text3); font-family: var(--mono);">G-CODE LIVE</span>
+      </div>
+      <div id="console-${p.id}" style="flex: 1; background: rgba(0,0,0,0.3); border-radius: 4px; padding: 8px; font-family: var(--mono); font-size: 11px; color: var(--text2); overflow-y: auto; max-height: 240px; display: flex; flex-direction: column-reverse;">
+        <div style="color: var(--text3); font-style: italic;">Warte auf Daten...</div>
+      </div>
+      <div style="margin-top: 8px; display: flex; gap: 8px;">
+        <input type="text" id="console-input-${p.id}" placeholder="G-Code senden..." 
+               style="flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 6px 12px; color: var(--text); font-family: var(--mono); font-size: 12px;"
+               onkeyup="if(event.key==='Enter') sendGCode(${p.id})">
+        <button class="btn btn-primary" style="padding: 4px 12px; font-size: 11px;" onclick="sendGCode(${p.id})">SENDEN</button>
+      </div>
+    </div>
+  </div>
+  `;
+}
+
+function buildGaugeHtml(pid, type, label) {
+  const color = type === 'nozzle' ? 'var(--red)' : 'var(--accent)';
+  return `
+    <div class="gauge-container" onclick="openTempModal(${pid}, '${type}', 0)" style="cursor: pointer; text-align: center;">
+      <div style="position: relative; width: 80px; height: 80px; margin: 0 auto;">
+        <svg viewBox="0 0 100 100" style="transform: rotate(-90deg); width: 100%; height: 100%;">
+          <circle cx="50" cy="50" r="45" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="8" />
+          <circle id="gauge-path-${pid}-${type}" cx="50" cy="50" r="45" fill="none" stroke="${color}" stroke-width="8" 
+            stroke-dasharray="283" stroke-dashoffset="283" style="transition: stroke-dashoffset 0.5s ease; stroke-linecap: round;" />
+        </svg>
+        <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+          <div id="gauge-val-${pid}-${type}" style="font-size: 16px; font-weight: 700; font-family: var(--mono); line-height: 1;">0°</div>
+          <div style="font-size: 8px; color: var(--text3); margin-top: 2px;">${label}</div>
+        </div>
+      </div>
+      <div id="gauge-tgt-${pid}-${type}" style="font-size: 10px; color: var(--text3); font-family: var(--mono); margin-top: 4px;">→ 0°C</div>
+    </div>
+  `;
+}
             <div class="home-row-cnc">
               <button class="home-btn-cnc" onclick="homeAxes(${p.id},'all')">🏠 ALL</button>
               <button class="home-btn-cnc" onclick="homeAxes(${p.id},'x')">X</button>
@@ -654,7 +546,23 @@ function updateHeatStatus(pid,type,actual,target){
     if(bar){bar.style.width='100%';bar.style.background='var(--green)';}
   } else {label.style.color='var(--text3)';label.textContent='—';if(bar)bar.style.width='0%';}
 }
-async function motorsOff(pid){await api('/api/printers/'+pid+'/motors_off','POST');toast('⚡ Motoren aus');}
+async function sendGCode(pid) {
+  const input = document.getElementById(`console-input-${pid}`);
+  if (!input || !input.value.trim()) return;
+  const gcode = input.value.trim().toUpperCase();
+  input.value = '';
+  
+  try {
+    const res = await api(`/api/printers/${pid}/gcode`, 'POST', { gcode });
+    if (res.ok) {
+      toast(`G-Code gesendet: ${gcode}`);
+    } else {
+      toast(`Fehler: ${res.error || 'Unbekannt'}`, 'error');
+    }
+  } catch (e) {
+    toast(`Fehler beim Senden: ${e.message}`, 'error');
+  }
+}
 async function filamentLoad(pid){await api('/api/printers/'+pid+'/filament_load','POST');toast('⬇ Filament wird eingezogen...');}
 async function filamentUnload(pid){await api('/api/printers/'+pid+'/filament_unload','POST');toast('⬆ Filament wird ausgeworfen...');}
 async function cooldown(pid){
@@ -701,22 +609,49 @@ function toggleAmsDetail(detailId,trayJson,pid,ui,si){
   panel.innerHTML=`<div class="ams-drow"><span class="ams-dk">Quelle</span><span class="ams-dv">${src}</span></div><div class="ams-drow"><span class="ams-dk">Material</span><span class="ams-dv">${tray.type||'—'}</span></div><div class="ams-drow"><span class="ams-dk">Hersteller</span><span class="ams-dv">${tray.brand||'—'}</span></div><div class="ams-drow"><span class="ams-dk">Restmenge</span><span class="ams-dv">${tray.remain>=0?tray.remain+'%':'—'}</span></div><div class="ams-drow"><span class="ams-dk">Düse</span><span class="ams-dv">${tray.nozzle_min?tray.nozzle_min+'–'+(tray.nozzle_max||'?')+'°C':'—'}</span></div><div class="ams-dacts"><button class="btn btn-info btn-sm" onclick="openAmsAssign(${pid},${ui},${si},false)">✏️ Ändern</button><button class="btn btn-danger btn-sm" onclick="assignCtx={printerId:${pid},unitIdx:${ui},slotIdx:${si}};clearAmsSlot()">Leeren</button></div>`;
   panel.classList.add('open');
 }
-function buildAmsHtml(amsData,pid){
-  if(!amsData||!amsData.units||!amsData.units.length)return`<div class="ams-panel"><div class="ams-title">AMS FILAMENT</div><div style="font-size:11px;color:var(--text3);">Keine Daten</div></div>`;
-  let html=`<div class="ams-panel"><div class="ams-title">AMS FILAMENT <span style="font-size:9px;color:var(--text3);font-weight:400;">Slot anklicken zum Zuweisen</span></div>`;
-  amsData.units.forEach((unit,ui)=>{
-    const meta=[];if(unit.temp!==null&&unit.temp>-30)meta.push(unit.temp.toFixed(1)+'°C');if(unit.humidity!==null)meta.push('Hum '+unit.humidity+'/5');
-    if(amsData.units.length>1)html+=`<div style="font-size:10px;color:var(--text3);margin-bottom:5px;font-family:var(--mono);">AMS ${ui+1}${meta.length?' · '+meta.join(' · '):''}</div>`;
-    html+=`<div class="ams-slots">`;
-    unit.trays.forEach((tray,si)=>{
-      const isActive=ui===amsData.active_unit&&si===amsData.active_slot;
-      const did=`ams-detail-${pid}-${ui}-${si}`;
-      if(tray.empty){html+=`<div class="ams-slot empty" onclick="openAmsAssign(${pid},${ui},${si},true)"><div class="ams-dot" style="background:var(--surface3);"></div><div class="ams-num">S${si+1}</div><div class="ams-type" style="color:var(--blue);font-size:13px;">+</div></div>`;}
-      else{const rw=tray.remain>=0?tray.remain:0;const isManu=tray.source==='manual';const tj=JSON.stringify(tray).replace(/\\/g,'\\\\').replace(/"/g,'&quot;');html+=`<div class="ams-slot${isActive?' active':''}${isManu?' manual':''}" onclick="toggleAmsDetail('${did}','${tj}',${pid},${ui},${si})">${isActive?'<div class="ams-pip"></div>':''}${isManu?'<div class="ams-mbadge">M</div>':''}<div class="ams-dot" style="background:${tray.color||'var(--surface3)'};"></div><div class="ams-num">S${si+1}</div><div class="ams-type">${tray.type||'?'}</div><div class="ams-brand">${tray.brand||''}</div><div class="ams-rbar"><div class="ams-rfill" style="width:${rw}%;background:${rcol(tray.remain)};"></div></div></div>`;}
+function buildAmsHtml(amsData, pid) {
+  if (!amsData || !amsData.units || !amsData.units.length) {
+    return `<div style="font-size: 11px; color: var(--text3); padding: 20px; text-align: center; background: rgba(0,0,0,0.1); border-radius: 8px;">KEIN AMS GEFUNDEN</div>`;
+  }
+
+  let html = `<div style="display: flex; flex-direction: column; gap: 12px;">`;
+  amsData.units.forEach((unit, ui) => {
+    html += `
+      <div class="ams-unit" style="background: rgba(255,255,255,0.03); border-radius: 8px; padding: 10px;">
+        <div style="display: flex; justify-content: space-between; font-size: 9px; color: var(--text3); margin-bottom: 8px; font-family: var(--mono);">
+          <span>AMS ${ui + 1}</span>
+          <span>${unit.temp ? unit.temp.toFixed(1) + '°C' : ''} ${unit.humidity ? '· Hum ' + unit.humidity : ''}</span>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;">
+    `;
+
+    unit.trays.forEach((tray, si) => {
+      const isActive = ui === amsData.active_unit && si === amsData.active_slot;
+      const isEmpty = tray.empty;
+      const color = tray.color || 'transparent';
+      const type = tray.type || '—';
+      
+      html += `
+        <div class="ams-slot ${isActive ? 'active' : ''} ${isEmpty ? 'empty' : ''}" 
+             onclick="openAmsAssign(${pid}, ${ui}, ${si}, ${isEmpty})"
+             style="position: relative; aspect-ratio: 1; background: var(--surface2); border: 1px solid ${isActive ? 'var(--green)' : 'var(--border)'}; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: all 0.2s; cursor: pointer;">
+          ${isActive ? '<div style="position: absolute; top: 4px; right: 4px; width: 6px; height: 6px; background: var(--green); border-radius: 50%; box-shadow: 0 0 8px var(--green);"></div>' : ''}
+          <div style="width: 24px; height: 24px; background: ${color}; border-radius: 4px; border: 2px solid rgba(255,255,255,0.1); margin-bottom: 4px; box-shadow: 0 4px 8px rgba(0,0,0,0.3);"></div>
+          <div style="font-size: 9px; font-weight: 700; color: var(--text2); font-family: var(--mono);">${type}</div>
+          <div style="font-size: 7px; color: var(--text3); margin-top: 2px;">Slot ${si + 1}</div>
+          ${!isEmpty && tray.remain >= 0 ? `
+            <div style="position: absolute; bottom: 0; left: 0; right: 0; height: 3px; background: rgba(0,0,0,0.3); border-radius: 0 0 6px 6px; overflow: hidden;">
+              <div style="height: 100%; width: ${tray.remain}%; background: ${rcol(tray.remain)};"></div>
+            </div>
+          ` : ''}
+        </div>
+      `;
     });
-    html+=`</div>`;unit.trays.forEach((tray,si)=>{if(!tray.empty)html+=`<div class="ams-detail" id="ams-detail-${pid}-${ui}-${si}"></div>`;});
+
+    html += `</div></div>`;
   });
-  return html+`</div>`;
+
+  return html + `</div>`;
 }
 
 // ── STATS ─────────────────────────────────────
