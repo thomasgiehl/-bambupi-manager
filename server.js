@@ -480,6 +480,26 @@ setInterval(() => {
   }
 }, 25000);
 
+// ── SETUP ENDPOINTS ───────────────────────────
+app.get('/api/setup/status', (req, res) => {
+  res.json({ setup_required: !hasAdmin() });
+});
+
+app.post('/api/setup', (req, res) => {
+  if (hasAdmin()) return res.status(403).json({ error: 'Setup bereits abgeschlossen' });
+  const { username, password } = req.body;
+  if (!username || !password) return res.status(400).json({ error: 'Username und Passwort erforderlich' });
+  
+  const hash = bcrypt.hashSync(password, 10);
+  try {
+    db.prepare('INSERT INTO users (username, password_hash, is_admin) VALUES (?, ?, 1)').run(username, hash);
+    log.info({ username }, 'Admin Account erstellt');
+    res.json({ ok: true });
+  } catch (err) {
+    serverError(res, err, 'Fehler beim Erstellen des Admin Accounts');
+  }
+});
+
 // ── MACROS ────────────────────────────────────
 app.get('/api/macros', (req, res) => {
   res.json(db.prepare('SELECT * FROM macros ORDER BY name ASC').all());
